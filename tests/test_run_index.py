@@ -78,6 +78,18 @@ def test_append_and_read_run_index(tmp_path):
     assert "tags=smoke-test" in text
 
 
+def test_read_run_index_accepts_utf8_bom(tmp_path):
+    index_path = tmp_path / "run_index.jsonl"
+    index_path.write_text(
+        '\ufeff{"measurement_name": "bom_run", "measurement_type": "drain_iv"}\n',
+        encoding="utf-8",
+    )
+
+    records = read_run_index(index_path)
+
+    assert records[0]["measurement_name"] == "bom_run"
+
+
 def test_rebuild_run_index_from_metadata_files(tmp_path):
     raw_dir = tmp_path / "raw"
     run_b = raw_dir / "run-b"

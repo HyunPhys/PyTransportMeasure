@@ -17,6 +17,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   blocked.
 - [x] PySide6 GUI foundation supports plan preview and dry-run artifacts.
 - [x] GUI recipe builder foundation supports YAML edit, validation, and save.
+- [x] GUI run browser can load indexed runs and open artifacts.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] GUI hardware runs and form-based recipe builder are future milestones.
 
@@ -266,6 +267,9 @@ Use this checklist before pulse hardware work begins.
 - [ ] Open the generated run folder.
 - [ ] Open the generated plot.
 - [ ] Open the generated report.
+- [ ] Click `Refresh Runs` in the `Runs` tab.
+- [ ] Select an older indexed run.
+- [ ] Click `Load Selected` and confirm Summary, Metadata, and Report update.
 - [ ] Confirm no hardware output controls are exposed in this GUI phase.
 
 ## Development Checklist

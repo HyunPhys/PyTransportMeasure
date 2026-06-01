@@ -128,6 +128,11 @@ This roadmap tracks the large development phases. Completed items are checked.
   - schema validation using existing Pydantic recipe models
   - validated save-as workflow
   - prevent GUI-only measurement logic
+- [x] Phase 24c: GUI run browser
+  - load indexed runs
+  - inspect saved run summary/metadata/report
+  - open saved run folder, plot, and report
+  - tolerate UTF-8 BOMs in `data/run_index.jsonl`
 
 ## Next GUI
 

@@ -15,12 +15,13 @@ from typing import Any, Literal
 import yaml
 
 from .ac_lockin import run_ac_lockin_sweep
+from .inspect import read_run_metadata
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .method_registry import handler_for_measurement_type
 from .pulse import run_pulse_measurement
 from .quality import evaluate_run_quality, quality_report_to_dict
 from .recipes import load_named_safety_preset
-from .run_index import append_run_index
+from .run_index import append_run_index, read_run_index
 from .runner import run_drain_iv
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import write_single_gate_stats_csv
@@ -218,6 +219,49 @@ def run_gui_dry_run(
         quality_text=format_gui_quality(quality_report),
         artifact_paths=artifact_paths,
     )
+
+
+def list_gui_runs(index_path: str | Path = "data/run_index.jsonl", limit: int = 100) -> list[dict[str, Any]]:
+    records = read_run_index(index_path)
+    return list(reversed(records[-limit:]))
+
+
+def load_gui_saved_run(run_dir: str | Path) -> GuiRunResult:
+    metadata = read_run_metadata(run_dir)
+    handler = handler_for_measurement_type(str(metadata.get("measurement_type") or "drain_iv"))
+    summary_text = ""
+    if Path(run_dir, "points.csv").exists():
+        summary_text = handler.format_summary(handler.summarize(run_dir))
+    quality = metadata.get("quality") or {}
+    quality_text = f"Quality: {quality.get('status') or 'n/a'}"
+    for result in quality.get("results") or []:
+        mark = "PASS" if result.get("passed") else "FAIL"
+        quality_text += f"\n- {result.get('name')}: {mark} ({result.get('message')})"
+    return GuiRunResult(
+        metadata=metadata,
+        summary_text=summary_text,
+        quality_text=quality_text,
+        artifact_paths=artifact_paths_from_metadata(metadata),
+    )
+
+
+def artifact_paths_from_metadata(metadata: dict[str, Any]) -> dict[str, str]:
+    paths = {}
+    for key in [
+        "plot_path",
+        "report_path",
+        "single_gate_heatmap_path",
+        "single_gate_report_path",
+        "single_gate_stats_path",
+        "ac_lockin_plot_path",
+        "ac_lockin_report_path",
+        "pulse_plot_path",
+        "pulse_report_path",
+    ]:
+        value = metadata.get(key)
+        if value:
+            paths[key] = str(value)
+    return paths
 
 
 def path_metadata_key(filename: str) -> str:

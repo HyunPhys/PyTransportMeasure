@@ -345,7 +345,7 @@ ptm-gui
 
 The current GUI phase supports method selection, recipe selection, YAML recipe
 editing, schema validation, saving edited recipes, plan preview, dry-run
-execution, summary, metadata, report preview, recent run listing, and opening
+execution, summary, metadata, report preview, indexed run browsing, and opening
 generated run artifacts.
 
 Recipe editing workflow:
@@ -355,6 +355,14 @@ Recipe editing workflow:
 3. Click `Validate YAML`.
 4. Click `Save Recipe`.
 5. Use the saved recipe for `Plan` and `Dry Run`.
+
+Run browsing workflow:
+
+1. Open the `Runs` tab.
+2. Click `Refresh Runs`.
+3. Select a saved run.
+4. Click `Load Selected`.
+5. Use `Run Folder`, `Plot`, or `Report` to open artifacts.
 
 Hardware runs are intentionally not exposed in the GUI yet. The GUI calls the
 same core recipe, runner, safety, method registry, quality, and artifact APIs as

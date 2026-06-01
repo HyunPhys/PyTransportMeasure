@@ -78,7 +78,7 @@ def read_run_index(index_path: str | Path = DEFAULT_INDEX_PATH) -> list[dict[str
     if not path.exists():
         return []
     records = []
-    with path.open("r", encoding="utf-8") as handle:
+    with path.open("r", encoding="utf-8-sig") as handle:
         for line in handle:
             line = line.strip()
             if not line:

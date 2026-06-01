@@ -5,6 +5,8 @@ from pytransport.gui_services import (
     available_gui_methods,
     default_recipe_text,
     format_gui_plan,
+    list_gui_runs,
+    load_gui_saved_run,
     save_recipe_text,
     validate_recipe_text,
     run_gui_dry_run,
@@ -141,3 +143,56 @@ checks:
     assert Path(result.metadata["pulse_plot_path"]).exists()
     assert Path(result.metadata["pulse_report_path"]).exists()
     assert "Pulse run:" in result.summary_text
+
+
+def test_gui_run_browser_lists_and_loads_indexed_runs(tmp_path):
+    recipe_path = tmp_path / "pulse.yaml"
+    recipe_path.write_text(
+        """
+measurement_name: gui_browser_pulse
+safety_preset: nano_device_safe
+experiment:
+  sample_id: gui
+  device_id: browser
+source_instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-6
+pulse:
+  base_v: 0.0
+  amplitude_v: 0.1
+  width_s: 0.001
+  period_s: 0.01
+  count: 5
+  current_compliance_a: 1.0e-6
+  acquisition: pulse_end
+pulse_limits:
+  max_abs_pulse_v: 0.2
+  max_pulse_width_s: 0.01
+  max_duty_cycle: 0.2
+  max_pulse_count: 100
+  max_total_on_time_s: 0.1
+output:
+  directory: {output}
+checks:
+  require_completed: true
+  min_points: 5
+""".format(output=str(tmp_path).replace("\\", "/")),
+        encoding="utf-8",
+    )
+    index_path = tmp_path / "index.jsonl"
+    result = run_gui_dry_run(
+        "pulse_measurement",
+        recipe_path,
+        fake=GuiFakeSettings(resistance_ohm=1_000_000, noise_std_a=0),
+        index_path=index_path,
+    )
+
+    records = list_gui_runs(index_path)
+    loaded = load_gui_saved_run(result.run_dir)
+
+    assert records[0]["measurement_name"] == "gui_browser_pulse"
+    assert loaded.metadata["measurement_name"] == "gui_browser_pulse"
+    assert "Pulse run:" in loaded.summary_text
+    assert "Quality: PASS" in loaded.quality_text

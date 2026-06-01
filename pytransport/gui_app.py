@@ -12,6 +12,8 @@ from .gui_services import (
     available_gui_methods,
     default_recipe_text,
     format_gui_plan,
+    list_gui_runs,
+    load_gui_saved_run,
     load_recipe_text,
     run_gui_dry_run,
     save_recipe_text,
@@ -135,9 +137,14 @@ class MainWindow(QMainWindow):
         self.open_plot_button.clicked.connect(self.open_plot)
         self.open_report_button = QPushButton("Report")
         self.open_report_button.clicked.connect(self.open_report)
+        self.refresh_runs_button = QPushButton("Refresh Runs")
+        self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
+        self.load_run_button = QPushButton("Load Selected")
+        self.load_run_button.clicked.connect(self.load_selected_run)
         self.open_run_button.setEnabled(False)
         self.open_plot_button.setEnabled(False)
         self.open_report_button.setEnabled(False)
+        self.load_run_button.setEnabled(False)
 
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -153,9 +160,10 @@ class MainWindow(QMainWindow):
         self.metadata_text.setReadOnly(True)
         self.report_text = QPlainTextEdit()
         self.report_text.setReadOnly(True)
-        self.recent_table = QTableWidget(0, 5)
-        self.recent_table.setHorizontalHeaderLabels(["Method", "Name", "Completed", "Points", "Run folder"])
+        self.recent_table = QTableWidget(0, 6)
+        self.recent_table.setHorizontalHeaderLabels(["Started", "Method", "Name", "Completed", "Points", "Run folder"])
         self.recent_table.horizontalHeader().setStretchLastSection(True)
+        self.recent_table.itemSelectionChanged.connect(self.update_selected_run_controls)
 
         tabs = QTabWidget()
         tabs.addTab(self.plan_text, "Plan")
@@ -208,6 +216,8 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.validate_editor_button)
         button_row.addWidget(self.save_editor_button)
         button_row.addStretch(1)
+        button_row.addWidget(self.refresh_runs_button)
+        button_row.addWidget(self.load_run_button)
         button_row.addWidget(self.open_run_button)
         button_row.addWidget(self.open_plot_button)
         button_row.addWidget(self.open_report_button)
@@ -321,13 +331,17 @@ class MainWindow(QMainWindow):
         self.worker.start()
 
     def handle_result(self, result) -> None:
+        self.display_result(result, add_to_table=True)
+
+    def display_result(self, result, add_to_table: bool) -> None:
         self.last_result = result
         self.summary_text.setPlainText("\n".join(part for part in [result.summary_text, result.quality_text] if part))
         self.metadata_text.setPlainText(read_text(Path(result.metadata["metadata_path"])))
         report_path = self.report_path()
         if report_path and report_path.exists():
             self.report_text.setPlainText(read_text(report_path))
-        self.add_recent_run(result)
+        if add_to_table:
+            self.add_recent_run(result)
         self.open_run_button.setEnabled(True)
         self.open_plot_button.setEnabled(self.plot_path() is not None)
         self.open_report_button.setEnabled(self.report_path() is not None)
@@ -346,6 +360,7 @@ class MainWindow(QMainWindow):
         row = self.recent_table.rowCount()
         self.recent_table.insertRow(row)
         values = [
+            result.metadata.get("started_at"),
             result.metadata.get("measurement_type"),
             result.metadata.get("measurement_name"),
             result.metadata.get("completed"),
@@ -354,6 +369,52 @@ class MainWindow(QMainWindow):
         ]
         for column, value in enumerate(values):
             self.recent_table.setItem(row, column, QTableWidgetItem(str(value)))
+
+    def refresh_indexed_runs(self) -> None:
+        try:
+            records = list_gui_runs()
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.recent_table.setRowCount(0)
+        for record in records:
+            row = self.recent_table.rowCount()
+            self.recent_table.insertRow(row)
+            values = [
+                record.get("started_at"),
+                record.get("measurement_type"),
+                record.get("measurement_name"),
+                record.get("completed"),
+                record.get("points_written"),
+                record.get("run_dir"),
+            ]
+            for column, value in enumerate(values):
+                self.recent_table.setItem(row, column, QTableWidgetItem(str(value)))
+        self.status_label.setText(f"Loaded {len(records)} indexed runs")
+
+    def selected_run_dir(self) -> Path | None:
+        selected = self.recent_table.selectedItems()
+        if not selected:
+            return None
+        row = selected[0].row()
+        item = self.recent_table.item(row, 5)
+        if item is None or not item.text():
+            return None
+        return Path(item.text())
+
+    def update_selected_run_controls(self) -> None:
+        self.load_run_button.setEnabled(self.selected_run_dir() is not None)
+
+    def load_selected_run(self) -> None:
+        run_dir = self.selected_run_dir()
+        if run_dir is None:
+            return
+        try:
+            result = load_gui_saved_run(run_dir)
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.display_result(result, add_to_table=False)
 
     def plot_path(self) -> Path | None:
         if self.last_result is None:
