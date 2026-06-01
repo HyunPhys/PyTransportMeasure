@@ -402,8 +402,27 @@ def open_path(path: Path) -> None:
 
 
 APP_STYLESHEET = """
+* {
+  color: #111827;
+  selection-background-color: #2563eb;
+  selection-color: #ffffff;
+}
 QMainWindow {
   background: #f5f7fb;
+}
+QWidget {
+  background: #f5f7fb;
+}
+QMenuBar, QMenu {
+  background: #ffffff;
+  color: #111827;
+}
+QMenuBar::item:selected, QMenu::item:selected {
+  background: #e5e7eb;
+}
+QLabel {
+  color: #111827;
+  background: transparent;
 }
 QGroupBox {
   border: 1px solid #cbd5e1;
@@ -411,24 +430,69 @@ QGroupBox {
   margin-top: 10px;
   padding: 10px;
   background: #ffffff;
+  color: #111827;
 }
 QGroupBox::title {
   subcontrol-origin: margin;
   left: 10px;
   padding: 0 4px;
+  color: #374151;
+  background: #ffffff;
 }
 QPushButton {
   min-height: 28px;
   padding: 4px 12px;
+  border: 1px solid #9ca3af;
+  border-radius: 5px;
+  background: #f3f4f6;
+  color: #111827;
+}
+QPushButton:hover {
+  background: #e5e7eb;
+}
+QPushButton:pressed {
+  background: #d1d5db;
+}
+QPushButton:disabled {
+  color: #9ca3af;
+  background: #f9fafb;
+  border-color: #d1d5db;
 }
 QPlainTextEdit, QTableWidget {
   border: 1px solid #cbd5e1;
   background: #ffffff;
+  color: #111827;
   font-family: Consolas, monospace;
   font-size: 10pt;
 }
 QLineEdit, QComboBox, QSpinBox {
   min-height: 26px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #111827;
+  padding: 2px 6px;
+}
+QTabWidget::pane {
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+}
+QTabBar::tab {
+  background: #e5e7eb;
+  color: #111827;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-bottom: none;
+}
+QTabBar::tab:selected {
+  background: #ffffff;
+  color: #111827;
+}
+QHeaderView::section {
+  background: #f3f4f6;
+  color: #111827;
+  border: 1px solid #d1d5db;
+  padding: 4px;
 }
 """
 
