@@ -54,6 +54,34 @@ class GuiRunResult:
         return Path(str(self.metadata["run_dir"]))
 
 
+DRAIN_IV_FORM_FIELDS = [
+    "measurement_name",
+    "sample_id",
+    "device_id",
+    "operator",
+    "notes",
+    "tags",
+    "instrument_id",
+    "address",
+    "timeout_ms",
+    "terminal",
+    "voltage_range_v",
+    "current_range_a",
+    "sweep_mode",
+    "start_v",
+    "stop_v",
+    "points",
+    "delay_s",
+    "current_compliance_a",
+    "safety_preset",
+    "output_directory",
+    "require_completed",
+    "min_points",
+    "resistance_min_ohm",
+    "resistance_max_ohm",
+]
+
+
 def available_gui_methods() -> dict[str, str]:
     return {
         "drain_iv": "Drain I-V",
@@ -113,6 +141,148 @@ def save_recipe_text(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text, encoding="utf-8")
     return output
+
+
+def drain_iv_form_from_text(text: str) -> dict[str, str]:
+    data = yaml.safe_load(text)
+    if not isinstance(data, dict):
+        raise ValueError("recipe YAML must contain a mapping")
+    recipe = recipe_from_mapping("drain_iv", data)
+    checks = recipe.checks
+    resistance_check = checks.fitted_resistance_ohm if checks else None
+    return {
+        "measurement_name": recipe.measurement_name,
+        "sample_id": recipe.experiment.sample_id or "",
+        "device_id": recipe.experiment.device_id or "",
+        "operator": recipe.experiment.operator or "",
+        "notes": recipe.experiment.notes or "",
+        "tags": ", ".join(recipe.experiment.tags),
+        "instrument_id": recipe.instrument.id,
+        "address": recipe.instrument.address,
+        "timeout_ms": str(recipe.instrument.timeout_ms),
+        "terminal": recipe.instrument.terminal or "",
+        "voltage_range_v": _optional_float_text(recipe.instrument.voltage_range_v),
+        "current_range_a": _optional_float_text(recipe.instrument.current_range_a),
+        "sweep_mode": recipe.sweep.mode,
+        "start_v": _optional_float_text(recipe.sweep.start_v),
+        "stop_v": _optional_float_text(recipe.sweep.stop_v),
+        "points": "" if recipe.sweep.points is None else str(recipe.sweep.points),
+        "delay_s": str(recipe.sweep.delay_s),
+        "current_compliance_a": str(recipe.sweep.current_compliance_a),
+        "safety_preset": recipe.safety_preset,
+        "output_directory": str(recipe.output.directory),
+        "require_completed": str(checks.require_completed if checks else True).lower(),
+        "min_points": "" if checks is None or checks.min_points is None else str(checks.min_points),
+        "resistance_min_ohm": "" if resistance_check is None else _optional_float_text(resistance_check.min_ohm),
+        "resistance_max_ohm": "" if resistance_check is None else _optional_float_text(resistance_check.max_ohm),
+    }
+
+
+def drain_iv_text_from_form(values: dict[str, str]) -> str:
+    sweep_mode = (values.get("sweep_mode") or "linear_one_way").strip()
+    recipe_data: dict[str, Any] = {
+        "measurement_name": _required_text(values, "measurement_name"),
+        "safety_preset": _required_text(values, "safety_preset"),
+        "experiment": {
+            "sample_id": _optional_text(values.get("sample_id")),
+            "device_id": _optional_text(values.get("device_id")),
+            "operator": _optional_text(values.get("operator")),
+            "notes": _optional_text(values.get("notes")),
+            "tags": _split_tags(values.get("tags", "")),
+        },
+        "instrument": {
+            "id": values.get("instrument_id", "keithley_2450").strip() or "keithley_2450",
+            "address": _required_text(values, "address"),
+            "timeout_ms": _required_int(values, "timeout_ms"),
+            "terminal": _optional_text(values.get("terminal")),
+            "voltage_range_v": _optional_float(values.get("voltage_range_v")),
+            "current_range_a": _optional_float(values.get("current_range_a")),
+        },
+        "sweep": {
+            "mode": sweep_mode,
+            "start_v": _required_float(values, "start_v"),
+            "stop_v": _required_float(values, "stop_v"),
+            "points": _required_int(values, "points"),
+            "delay_s": _required_float(values, "delay_s"),
+            "current_compliance_a": _required_float(values, "current_compliance_a"),
+        },
+        "output": {
+            "directory": _required_text(values, "output_directory"),
+        },
+    }
+    checks = _checks_from_form(values)
+    if checks:
+        recipe_data["checks"] = checks
+    recipe = recipe_from_mapping("drain_iv", recipe_data)
+    return yaml.safe_dump(recipe.model_dump(mode="json", exclude_none=True), sort_keys=False)
+
+
+def _checks_from_form(values: dict[str, str]) -> dict[str, Any] | None:
+    checks: dict[str, Any] = {"require_completed": _bool_from_text(values.get("require_completed", "true"))}
+    min_points = _optional_int(values.get("min_points"))
+    if min_points is not None:
+        checks["min_points"] = min_points
+    resistance_min = _optional_float(values.get("resistance_min_ohm"))
+    resistance_max = _optional_float(values.get("resistance_max_ohm"))
+    if resistance_min is not None or resistance_max is not None:
+        checks["fitted_resistance_ohm"] = {
+            "min_ohm": resistance_min,
+            "max_ohm": resistance_max,
+        }
+    return checks
+
+
+def _required_text(values: dict[str, str], key: str) -> str:
+    value = values.get(key, "").strip()
+    if not value:
+        raise ValueError(f"{key} is required")
+    return value
+
+
+def _optional_text(value: str | None) -> str | None:
+    value = (value or "").strip()
+    return value or None
+
+
+def _required_float(values: dict[str, str], key: str) -> float:
+    value = _optional_float(values.get(key))
+    if value is None:
+        raise ValueError(f"{key} is required")
+    return value
+
+
+def _optional_float(value: str | None) -> float | None:
+    text = (value or "").strip()
+    return None if not text else float(text)
+
+
+def _optional_float_text(value: float | None) -> str:
+    return "" if value is None else f"{value:g}"
+
+
+def _required_int(values: dict[str, str], key: str) -> int:
+    value = _optional_int(values.get(key))
+    if value is None:
+        raise ValueError(f"{key} is required")
+    return value
+
+
+def _optional_int(value: str | None) -> int | None:
+    text = (value or "").strip()
+    return None if not text else int(text)
+
+
+def _bool_from_text(value: str) -> bool:
+    text = value.strip().lower()
+    if text in {"true", "1", "yes", "y"}:
+        return True
+    if text in {"false", "0", "no", "n"}:
+        return False
+    raise ValueError("require_completed must be true or false")
+
+
+def _split_tags(value: str) -> list[str]:
+    return [tag.strip() for tag in value.split(",") if tag.strip()]
 
 
 def recipe_from_mapping(measurement_type: GuiMethod, data: dict[str, Any]) -> Any:

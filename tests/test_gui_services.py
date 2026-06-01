@@ -1,9 +1,13 @@
 from pathlib import Path
 
+import pytest
+
 from pytransport.gui_services import (
     GuiFakeSettings,
     available_gui_methods,
     default_recipe_text,
+    drain_iv_form_from_text,
+    drain_iv_text_from_form,
     format_gui_plan,
     list_gui_runs,
     load_gui_saved_run,
@@ -213,3 +217,32 @@ def test_gui_primary_artifact_paths_use_existing_files(tmp_path):
 
     assert primary_plot_path(metadata) == plot
     assert primary_report_path(metadata) == report
+
+
+def test_drain_iv_form_round_trip_from_default_recipe():
+    text = Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8")
+    values = drain_iv_form_from_text(text)
+
+    assert values["measurement_name"] == "drain_iv_1k_resistor_check"
+    assert values["address"] == "GPIB0::2::INSTR"
+    assert values["sweep_mode"] == "linear_one_way"
+    assert values["points"] == "21"
+    assert values["resistance_min_ohm"] == "900"
+
+    values["measurement_name"] = "gui_form_round_trip"
+    values["points"] = "11"
+    updated = drain_iv_text_from_form(values)
+    round_trip = drain_iv_form_from_text(updated)
+
+    assert round_trip["measurement_name"] == "gui_form_round_trip"
+    assert round_trip["points"] == "11"
+    assert round_trip["current_compliance_a"] == "0.0002"
+
+
+def test_drain_iv_form_rejects_missing_required_field():
+    text = Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8")
+    values = drain_iv_form_from_text(text)
+    values["address"] = ""
+
+    with pytest.raises(ValueError, match="address is required"):
+        drain_iv_text_from_form(values)

@@ -137,6 +137,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - choose primary plot artifact from saved metadata
   - render SVG plots in-app
   - keep external artifact opening available
+- [x] Phase 24e: GUI Drain I-V form builder
+  - edit common Drain I-V fields in a structured form
+  - convert form values into validated YAML
+  - keep advanced recipes editable through YAML
 
 ## Next GUI
 
