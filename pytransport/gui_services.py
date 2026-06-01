@@ -264,6 +264,28 @@ def artifact_paths_from_metadata(metadata: dict[str, Any]) -> dict[str, str]:
     return paths
 
 
+def primary_plot_path(metadata: dict[str, Any]) -> Path | None:
+    return primary_existing_path(
+        metadata,
+        ["plot_path", "single_gate_heatmap_path", "ac_lockin_plot_path", "pulse_plot_path"],
+    )
+
+
+def primary_report_path(metadata: dict[str, Any]) -> Path | None:
+    return primary_existing_path(
+        metadata,
+        ["report_path", "single_gate_report_path", "ac_lockin_report_path", "pulse_report_path"],
+    )
+
+
+def primary_existing_path(metadata: dict[str, Any], keys: list[str]) -> Path | None:
+    for key in keys:
+        value = metadata.get(key)
+        if value and Path(value).exists():
+            return Path(value)
+    return None
+
+
 def path_metadata_key(filename: str) -> str:
     return {
         "iv_plot.svg": "plot_path",

@@ -7,6 +7,8 @@ from pytransport.gui_services import (
     format_gui_plan,
     list_gui_runs,
     load_gui_saved_run,
+    primary_plot_path,
+    primary_report_path,
     save_recipe_text,
     validate_recipe_text,
     run_gui_dry_run,
@@ -196,3 +198,18 @@ checks:
     assert loaded.metadata["measurement_name"] == "gui_browser_pulse"
     assert "Pulse run:" in loaded.summary_text
     assert "Quality: PASS" in loaded.quality_text
+
+
+def test_gui_primary_artifact_paths_use_existing_files(tmp_path):
+    plot = tmp_path / "plot.svg"
+    report = tmp_path / "report.md"
+    plot.write_text("<svg></svg>", encoding="utf-8")
+    report.write_text("# report\n", encoding="utf-8")
+    metadata = {
+        "plot_path": str(tmp_path / "missing.svg"),
+        "pulse_plot_path": str(plot),
+        "report_path": str(report),
+    }
+
+    assert primary_plot_path(metadata) == plot
+    assert primary_report_path(metadata) == report

@@ -133,6 +133,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - inspect saved run summary/metadata/report
   - open saved run folder, plot, and report
   - tolerate UTF-8 BOMs in `data/run_index.jsonl`
+- [x] Phase 24d: GUI plot preview
+  - choose primary plot artifact from saved metadata
+  - render SVG plots in-app
+  - keep external artifact opening available
 
 ## Next GUI
 

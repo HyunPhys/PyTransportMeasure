@@ -15,6 +15,8 @@ from .gui_services import (
     list_gui_runs,
     load_gui_saved_run,
     load_recipe_text,
+    primary_plot_path,
+    primary_report_path,
     run_gui_dry_run,
     save_recipe_text,
     validate_recipe_text,
@@ -24,6 +26,7 @@ from .gui_services import (
 try:
     from PySide6.QtCore import QThread, Signal, Qt
     from PySide6.QtGui import QAction, QDesktopServices
+    from PySide6.QtSvgWidgets import QSvgWidget
     from PySide6.QtWidgets import (
         QApplication,
         QComboBox,
@@ -38,6 +41,7 @@ try:
         QMessageBox,
         QPushButton,
         QPlainTextEdit,
+        QScrollArea,
         QSpinBox,
         QTabWidget,
         QTableWidget,
@@ -61,8 +65,9 @@ except ModuleNotFoundError:  # pragma: no cover - exercised manually.
     Signal = lambda *_args, **_kwargs: _MissingSignal()  # type: ignore[assignment]
     Qt = _MissingQt()  # type: ignore[assignment]
     QAction = QDesktopServices = None  # type: ignore[assignment]
-    QApplication = QComboBox = QFileDialog = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QPlainTextEdit = QSpinBox = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None  # type: ignore[assignment]
+    QApplication = QComboBox = QFileDialog = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QPlainTextEdit = QScrollArea = QSpinBox = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None  # type: ignore[assignment]
     QMainWindow = object  # type: ignore[assignment]
+    QSvgWidget = None  # type: ignore[assignment]
 
 
 DEFAULT_RECIPES = {
@@ -160,6 +165,12 @@ class MainWindow(QMainWindow):
         self.metadata_text.setReadOnly(True)
         self.report_text = QPlainTextEdit()
         self.report_text.setReadOnly(True)
+        self.plot_widget = QSvgWidget()
+        self.plot_widget.setMinimumSize(760, 480)
+        self.plot_scroll = QScrollArea()
+        self.plot_scroll.setWidgetResizable(True)
+        self.plot_scroll.setWidget(self.plot_widget)
+        self.plot_status = QLabel("No plot loaded")
         self.recent_table = QTableWidget(0, 6)
         self.recent_table.setHorizontalHeaderLabels(["Started", "Method", "Name", "Completed", "Points", "Run folder"])
         self.recent_table.horizontalHeader().setStretchLastSection(True)
@@ -170,6 +181,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.editor_text, "Recipe YAML")
         tabs.addTab(self.validation_text, "Validation")
         tabs.addTab(self.summary_text, "Summary")
+        tabs.addTab(self.build_plot_preview(), "Plot Preview")
         tabs.addTab(self.metadata_text, "Metadata")
         tabs.addTab(self.report_text, "Report")
         tabs.addTab(self.recent_table, "Runs")
@@ -223,6 +235,13 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.open_report_button)
         layout.addLayout(button_row, 2, 0, 1, 8)
         return box
+
+    def build_plot_preview(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.addWidget(self.plot_status)
+        layout.addWidget(self.plot_scroll, stretch=1)
+        return container
 
     def build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("File")
@@ -340,6 +359,7 @@ class MainWindow(QMainWindow):
         report_path = self.report_path()
         if report_path and report_path.exists():
             self.report_text.setPlainText(read_text(report_path))
+        self.update_plot_preview()
         if add_to_table:
             self.add_recent_run(result)
         self.open_run_button.setEnabled(True)
@@ -419,22 +439,21 @@ class MainWindow(QMainWindow):
     def plot_path(self) -> Path | None:
         if self.last_result is None:
             return None
-        metadata = self.last_result.metadata
-        for key in ["plot_path", "single_gate_heatmap_path", "ac_lockin_plot_path", "pulse_plot_path"]:
-            value = metadata.get(key)
-            if value and Path(value).exists():
-                return Path(value)
-        return None
+        return primary_plot_path(self.last_result.metadata)
 
     def report_path(self) -> Path | None:
         if self.last_result is None:
             return None
-        metadata = self.last_result.metadata
-        for key in ["report_path", "single_gate_report_path", "ac_lockin_report_path", "pulse_report_path"]:
-            value = metadata.get(key)
-            if value and Path(value).exists():
-                return Path(value)
-        return None
+        return primary_report_path(self.last_result.metadata)
+
+    def update_plot_preview(self) -> None:
+        path = self.plot_path()
+        if path is None:
+            self.plot_status.setText("No plot artifact found")
+            self.plot_widget.load(b"")
+            return
+        self.plot_widget.load(str(path.resolve()))
+        self.plot_status.setText(f"Plot preview: {path}")
 
     def open_run_folder(self) -> None:
         if self.last_result is not None:
