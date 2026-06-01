@@ -16,7 +16,8 @@ Current verified setup and supported workflows:
 - Single-gate sweep dry-run core for two-SMU gate/drain workflows
 - AC / lock-in dry-run core with fake SR860-style readings
 - Pulse-measurement dry-run core with explicit pulse safety limits
-- PySide6 GUI foundation for plan preview and dry-run artifacts
+- PySide6 GUI foundation for plan preview, YAML recipe validation, dry-run
+  artifacts, and report review
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -70,6 +71,7 @@ ptm-gui
 - AC / lock-in recipe skeleton: [docs/phase22_ac_lockin_recipe_skeleton.md](docs/phase22_ac_lockin_recipe_skeleton.md)
 - Pulse measurement foundation: [docs/phase23_pulse_foundation.md](docs/phase23_pulse_foundation.md)
 - PySide6 GUI foundation: [docs/phase24_gui_foundation.md](docs/phase24_gui_foundation.md)
+- GUI recipe builder foundation: [docs/phase25_gui_recipe_builder.md](docs/phase25_gui_recipe_builder.md)
 
 ## Hardware Smoke Test
 

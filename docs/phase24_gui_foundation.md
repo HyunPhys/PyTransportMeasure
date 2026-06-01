@@ -43,6 +43,7 @@ open the generated artifacts.
 - Add live progress streaming into the GUI log.
 - Add guarded hardware run controls after the existing CLI hardware paths are
   smoke-tested.
-- Add schema-driven recipe editing.
+- Add schema-driven recipe editing. The first YAML validation/save workflow is
+  now documented in `docs/phase25_gui_recipe_builder.md`.
 - Add scheme/batch launch screens.
 - Add artifact browser for older indexed runs.

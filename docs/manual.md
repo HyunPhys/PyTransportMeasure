@@ -343,9 +343,18 @@ The GUI is a PySide6 desktop app launched with:
 ptm-gui
 ```
 
-The current GUI phase supports method selection, recipe selection, plan preview,
-dry-run execution, summary, metadata, report preview, recent run listing, and
-opening generated run artifacts.
+The current GUI phase supports method selection, recipe selection, YAML recipe
+editing, schema validation, saving edited recipes, plan preview, dry-run
+execution, summary, metadata, report preview, recent run listing, and opening
+generated run artifacts.
+
+Recipe editing workflow:
+
+1. Select the measurement method.
+2. Edit the YAML in `Recipe YAML`.
+3. Click `Validate YAML`.
+4. Click `Save Recipe`.
+5. Use the saved recipe for `Plan` and `Dry Run`.
 
 Hardware runs are intentionally not exposed in the GUI yet. The GUI calls the
 same core recipe, runner, safety, method registry, quality, and artifact APIs as

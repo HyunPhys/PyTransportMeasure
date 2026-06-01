@@ -16,8 +16,9 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Pulse measurement is dry-run verified; hardware output is intentionally
   blocked.
 - [x] PySide6 GUI foundation supports plan preview and dry-run artifacts.
+- [x] GUI recipe builder foundation supports YAML edit, validation, and save.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
-- [ ] GUI hardware runs and recipe builder are future milestones.
+- [ ] GUI hardware runs and form-based recipe builder are future milestones.
 
 ## Daily Setup
 
@@ -256,6 +257,10 @@ Use this checklist before pulse hardware work begins.
   - [ ] AC lock-in sweep
   - [ ] Pulse measurement
 - [ ] Click `Plan` and confirm the plan text matches the selected recipe.
+- [ ] Edit YAML in `Recipe YAML`.
+- [ ] Click `Validate YAML` and confirm validation passes or reports a useful
+  schema error.
+- [ ] Click `Save Recipe` and confirm the saved path appears in the recipe field.
 - [ ] Click `Dry Run` and confirm `completed=True` appears in the summary or
   metadata.
 - [ ] Open the generated run folder.

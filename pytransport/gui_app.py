@@ -7,7 +7,16 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from .gui_services import GuiFakeSettings, available_gui_methods, format_gui_plan, run_gui_dry_run
+from .gui_services import (
+    GuiFakeSettings,
+    available_gui_methods,
+    default_recipe_text,
+    format_gui_plan,
+    load_recipe_text,
+    run_gui_dry_run,
+    save_recipe_text,
+    validate_recipe_text,
+)
 
 
 try:
@@ -114,6 +123,12 @@ class MainWindow(QMainWindow):
         self.plan_button.clicked.connect(self.show_plan)
         self.run_button = QPushButton("Dry Run")
         self.run_button.clicked.connect(self.start_dry_run)
+        self.load_editor_button = QPushButton("Load Editor")
+        self.load_editor_button.clicked.connect(self.load_recipe_into_editor)
+        self.validate_editor_button = QPushButton("Validate YAML")
+        self.validate_editor_button.clicked.connect(self.validate_editor)
+        self.save_editor_button = QPushButton("Save Recipe")
+        self.save_editor_button.clicked.connect(self.save_editor_as)
         self.open_run_button = QPushButton("Run Folder")
         self.open_run_button.clicked.connect(self.open_run_folder)
         self.open_plot_button = QPushButton("Plot")
@@ -129,6 +144,9 @@ class MainWindow(QMainWindow):
 
         self.plan_text = QPlainTextEdit()
         self.plan_text.setReadOnly(True)
+        self.editor_text = QPlainTextEdit()
+        self.validation_text = QPlainTextEdit()
+        self.validation_text.setReadOnly(True)
         self.summary_text = QPlainTextEdit()
         self.summary_text.setReadOnly(True)
         self.metadata_text = QPlainTextEdit()
@@ -141,6 +159,8 @@ class MainWindow(QMainWindow):
 
         tabs = QTabWidget()
         tabs.addTab(self.plan_text, "Plan")
+        tabs.addTab(self.editor_text, "Recipe YAML")
+        tabs.addTab(self.validation_text, "Validation")
         tabs.addTab(self.summary_text, "Summary")
         tabs.addTab(self.metadata_text, "Metadata")
         tabs.addTab(self.report_text, "Report")
@@ -184,6 +204,9 @@ class MainWindow(QMainWindow):
         button_row = QHBoxLayout()
         button_row.addWidget(self.plan_button)
         button_row.addWidget(self.run_button)
+        button_row.addWidget(self.load_editor_button)
+        button_row.addWidget(self.validate_editor_button)
+        button_row.addWidget(self.save_editor_button)
         button_row.addStretch(1)
         button_row.addWidget(self.open_run_button)
         button_row.addWidget(self.open_plot_button)
@@ -220,6 +243,12 @@ class MainWindow(QMainWindow):
 
     def apply_default_recipe(self) -> None:
         self.recipe_edit.setText(DEFAULT_RECIPES.get(self.current_method(), ""))
+        if hasattr(self, "editor_text"):
+            try:
+                self.editor_text.setPlainText(default_recipe_text(self.current_method()))
+                self.validation_text.clear()
+            except Exception:
+                pass
 
     def browse_recipe(self) -> None:
         selected, _ = QFileDialog.getOpenFileName(self, "Open Recipe", str(Path("configs/recipes").resolve()), "YAML (*.yaml *.yml)")
@@ -234,6 +263,44 @@ class MainWindow(QMainWindow):
             return
         self.plan_text.setPlainText(plan)
         self.status_label.setText("Plan ready")
+
+    def load_recipe_into_editor(self) -> None:
+        try:
+            self.editor_text.setPlainText(load_recipe_text(self.recipe_path()))
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.validation_text.clear()
+        self.status_label.setText("Recipe loaded into editor")
+
+    def validate_editor(self) -> bool:
+        ok, message = validate_recipe_text(
+            self.current_method(),
+            self.editor_text.toPlainText(),
+            preview_points=self.preview_spin.value(),
+        )
+        self.validation_text.setPlainText(message)
+        self.status_label.setText("Recipe validation passed" if ok else "Recipe validation failed")
+        return ok
+
+    def save_editor_as(self) -> None:
+        if not self.validate_editor():
+            return
+        selected, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Recipe",
+            str(Path("configs/recipes").resolve() / "edited_recipe.yaml"),
+            "YAML (*.yaml *.yml)",
+        )
+        if not selected:
+            return
+        try:
+            path = save_recipe_text(self.current_method(), self.editor_text.toPlainText(), selected)
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.recipe_edit.setText(str(path))
+        self.status_label.setText(f"Recipe saved: {path}")
 
     def start_dry_run(self) -> None:
         if self.worker is not None and self.worker.isRunning():

@@ -123,10 +123,18 @@ This roadmap tracks the large development phases. Completed items are checked.
   - add identify/probe path if needed
   - add conservative hardware smoke-test checklist
   - keep full hardware acquisition blocked until smoke test passes
-- [ ] Phase 24: GUI recipe builder
-  - schema-driven forms
-  - reusable scheme builder
+- [x] Phase 24: GUI recipe builder foundation
+  - YAML recipe editor
+  - schema validation using existing Pydantic recipe models
+  - validated save-as workflow
   - prevent GUI-only measurement logic
+
+## Next GUI
+
+- [ ] Phase 24b: GUI schema form builder
+  - schema-driven forms for common recipe fields
+  - reusable scheme builder
+  - YAML/form synchronization
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation

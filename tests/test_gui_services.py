@@ -1,6 +1,14 @@
 from pathlib import Path
 
-from pytransport.gui_services import GuiFakeSettings, available_gui_methods, format_gui_plan, run_gui_dry_run
+from pytransport.gui_services import (
+    GuiFakeSettings,
+    available_gui_methods,
+    default_recipe_text,
+    format_gui_plan,
+    save_recipe_text,
+    validate_recipe_text,
+    run_gui_dry_run,
+)
 
 
 def test_gui_methods_include_dry_run_families():
@@ -17,6 +25,25 @@ def test_gui_plan_uses_method_registry():
 
     assert "Pulse Measurement Plan" in plan
     assert "pulse_dry_run" in plan
+
+
+def test_gui_recipe_editor_validates_default_recipe_text(tmp_path):
+    text = default_recipe_text("pulse_measurement")
+    ok, message = validate_recipe_text("pulse_measurement", text)
+
+    assert ok is True
+    assert "Validation: PASS" in message
+    assert "Pulse Measurement Plan" in message
+
+    output = save_recipe_text("pulse_measurement", text, tmp_path / "saved_pulse.yaml")
+    assert output.exists()
+
+
+def test_gui_recipe_editor_reports_schema_errors():
+    ok, message = validate_recipe_text("drain_iv", "measurement_name: bad\n")
+
+    assert ok is False
+    assert "Validation: FAIL" in message
 
 
 def test_gui_dry_run_writes_artifacts_for_drain_iv(tmp_path):

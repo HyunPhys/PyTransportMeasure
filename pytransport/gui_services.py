@@ -12,6 +12,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
+import yaml
+
 from .ac_lockin import run_ac_lockin_sweep
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .method_registry import handler_for_measurement_type
@@ -58,6 +60,66 @@ def available_gui_methods() -> dict[str, str]:
         "ac_lockin_sweep": "AC lock-in sweep",
         "pulse_measurement": "Pulse measurement",
     }
+
+
+def default_recipe_path(measurement_type: GuiMethod) -> Path:
+    paths = {
+        "drain_iv": Path("configs/recipes/drain_iv_1k_resistor.yaml"),
+        "single_gate_sweep": Path("configs/recipes/single_gate_dry_run.yaml"),
+        "ac_lockin_sweep": Path("configs/recipes/ac_lockin_dry_run.yaml"),
+        "pulse_measurement": Path("configs/recipes/pulse_dry_run.yaml"),
+    }
+    return paths[measurement_type]
+
+
+def load_recipe_text(path: str | Path) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+
+def default_recipe_text(measurement_type: GuiMethod) -> str:
+    return load_recipe_text(default_recipe_path(measurement_type))
+
+
+def validate_recipe_text(
+    measurement_type: GuiMethod,
+    text: str,
+    safety_dir: str | Path = "configs/safety",
+    preview_points: int = 5,
+) -> tuple[bool, str]:
+    try:
+        data = yaml.safe_load(text)
+        if not isinstance(data, dict):
+            raise ValueError("recipe YAML must contain a mapping")
+        handler = handler_for_measurement_type(measurement_type)
+        recipe = recipe_from_mapping(measurement_type, data)
+        safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+        plan = handler.format_plan(recipe, "<editor>", safety_dir, preview_points)
+        return True, "\n".join(["Validation: PASS", f"Safety preset: {safety.name}", "", plan])
+    except Exception as exc:
+        return False, f"Validation: FAIL\n{type(exc).__name__}: {exc}"
+
+
+def save_recipe_text(
+    measurement_type: GuiMethod,
+    text: str,
+    path: str | Path,
+    safety_dir: str | Path = "configs/safety",
+) -> Path:
+    ok, message = validate_recipe_text(measurement_type, text, safety_dir)
+    if not ok:
+        raise ValueError(message)
+    output = Path(path)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(text, encoding="utf-8")
+    return output
+
+
+def recipe_from_mapping(measurement_type: GuiMethod, data: dict[str, Any]) -> Any:
+    handler = handler_for_measurement_type(measurement_type)
+    # Reuse each method loader's underlying Pydantic model without writing a
+    # temporary file.
+    model = type(handler.load_recipe(default_recipe_path(measurement_type)))
+    return model.model_validate(data)
 
 
 def format_gui_plan(
