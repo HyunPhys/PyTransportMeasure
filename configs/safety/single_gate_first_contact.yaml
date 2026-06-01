@@ -1,0 +1,5 @@
+name: single_gate_first_contact
+description: Conservative first-contact safety preset for two-SMU single-gate hardware smoke tests.
+max_abs_voltage_v: 0.2
+max_abs_current_a: 1.0e-7
+default_current_compliance_a: 1.0e-8

@@ -1,0 +1,58 @@
+name: drain_iv_1k_bias_matrix
+stop_on_error: true
+steps:
+  - type: drain_iv
+    label: bias
+    recipe: ../recipes/drain_iv_1k_resistor.yaml
+    overrides:
+      experiment:
+        append_tags:
+          - scheme
+          - matrix
+    matrix:
+      rows:
+        - label: low
+          overrides:
+            measurement_suffix: _matrix_low
+            experiment:
+              append_tags:
+                - low-bias
+            sweep:
+              start_v: -0.05
+              stop_v: 0.05
+              points: 11
+              delay_s: 0.02
+            checks:
+              require_completed: true
+              min_points: 11
+              fitted_resistance_ohm:
+                min_ohm: 900
+                max_ohm: 1100
+        - label: mid
+          overrides:
+            measurement_suffix: _matrix_mid
+            experiment:
+              append_tags:
+                - mid-bias
+            sweep:
+              start_v: -0.075
+              stop_v: 0.075
+              points: 15
+              delay_s: 0.03
+            checks:
+              require_completed: true
+              min_points: 15
+              fitted_resistance_ohm:
+                min_ohm: 900
+                max_ohm: 1100
+        - label: nominal
+          overrides:
+            measurement_suffix: _matrix_nominal
+            experiment:
+              append_tags:
+                - nominal-bias
+            sweep:
+              start_v: -0.1
+              stop_v: 0.1
+              points: 21
+              delay_s: 0.05

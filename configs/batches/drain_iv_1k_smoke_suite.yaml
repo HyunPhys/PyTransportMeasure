@@ -1,0 +1,9 @@
+name: drain_iv_1k_smoke_suite
+stop_on_error: true
+recipes:
+  - label: linear
+    recipe: ../recipes/drain_iv_1k_resistor.yaml
+  - label: forward_backward
+    recipe: ../recipes/drain_iv_1k_forward_backward.yaml
+  - label: multi_segment
+    recipe: ../recipes/drain_iv_1k_multisegment.yaml

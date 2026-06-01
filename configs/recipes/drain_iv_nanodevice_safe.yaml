@@ -1,0 +1,26 @@
+measurement_name: drain_iv_nanodevice_safe
+safety_preset: nano_device_safe
+experiment:
+  sample_id: ""
+  device_id: ""
+  operator: ""
+  notes: Conservative starter recipe for first-contact nanodevice Drain I-V.
+  tags:
+    - nanodevice
+    - first-contact
+instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  timeout_ms: 10000
+  terminal: FRONT
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-7
+sweep:
+  mode: linear_one_way
+  start_v: -0.1
+  stop_v: 0.1
+  points: 21
+  delay_s: 0.05
+  current_compliance_a: 1.0e-7
+output:
+  directory: data/raw

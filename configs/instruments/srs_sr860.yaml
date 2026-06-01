@@ -1,0 +1,10 @@
+id: srs_sr860
+address: GPIB0::4::INSTR
+timeout_ms: 10000
+channels:
+  - x
+  - y
+  - r
+  - theta
+read_timing: after_dc_settle
+notes: Template only. SR860 hardware control is not active in current measurement runners.

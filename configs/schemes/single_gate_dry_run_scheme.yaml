@@ -1,0 +1,9 @@
+name: single_gate_dry_run_scheme
+stop_on_error: true
+steps:
+  - type: drain_iv
+    label: drain_reference
+    recipe: ../recipes/drain_iv_1k_resistor.yaml
+  - type: single_gate
+    label: gate_transfer_map
+    recipe: ../recipes/single_gate_dry_run.yaml

@@ -1,0 +1,5 @@
+name: resistor_1k_check
+description: Safety preset for a 1 kOhm resistor smoke test at up to +/-0.1 V.
+max_abs_voltage_v: 0.2
+max_abs_current_a: 5.0e-4
+default_current_compliance_a: 2.0e-4

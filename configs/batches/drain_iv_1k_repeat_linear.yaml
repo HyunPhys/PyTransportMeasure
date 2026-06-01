@@ -1,0 +1,11 @@
+name: drain_iv_1k_repeat_linear
+stop_on_error: true
+checks:
+  require_all_completed: true
+  require_all_run_quality_pass: true
+  max_relative_std_percent: 2.0
+recipes:
+  - label: linear_repeat
+    recipe: ../recipes/drain_iv_1k_resistor.yaml
+    repeat: 3
+    interval_s: 0.5

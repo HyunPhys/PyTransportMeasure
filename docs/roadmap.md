@@ -1,0 +1,144 @@
+# PyTransportMeasure Roadmap
+
+This roadmap tracks the large development phases. Completed items are checked.
+
+## Completed
+
+- [x] Phase 0: New package skeleton
+  - `pyproject.toml`
+  - `pytransport` package
+  - `ptm` CLI entry point
+  - pytest setup
+- [x] Phase 1: Keithley 2450 Drain I-V hardware core
+  - VISA resource listing
+  - Keithley identify/probe
+  - SCPI-mode Keithley 2450 voltage-source/current-measure path
+  - 1 kOhm resistor smoke-test recipe
+  - CSV points and JSON metadata
+  - output-off on completion/error/interruption
+- [x] Phase 2: Dry-run and safety foundation
+  - fake SMU with Ohmic current model
+  - software current safety checks
+  - named safety presets
+  - partial result saving
+- [x] Phase 3: Recipe validation and plan preview
+  - Pydantic YAML recipe schemas
+  - `ptm validate`
+  - `ptm plan`
+  - `ptm preflight`
+- [x] Phase 4: Drain I-V review artifacts
+  - summaries
+  - SVG plots
+  - Markdown reports
+  - fitted resistance
+  - quality checks
+- [x] Phase 5: Forward/backward and multi-segment Drain I-V
+  - expanded sweep modes
+  - plan preview for more complex sweep shapes
+- [x] Phase 6: Batch sessions
+  - batch YAML
+  - repeat and interval support
+  - batch reports, plots, CSV exports, points exports, stats
+- [x] Phase 7: Measurement schemes
+  - composed recipe/batch workflow
+  - scheme-level summaries and artifacts
+  - scheme overrides
+  - parameter matrix expansion
+- [x] Phase 8: Campaign analysis
+  - campaign manifest
+  - run filtering
+  - grouped stats
+  - histogram
+  - portable campaign bundle
+- [x] Phase 9: Single-gate dry-run foundation
+  - two-SMU gate/drain recipe
+  - coupled fake SMU support
+  - single-gate summary, heatmap, stats, and report
+- [x] Phase 10: Mixed measurement review
+  - Drain I-V and single-gate runs coexist under `data/raw`
+  - `inspect-run`, `list-runs`, campaign, and campaign bundle understand mixed
+    measurement types
+- [x] Phase 11: Single-gate scheme support
+  - scheme steps can include `type: single_gate`
+  - scheme review exports handle single-gate runs
+- [x] Phase 12: Method extensibility planning
+  - 4-probe deferred to TODO
+  - AC, lock-in, pulse, and GUI extension policy documented
+- [x] Phase 13: Project documentation pass
+  - checklists
+  - manual
+  - roadmap
+- [x] Phase 14: Method registry and dispatch cleanup
+  - centralize saved-run summary, plot, report, campaign, scheme-review, and
+    inspect dispatch
+  - map each saved `measurement_type` to its review handlers
+  - make future saved-run review support more localized
+- [x] Phase 15: Extend method registry into planning dispatch
+  - map recipe loaders and plan formatters
+  - use registry-backed plan formatting in CLI and scheme plans
+  - keep hardware-running dispatch explicit and conservative
+- [x] Phase 16: Single-gate hardware smoke-test preparation
+  - finalize two-Keithley wiring checklist
+  - add conservative hardware recipe
+  - verify output-off behavior for both drain and gate instruments
+- [x] Phase 17: 4-probe / remote-sense design spike
+  - confirm exact Keithley 2450 SCPI sequence from manual
+  - decide whether remote sense is a capability config or method-specific config
+  - define future dry-run metadata representation
+  - add hardware smoke-test checklist before implementation
+
+- [x] Phase 18: SR860 / lock-in foundation
+  - add lock-in instrument interface
+  - add fake lock-in
+  - add optional secondary instrument recipe block
+  - define timing/synchronization policy
+- [x] Phase 19: AC measurement recipes
+  - define AC method schema
+  - add lock-in-aware point columns and artifacts
+  - add dry-run examples and tests
+- [x] Phase 20: Pulse measurement foundation
+  - [x] start internal pulse recipe/runner/review module skeleton
+  - [x] register pulse as a supported method type
+  - [x] expose `ptm pulse-plan` and dry-run-only `ptm pulse`
+  - [x] define pulse safety limits in a user-facing recipe
+  - [x] define acquisition mode and saved CSV columns
+  - [x] add fake pulse traces with tests
+  - [x] add conservative dry-run recipe
+  - [x] document pulse user workflow and hardware block policy
+- [x] Phase 23: PySide6 GUI foundation
+  - optional `gui` dependency group
+  - `ptm-gui` desktop entry point
+  - method selection and recipe selection
+  - plan preview using method registry
+  - dry-run execution through shared core services
+  - summary, metadata, report, recent run, and artifact-open views
+
+## Next
+- [ ] Phase 21: Single-gate hardware smoke validation
+  - confirm two Keithley addresses
+  - verify drain/gate output-off behavior on real instruments
+  - save first two-SMU smoke-test artifacts
+- [ ] Phase 22: SR860 hardware smoke preparation
+  - confirm SR860 SCPI command subset
+  - add identify/probe path if needed
+  - add conservative hardware smoke-test checklist
+  - keep full hardware acquisition blocked until smoke test passes
+- [ ] Phase 24: GUI recipe builder
+  - schema-driven forms
+  - reusable scheme builder
+  - prevent GUI-only measurement logic
+- [ ] Phase 25: GUI hardware-run controls
+  - guarded preflight view
+  - explicit confirmation
+  - output-off/error display
+  - live progress streaming
+
+## Long-Term Direction
+
+- [ ] Method plugins or modules for additional instruments and measurement
+  families.
+- [ ] More robust live monitoring and abort controls.
+- [ ] Richer metadata for sample, device, cooldown, contacts, and lab notebook
+  references.
+- [ ] Automated report templates for publications and internal experiment logs.
+- [ ] Hardware integration tests that can be run explicitly in the lab.

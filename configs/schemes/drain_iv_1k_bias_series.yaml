@@ -1,0 +1,37 @@
+name: drain_iv_1k_bias_series
+stop_on_error: true
+steps:
+  - type: drain_iv
+    label: low_bias
+    recipe: ../recipes/drain_iv_1k_resistor.yaml
+    overrides:
+      measurement_suffix: _low_bias
+      experiment:
+        append_tags:
+          - scheme
+          - low-bias
+      sweep:
+        start_v: -0.05
+        stop_v: 0.05
+        points: 11
+        delay_s: 0.02
+      checks:
+        require_completed: true
+        min_points: 11
+        fitted_resistance_ohm:
+          min_ohm: 900
+          max_ohm: 1100
+  - type: drain_iv
+    label: nominal_bias
+    recipe: ../recipes/drain_iv_1k_resistor.yaml
+    overrides:
+      measurement_suffix: _nominal_bias
+      experiment:
+        append_tags:
+          - scheme
+          - nominal-bias
+      sweep:
+        start_v: -0.1
+        stop_v: 0.1
+        points: 21
+        delay_s: 0.05

@@ -1,0 +1,5 @@
+name: nano_device_safe
+description: Conservative default for first-contact nanodevice Drain I-V tests.
+max_abs_voltage_v: 1.0
+max_abs_current_a: 1.0e-6
+default_current_compliance_a: 1.0e-7

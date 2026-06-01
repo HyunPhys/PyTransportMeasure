@@ -1,0 +1,7 @@
+name: my_repeat
+stop_on_error: true
+recipes:
+- label: my_repeat_repeat
+  recipe: configs/recipes/drain_iv_1k_resistor.yaml
+  repeat: 3
+  interval_s: 1.0
