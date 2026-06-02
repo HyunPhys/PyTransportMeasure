@@ -17,6 +17,7 @@ from .gui_services import (
     drain_iv_text_from_form,
     format_hardware_confirmation_text,
     format_gui_plan_text,
+    format_gui_progress,
     list_gui_runs,
     load_gui_saved_run,
     load_recipe_text,
@@ -89,6 +90,7 @@ DEFAULT_RECIPES = {
 class DryRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
+    progress = Signal(str)
 
     def __init__(self, measurement_type: str, recipe_text: str, fake: GuiFakeSettings):
         super().__init__()
@@ -98,7 +100,14 @@ class DryRunWorker(QThread):
 
     def run(self) -> None:
         try:
-            self.finished_ok.emit(run_gui_dry_run_text(self.measurement_type, self.recipe_text, fake=self.fake))
+            self.finished_ok.emit(
+                run_gui_dry_run_text(
+                    self.measurement_type,
+                    self.recipe_text,
+                    fake=self.fake,
+                    progress_callback=lambda point, total: self.progress.emit(format_gui_progress(point, total)),
+                )
+            )
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
@@ -138,6 +147,7 @@ class DoctorWorker(QThread):
 class HardwareRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
+    progress = Signal(str)
 
     def __init__(self, measurement_type: str, recipe_text: str):
         super().__init__()
@@ -146,7 +156,13 @@ class HardwareRunWorker(QThread):
 
     def run(self) -> None:
         try:
-            self.finished_ok.emit(run_gui_hardware_text(self.measurement_type, self.recipe_text))
+            self.finished_ok.emit(
+                run_gui_hardware_text(
+                    self.measurement_type,
+                    self.recipe_text,
+                    progress_callback=lambda point, total: self.progress.emit(format_gui_progress(point, total)),
+                )
+            )
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
@@ -237,6 +253,8 @@ class MainWindow(QMainWindow):
         self.doctor_text.setReadOnly(True)
         self.preflight_text = QPlainTextEdit()
         self.preflight_text.setReadOnly(True)
+        self.progress_text = QPlainTextEdit()
+        self.progress_text.setReadOnly(True)
         self.summary_text = QPlainTextEdit()
         self.summary_text.setReadOnly(True)
         self.metadata_text = QPlainTextEdit()
@@ -261,6 +279,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.validation_text, "Validation")
         tabs.addTab(self.doctor_text, "Doctor")
         tabs.addTab(self.preflight_text, "Preflight")
+        tabs.addTab(self.progress_text, "Progress")
         tabs.addTab(self.summary_text, "Summary")
         tabs.addTab(self.build_plot_preview(), "Plot Preview")
         tabs.addTab(self.metadata_text, "Metadata")
@@ -564,7 +583,9 @@ class MainWindow(QMainWindow):
         self.summary_text.clear()
         self.metadata_text.clear()
         self.report_text.clear()
+        self.progress_text.setPlainText("Dry-run starting...")
         self.worker = DryRunWorker(self.current_method(), self.editor_text.toPlainText(), fake)
+        self.worker.progress.connect(self.append_progress)
         self.worker.finished_ok.connect(self.handle_result)
         self.worker.failed.connect(self.handle_failure)
         self.worker.finished.connect(lambda: self.set_running(False))
@@ -626,8 +647,10 @@ class MainWindow(QMainWindow):
         self.summary_text.clear()
         self.metadata_text.clear()
         self.report_text.clear()
+        self.progress_text.setPlainText("Hardware run starting...")
         self.preflight_text.setPlainText("Hardware run starting. Preflight will run before output is enabled.")
         self.hardware_worker = HardwareRunWorker(self.current_method(), self.editor_text.toPlainText())
+        self.hardware_worker.progress.connect(self.append_progress)
         self.hardware_worker.finished_ok.connect(self.handle_hardware_result)
         self.hardware_worker.failed.connect(self.handle_hardware_failure)
         self.hardware_worker.finished.connect(lambda: self.set_hardware_running(False))
@@ -639,8 +662,12 @@ class MainWindow(QMainWindow):
 
     def handle_hardware_failure(self, message: str) -> None:
         self.preflight_text.setPlainText(message)
+        self.progress_text.appendPlainText(f"Hardware run failed or blocked: {message}")
         self.status_label.setText("Hardware run failed or blocked")
         QMessageBox.critical(self, "PyTransportMeasure", message)
+
+    def append_progress(self, line: str) -> None:
+        self.progress_text.appendPlainText(line)
 
     def handle_preflight_result(self, text: str) -> None:
         self.preflight_text.setPlainText(text)
@@ -672,6 +699,7 @@ class MainWindow(QMainWindow):
         self.status_label.setText(f"Completed: {result.metadata.get('completed')} | {result.run_dir}")
 
     def handle_failure(self, message: str) -> None:
+        self.progress_text.appendPlainText(f"Run failed: {message}")
         self.status_label.setText("Failed")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 

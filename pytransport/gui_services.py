@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 
 import yaml
 
@@ -32,6 +32,7 @@ from .single_gate_review import write_single_gate_stats_csv
 
 
 GuiMethod = Literal["drain_iv", "single_gate_sweep", "ac_lockin_sweep", "pulse_measurement"]
+GuiProgressCallback = Callable[[Any, int], None]
 
 
 @dataclass(frozen=True)
@@ -336,6 +337,7 @@ def run_gui_dry_run_text(
     draft_dir: str | Path = "data/gui_drafts",
     create_plot: bool = True,
     create_report: bool = True,
+    progress_callback: GuiProgressCallback | None = None,
 ) -> GuiRunResult:
     recipe = load_recipe_from_text(measurement_type, text)
     draft_path = write_gui_draft_recipe(measurement_type, recipe.measurement_name, text, draft_dir)
@@ -347,6 +349,7 @@ def run_gui_dry_run_text(
         index_path=index_path,
         create_plot=create_plot,
         create_report=create_report,
+        progress_callback=progress_callback,
     )
 
 
@@ -403,6 +406,7 @@ def run_gui_hardware_text(
     resource_lister=None,
     probe_factory=None,
     smu_factory=None,
+    progress_callback: GuiProgressCallback | None = None,
 ) -> GuiRunResult:
     if measurement_type != "drain_iv":
         raise ValueError("GUI hardware runs currently support Drain I-V recipes only")
@@ -419,7 +423,7 @@ def run_gui_hardware_text(
     safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
     factory = smu_factory or (lambda address, timeout_ms: Keithley2450(address, timeout_ms))
     smu = factory(recipe.instrument.address, recipe.instrument.timeout_ms)
-    metadata = run_drain_iv(recipe, safety, smu, recipe_path=draft_path)
+    metadata = run_drain_iv(recipe, safety, smu, recipe_path=draft_path, progress_callback=progress_callback)
     metadata.setdefault("measurement_type", measurement_type)
     return finalize_gui_run_result(
         measurement_type,
@@ -460,6 +464,7 @@ def run_gui_dry_run(
     index_path: str | Path = "data/run_index.jsonl",
     create_plot: bool = True,
     create_report: bool = True,
+    progress_callback: GuiProgressCallback | None = None,
 ) -> GuiRunResult:
     fake_settings = fake or GuiFakeSettings()
     handler = handler_for_measurement_type(measurement_type)
@@ -472,6 +477,7 @@ def run_gui_dry_run(
             safety,
             FakeSMU(fake_settings.resistance_ohm, fake_settings.noise_std_a),
             recipe_path=recipe_path,
+            progress_callback=progress_callback,
         )
     elif measurement_type == "single_gate_sweep":
         state = CoupledFakeDeviceState(
@@ -486,6 +492,7 @@ def run_gui_dry_run(
             CoupledFakeSMU("drain", state),
             CoupledFakeSMU("gate", state),
             recipe_path=recipe_path,
+            progress_callback=progress_callback,
         )
     elif measurement_type == "ac_lockin_sweep":
         metadata = run_ac_lockin_sweep(
@@ -498,6 +505,7 @@ def run_gui_dry_run(
                 noise_std_v=fake_settings.lockin_noise_std_v,
             ),
             recipe_path=recipe_path,
+            progress_callback=progress_callback,
         )
     elif measurement_type == "pulse_measurement":
         metadata = run_pulse_measurement(
@@ -506,6 +514,7 @@ def run_gui_dry_run(
             FakeSMU(fake_settings.resistance_ohm, fake_settings.noise_std_a),
             recipe_path=recipe_path,
             sleep=False,
+            progress_callback=progress_callback,
         )
     else:
         raise ValueError(f"Unsupported GUI method: {measurement_type}")
@@ -669,3 +678,37 @@ def format_gui_quality(report) -> str:
         mark = "PASS" if result.passed else "FAIL"
         lines.append(f"- {result.name}: {mark} ({result.message})")
     return "\n".join(lines)
+
+
+def format_gui_progress(point: Any, total_points: int) -> str:
+    index = int(getattr(point, "index", 0)) + 1
+    elapsed = float(getattr(point, "elapsed_s", 0.0))
+    if hasattr(point, "voltage_v"):
+        return (
+            f"{index}/{total_points} | V={point.voltage_v:.6g} V | "
+            f"I={point.current_a:.6g} A | R={_format_optional(point.resistance_ohm, ' ohm')} | "
+            f"t={elapsed:.3f} s"
+        )
+    if hasattr(point, "gate_voltage_v"):
+        return (
+            f"{index}/{total_points} | Vg={point.gate_voltage_v:.6g} V | "
+            f"Vd={point.drain_voltage_v:.6g} V | Id={point.drain_current_a:.6g} A | "
+            f"Ig={point.gate_current_a:.6g} A | t={elapsed:.3f} s"
+        )
+    if hasattr(point, "bias_voltage_v"):
+        return (
+            f"{index}/{total_points} | Vbias={point.bias_voltage_v:.6g} V | "
+            f"Isource={point.source_current_a:.6g} A | Rlockin={_format_optional(point.lockin_r_v, ' V')} | "
+            f"theta={_format_optional(point.lockin_theta_deg, ' deg')} | t={elapsed:.3f} s"
+        )
+    if hasattr(point, "pulse_voltage_v"):
+        return (
+            f"{index}/{total_points} | pulse={point.pulse_index} | "
+            f"Vbase={point.base_voltage_v:.6g} V | Vpulse={point.pulse_voltage_v:.6g} V | "
+            f"I={point.source_current_a:.6g} A | t={elapsed:.3f} s"
+        )
+    return f"{index}/{total_points} | {point}"
+
+
+def _format_optional(value: float | None, unit: str) -> str:
+    return "n/a" if value is None else f"{value:.6g}{unit}"

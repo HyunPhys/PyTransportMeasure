@@ -26,6 +26,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Run feedback bundles can package lab-laptop results for review.
 - [x] Lab-laptop doctor can report environment, VISA resources, and probe state.
 - [x] GUI Doctor can run lab-laptop diagnostics from the current editor address.
+- [x] GUI Progress tab streams point-by-point dry-run and Drain I-V hardware
+  updates.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -277,6 +279,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.
+- [ ] Open `Progress` and confirm dry-run point lines appear.
 - [ ] Click `Doctor` and confirm the `Doctor` tab updates.
 - [ ] Click `Preflight` for Drain I-V and confirm the `Preflight` tab updates.
 - [ ] Click `Validate YAML` and confirm validation passes or reports a useful
@@ -325,6 +328,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Read the confirmation dialog and confirm every field.
 - [ ] Click `No` once to confirm cancellation works.
 - [ ] Click `Hardware Run` again and click `Yes` only when ready.
+- [ ] Open `Progress` and confirm point lines appear during the run.
 - [ ] Confirm Keithley output turns off after the run.
 - [ ] Confirm Summary, Metadata, Plot Preview, and Report update.
 - [ ] Confirm `completed=True` for a normal run.

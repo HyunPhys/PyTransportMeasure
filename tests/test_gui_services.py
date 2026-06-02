@@ -12,6 +12,7 @@ from pytransport.gui_services import (
     format_hardware_confirmation_text,
     format_gui_plan,
     format_gui_plan_text,
+    format_gui_progress,
     list_gui_runs,
     load_gui_saved_run,
     primary_plot_path,
@@ -292,6 +293,31 @@ def test_gui_dry_run_text_uses_unsaved_editor_yaml(tmp_path):
     assert (tmp_path / "drafts" / "drain_iv_unsaved_gui_dry_run.yaml").exists()
 
 
+def test_gui_dry_run_text_emits_progress_lines(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "gui_progress_dry_run"
+    values["points"] = "4"
+    values["min_points"] = "4"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+    progress = []
+
+    result = run_gui_dry_run_text(
+        "drain_iv",
+        text,
+        fake=GuiFakeSettings(resistance_ohm=1000, noise_std_a=0),
+        index_path=tmp_path / "index.jsonl",
+        draft_dir=tmp_path / "drafts",
+        progress_callback=lambda point, total: progress.append(format_gui_progress(point, total)),
+    )
+
+    assert result.metadata["points_written"] == 4
+    assert len(progress) == 4
+    assert progress[0].startswith("1/4")
+    assert "V=" in progress[0]
+    assert "I=" in progress[0]
+
+
 def test_gui_preflight_text_uses_unsaved_editor_yaml(tmp_path):
     values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
     values["measurement_name"] = "unsaved_gui_preflight"
@@ -384,6 +410,7 @@ def test_gui_hardware_text_runs_after_preflight_with_injected_smu(tmp_path):
     values["output_directory"] = str(tmp_path).replace("\\", "/")
     text = drain_iv_text_from_form(values)
 
+    progress = []
     result = run_gui_hardware_text(
         "drain_iv",
         text,
@@ -397,11 +424,14 @@ def test_gui_hardware_text_runs_after_preflight_with_injected_smu(tmp_path):
             "system_error": '0,"No error"',
         },
         smu_factory=lambda address, timeout: FakeSMU(resistance_ohm=1000, noise_std_a=0),
+        progress_callback=lambda point, total: progress.append(format_gui_progress(point, total)),
     )
 
     assert result.metadata["completed"] is True
     assert result.metadata["measurement_name"] == "gui_hardware_injected"
     assert result.metadata["points_written"] == 5
+    assert len(progress) == 5
+    assert progress[-1].startswith("5/5")
     assert Path(result.metadata["plot_path"]).exists()
     assert Path(result.metadata["report_path"]).exists()
 

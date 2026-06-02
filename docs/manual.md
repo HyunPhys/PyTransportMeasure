@@ -368,7 +368,7 @@ editing, schema validation, saving edited recipes, plan preview, dry-run
 execution, summary, metadata, in-app SVG plot preview, report preview, indexed
 run browsing, opening generated run artifacts, structured Drain I-V recipe
 editing, editor-backed plan/dry-run, lab doctor, Drain I-V preflight, and
-guarded Drain I-V hardware runs.
+guarded Drain I-V hardware runs with progress streaming.
 
 Drain I-V form workflow:
 
@@ -413,8 +413,9 @@ Guarded hardware run workflow:
    count, compliance, and safety preset.
 5. Click `Yes` only when the wiring and recipe are correct.
 6. Wait for the run to finish.
-7. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
-8. Click `Feedback Bundle` if the run should be shared for review/debugging.
+7. Open `Progress` and confirm point lines appear during the run.
+8. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
+9. Click `Feedback Bundle` if the run should be shared for review/debugging.
 
 `Hardware Run` reruns preflight immediately before enabling output. If preflight
 does not pass, the run is blocked before the Keithley output is enabled. GUI

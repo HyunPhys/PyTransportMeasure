@@ -165,6 +165,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - run doctor from GUI
   - infer Drain I-V address from current editor YAML
   - display diagnostics in a Doctor tab
+- [x] Phase 24l: GUI progress stream
+  - stream dry-run point progress to GUI
+  - stream guarded Drain I-V hardware point progress to GUI
+  - reuse core runner progress callbacks
 
 ## Next GUI
 
