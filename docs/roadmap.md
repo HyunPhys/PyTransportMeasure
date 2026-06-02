@@ -145,6 +145,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - plan from current YAML editor text
   - dry-run from current YAML editor text
   - keep recipe path as load/save source
+- [x] Phase 24g: GUI Drain I-V preflight
+  - preflight from current YAML editor text
+  - show VISA resources and Keithley probe report
+  - keep GUI hardware output controls unavailable
 
 ## Next GUI
 

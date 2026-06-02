@@ -21,6 +21,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI plot preview renders saved SVG plots in-app.
 - [x] GUI Drain I-V form builder can generate validated YAML for common sweeps.
 - [x] GUI plan and dry-run use the current editor YAML draft.
+- [x] GUI Drain I-V preflight uses the current editor YAML draft.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] GUI hardware runs are a future milestone.
 
@@ -267,6 +268,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.
+- [ ] Click `Preflight` for Drain I-V and confirm the `Preflight` tab updates.
 - [ ] Click `Validate YAML` and confirm validation passes or reports a useful
   schema error.
 - [ ] Click `Save Recipe` and confirm the saved path appears in the recipe field.
@@ -280,6 +282,20 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Load Selected` and confirm Summary, Metadata, and Report update.
 - [ ] Open `Plot Preview` and confirm the plot appears in the app.
 - [ ] Confirm no hardware output controls are exposed in this GUI phase.
+
+## GUI Drain I-V Preflight Checklist
+
+- [ ] Confirm the Keithley is connected and in SCPI command set.
+- [ ] Confirm the expected VISA address with `ptm list-resources`.
+- [ ] Launch `ptm-gui`.
+- [ ] Select `Drain I-V`.
+- [ ] Confirm the YAML editor has the intended address and safety preset.
+- [ ] Click `Preflight`.
+- [ ] Confirm the `Preflight` tab lists the VISA resources.
+- [ ] Confirm `Recipe address found: True`.
+- [ ] Confirm the probe identifies the Keithley 2450.
+- [ ] Confirm `Preflight OK: True`.
+- [ ] Confirm no GUI hardware run button is available yet.
 
 ## Development Checklist
 

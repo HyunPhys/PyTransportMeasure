@@ -18,7 +18,7 @@ Current verified setup and supported workflows:
 - Pulse-measurement dry-run core with explicit pulse safety limits
 - PySide6 GUI foundation for plan preview, YAML recipe validation, dry-run
   artifacts, indexed run browsing, in-app plot preview, Drain I-V form recipe
-  building, editor-backed dry-runs, and report review
+  building, editor-backed dry-runs, Drain I-V preflight, and report review
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -77,6 +77,7 @@ ptm-gui
 - GUI plot preview: [docs/phase27_gui_plot_preview.md](docs/phase27_gui_plot_preview.md)
 - GUI Drain I-V form builder: [docs/phase28_gui_drain_iv_form_builder.md](docs/phase28_gui_drain_iv_form_builder.md)
 - GUI editor-backed runs: [docs/phase29_gui_editor_backed_runs.md](docs/phase29_gui_editor_backed_runs.md)
+- GUI Drain I-V preflight: [docs/phase30_gui_preflight.md](docs/phase30_gui_preflight.md)
 
 ## Hardware Smoke Test
 

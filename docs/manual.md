@@ -347,7 +347,7 @@ The current GUI phase supports method selection, recipe selection, YAML recipe
 editing, schema validation, saving edited recipes, plan preview, dry-run
 execution, summary, metadata, in-app SVG plot preview, report preview, indexed
 run browsing, opening generated run artifacts, structured Drain I-V recipe
-editing, and editor-backed plan/dry-run.
+editing, editor-backed plan/dry-run, and Drain I-V preflight.
 
 Drain I-V form workflow:
 
@@ -365,12 +365,24 @@ Recipe editing workflow:
 1. Select the measurement method.
 2. Edit the YAML in `Recipe YAML`.
 3. Click `Plan` or `Dry Run` to use the current unsaved editor contents.
-4. Click `Validate YAML`.
-5. Click `Save Recipe` if the draft should become a persistent recipe file.
+4. Click `Preflight` to check VISA resources and probe the Keithley.
+5. Click `Validate YAML`.
+6. Click `Save Recipe` if the draft should become a persistent recipe file.
 
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under
 `data/gui_drafts` before calling the same core runner used by the CLI.
+
+Preflight workflow:
+
+1. Confirm the Keithley is in SCPI mode.
+2. Confirm the expected VISA address is in the YAML editor.
+3. Click `Preflight`.
+4. Open the `Preflight` tab.
+5. Confirm `Recipe address found: True` and `Preflight OK: True`.
+
+The GUI still does not expose hardware runs. Preflight is the readiness layer
+before a future guarded hardware-run workflow.
 
 Run browsing workflow:
 

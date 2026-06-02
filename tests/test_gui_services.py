@@ -14,6 +14,7 @@ from pytransport.gui_services import (
     load_gui_saved_run,
     primary_plot_path,
     primary_report_path,
+    run_gui_preflight_text,
     save_recipe_text,
     validate_recipe_text,
     run_gui_dry_run,
@@ -284,3 +285,36 @@ def test_gui_dry_run_text_uses_unsaved_editor_yaml(tmp_path):
     assert Path(result.metadata["plot_path"]).exists()
     assert Path(result.metadata["report_path"]).exists()
     assert (tmp_path / "drafts" / "drain_iv_unsaved_gui_dry_run.yaml").exists()
+
+
+def test_gui_preflight_text_uses_unsaved_editor_yaml(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "unsaved_gui_preflight"
+    values["address"] = "GPIB0::9::INSTR"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    report = run_gui_preflight_text(
+        "drain_iv",
+        text,
+        resource_lister=lambda: ("GPIB0::9::INSTR",),
+        probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        draft_dir=tmp_path / "drafts",
+    )
+
+    assert "unsaved_gui_preflight" in report
+    assert "Recipe address found: True" in report
+    assert "Preflight OK: True" in report
+    assert (tmp_path / "drafts" / "drain_iv_unsaved_gui_preflight.yaml").exists()
+
+
+def test_gui_preflight_text_rejects_non_drain_method():
+    text = Path("configs/recipes/pulse_dry_run.yaml").read_text(encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Drain I-V"):
+        run_gui_preflight_text("pulse_measurement", text)
