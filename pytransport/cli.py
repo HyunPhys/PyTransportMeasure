@@ -38,6 +38,7 @@ from .campaign import (
     write_campaign_resistance_histogram_svg,
     write_campaign_stats_csv,
 )
+from .doctor import doctor_report_to_dict, format_doctor_report, run_doctor, write_doctor_report
 from .feedback_bundle import create_feedback_bundle
 from .inspect import inspect_run
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
@@ -109,6 +110,12 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("list-resources", help="List VISA resources visible to PyVISA.")
+
+    doctor = subparsers.add_parser("doctor", help="Print lab laptop environment and VISA diagnostics.")
+    doctor.add_argument("--address", help="Optional Keithley VISA address to check and probe.")
+    doctor.add_argument("--timeout-ms", type=int, default=10000)
+    doctor.add_argument("--json", action="store_true", help="Print JSON instead of text.")
+    doctor.add_argument("--output", type=Path, help="Write the report to a file.")
 
     identify = subparsers.add_parser("identify", help="Query *IDN? for a supported instrument.")
     identify.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450"])
@@ -428,6 +435,18 @@ def command_list_resources() -> int:
     for resource in list_resources():
         print(resource)
     return 0
+
+
+def command_doctor(args: argparse.Namespace) -> int:
+    report = run_doctor(address=args.address, timeout_ms=args.timeout_ms)
+    if args.output:
+        path = write_doctor_report(report, args.output, as_json=args.json)
+        print(f"Doctor report: {path}")
+    elif args.json:
+        print(json.dumps(doctor_report_to_dict(report), indent=2, sort_keys=True))
+    else:
+        print(format_doctor_report(report))
+    return 0 if report.ok else 2
 
 
 def command_identify(args: argparse.Namespace) -> int:
@@ -1614,6 +1633,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     if args.command == "list-resources":
         return command_list_resources()
+    if args.command == "doctor":
+        return command_doctor(args)
     if args.command == "identify":
         return command_identify(args)
     if args.command == "probe":

@@ -6,6 +6,7 @@ small, verified Keithley 2450 Drain I-V core.
 Current verified setup and supported workflows:
 
 - Keithley 2450 over VISA/GPIB at `GPIB0::2::INSTR`
+- Lab-laptop diagnostics with `ptm doctor`
 - SCPI command set
 - Front terminals selected in the smoke-test recipe
 - 1 kOhm resistor smoke test
@@ -38,8 +39,8 @@ Current non-user-facing foundations:
 - 4-probe / remote-sense design is documented but intentionally deferred.
 - Pulse hardware output is intentionally blocked until a separate smoke-test
   phase reviews the Keithley pulse command path.
-- GUI hardware controls and recipe-builder work are planned after the core dry-run
-  GUI remains stable.
+- GUI guarded Drain I-V hardware runs are available; other GUI hardware methods
+  remain future milestones.
 
 ## Quick Start
 
@@ -81,6 +82,7 @@ ptm-gui
 - GUI Drain I-V preflight: [docs/phase30_gui_preflight.md](docs/phase30_gui_preflight.md)
 - GUI guarded hardware run: [docs/phase31_gui_guarded_hardware_run.md](docs/phase31_gui_guarded_hardware_run.md)
 - Run feedback bundles: [docs/phase32_feedback_bundle.md](docs/phase32_feedback_bundle.md)
+- Lab-laptop doctor: [docs/phase33_lab_doctor.md](docs/phase33_lab_doctor.md)
 
 ## Hardware Smoke Test
 

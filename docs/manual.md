@@ -62,6 +62,7 @@ Important modules:
 
 | Capability | Status | Main commands |
 | --- | --- | --- |
+| Lab laptop diagnostics | Offline and hardware-probe capable | `ptm doctor` |
 | Keithley 2450 Drain I-V | Hardware verified | `ptm validate`, `ptm plan`, `ptm preflight`, `ptm run` |
 | Drain I-V forward/backward and multi-segment | Hardware-ready after plan/preflight | `ptm plan`, `ptm run` |
 | Batch sessions | Dry-run and hardware-capable for Drain I-V recipes | `ptm batch`, `ptm batch-report`, `ptm batch-stats` |
@@ -178,6 +179,7 @@ Instrument:
 
 ```powershell
 ptm list-resources
+ptm doctor --address "GPIB0::2::INSTR"
 ptm identify --instrument keithley_2450 --address "GPIB0::2::INSTR"
 ptm probe --instrument keithley_2450 --address "GPIB0::2::INSTR"
 ```
@@ -212,6 +214,8 @@ ptm feedback-bundle data\raw\<run_folder>
 
 Use this as the practical decision tree:
 
+- Use `ptm doctor` first on the lab laptop when checking environment, VISA, or
+  Keithley connection state.
 - Use `ptm run` for one Drain I-V recipe.
 - Use `ptm batch` when repeating one or more Drain I-V recipes as a session.
 - Use `ptm scheme` when combining recipes, batches, or single-gate steps.
@@ -223,6 +227,18 @@ Use this as the practical decision tree:
   run folders.
 - Use `ptm feedback-bundle` before sending lab-laptop run results for
   debugging or review.
+
+Lab doctor workflow:
+
+```powershell
+ptm doctor
+ptm doctor --address "GPIB0::2::INSTR"
+ptm doctor --address "GPIB0::2::INSTR" --json --output doctor.json
+```
+
+Use the doctor report before hardware debugging. If `Address found: False`, fix
+the VISA address or connection before running a recipe. If the address is found
+but probe fails, inspect Keithley command set, VISA backend, cable, and timeout.
 
 `ptm summarize`, `ptm plot`, and `ptm report` dispatch from the saved
 `measurement_type`, so the same commands work for both Drain I-V and single-gate

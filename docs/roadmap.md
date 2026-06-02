@@ -157,6 +157,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - package one run folder with inspection, quality, environment, and manifest
   - expose `ptm feedback-bundle`
   - expose GUI `Feedback Bundle`
+- [x] Phase 24j: lab laptop doctor
+  - report Python/platform/PyVISA environment
+  - list VISA resources
+  - optionally check and probe a Keithley address
 
 ## Next GUI
 

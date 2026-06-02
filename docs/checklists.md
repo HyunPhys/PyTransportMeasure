@@ -24,6 +24,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Drain I-V preflight uses the current editor YAML draft.
 - [x] GUI guarded Drain I-V hardware run uses confirmation and preflight gating.
 - [x] Run feedback bundles can package lab-laptop results for review.
+- [x] Lab-laptop doctor can report environment, VISA resources, and probe state.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -46,6 +47,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Confirm the expected VISA address.
   ```powershell
   ptm list-resources
+  ```
+- [ ] Run the lab doctor when working on the lab laptop.
+  ```powershell
+  ptm doctor --address "GPIB0::2::INSTR"
   ```
 
 ## New Drain I-V Recipe
@@ -325,6 +330,10 @@ Use this checklist before pulse hardware work begins.
 ## Lab Laptop Feedback Checklist
 
 - [ ] Pull the latest branch on the lab laptop.
+- [ ] Run a doctor report before hardware debugging.
+  ```powershell
+  ptm doctor --address "GPIB0::2::INSTR" --json --output doctor.json
+  ```
 - [ ] Run the intended dry-run or hardware measurement.
 - [ ] Record the exact command or GUI workflow used.
 - [ ] Create a feedback bundle.
