@@ -20,6 +20,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI run browser can load indexed runs and open artifacts.
 - [x] GUI plot preview renders saved SVG plots in-app.
 - [x] GUI Drain I-V form builder can generate validated YAML for common sweeps.
+- [x] GUI plan and dry-run use the current editor YAML draft.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] GUI hardware runs are a future milestone.
 
@@ -263,7 +264,9 @@ Use this checklist before pulse hardware work begins.
 - [ ] Select `Drain I-V`, open `Drain I-V Form`, edit one non-hardware field,
   and click `Apply Form to YAML`.
 - [ ] Open `Recipe YAML` and confirm the generated YAML reflects the form value.
+- [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
+- [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.
 - [ ] Click `Validate YAML` and confirm validation passes or reports a useful
   schema error.
 - [ ] Click `Save Recipe` and confirm the saved path appears in the recipe field.

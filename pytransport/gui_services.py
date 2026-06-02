@@ -128,6 +128,13 @@ def validate_recipe_text(
         return False, f"Validation: FAIL\n{type(exc).__name__}: {exc}"
 
 
+def load_recipe_from_text(measurement_type: GuiMethod, text: str) -> Any:
+    data = yaml.safe_load(text)
+    if not isinstance(data, dict):
+        raise ValueError("recipe YAML must contain a mapping")
+    return recipe_from_mapping(measurement_type, data)
+
+
 def save_recipe_text(
     measurement_type: GuiMethod,
     text: str,
@@ -293,6 +300,18 @@ def recipe_from_mapping(measurement_type: GuiMethod, data: dict[str, Any]) -> An
     return model.model_validate(data)
 
 
+def format_gui_plan_text(
+    measurement_type: GuiMethod,
+    text: str,
+    safety_dir: str | Path = "configs/safety",
+    preview_points: int = 5,
+) -> str:
+    handler = handler_for_measurement_type(measurement_type)
+    recipe = load_recipe_from_text(measurement_type, text)
+    load_named_safety_preset(recipe.safety_preset, safety_dir)
+    return handler.format_plan(recipe, "<editor>", safety_dir, preview_points)
+
+
 def format_gui_plan(
     measurement_type: GuiMethod,
     recipe_path: str | Path,
@@ -302,6 +321,29 @@ def format_gui_plan(
     handler = handler_for_measurement_type(measurement_type)
     recipe = handler.load_recipe(recipe_path)
     return handler.format_plan(recipe, recipe_path, safety_dir, preview_points)
+
+
+def run_gui_dry_run_text(
+    measurement_type: GuiMethod,
+    text: str,
+    safety_dir: str | Path = "configs/safety",
+    fake: GuiFakeSettings | None = None,
+    index_path: str | Path = "data/run_index.jsonl",
+    draft_dir: str | Path = "data/gui_drafts",
+    create_plot: bool = True,
+    create_report: bool = True,
+) -> GuiRunResult:
+    recipe = load_recipe_from_text(measurement_type, text)
+    draft_path = write_gui_draft_recipe(measurement_type, recipe.measurement_name, text, draft_dir)
+    return run_gui_dry_run(
+        measurement_type,
+        draft_path,
+        safety_dir=safety_dir,
+        fake=fake,
+        index_path=index_path,
+        create_plot=create_plot,
+        create_report=create_report,
+    )
 
 
 def run_gui_dry_run(
@@ -389,6 +431,25 @@ def run_gui_dry_run(
         quality_text=format_gui_quality(quality_report),
         artifact_paths=artifact_paths,
     )
+
+
+def write_gui_draft_recipe(
+    measurement_type: GuiMethod,
+    measurement_name: str,
+    text: str,
+    draft_dir: str | Path = "data/gui_drafts",
+) -> Path:
+    directory = Path(draft_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{safe_filename(measurement_type)}_{safe_filename(measurement_name)}.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def safe_filename(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in value.strip())
+    cleaned = cleaned.strip("_")
+    return cleaned or "recipe"
 
 
 def list_gui_runs(index_path: str | Path = "data/run_index.jsonl", limit: int = 100) -> list[dict[str, Any]]:

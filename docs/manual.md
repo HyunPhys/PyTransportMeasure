@@ -346,8 +346,8 @@ ptm-gui
 The current GUI phase supports method selection, recipe selection, YAML recipe
 editing, schema validation, saving edited recipes, plan preview, dry-run
 execution, summary, metadata, in-app SVG plot preview, report preview, indexed
-run browsing, opening generated run artifacts, and structured Drain I-V recipe
-editing.
+run browsing, opening generated run artifacts, structured Drain I-V recipe
+editing, and editor-backed plan/dry-run.
 
 Drain I-V form workflow:
 
@@ -356,16 +356,21 @@ Drain I-V form workflow:
 3. Edit the address, terminal, voltage/current ranges, sweep, safety preset,
    output directory, and optional quality checks.
 4. Click `Apply Form to YAML`.
-5. Open `Validation` and check that the recipe passes.
-6. Run a dry-run before saving or running the recipe on hardware.
+5. Click `Plan` to preview the current editor draft.
+6. Open `Validation` and check that the recipe passes.
+7. Run a dry-run before saving or running the recipe on hardware.
 
 Recipe editing workflow:
 
 1. Select the measurement method.
 2. Edit the YAML in `Recipe YAML`.
-3. Click `Validate YAML`.
-4. Click `Save Recipe`.
-5. Use the saved recipe for `Plan` and `Dry Run`.
+3. Click `Plan` or `Dry Run` to use the current unsaved editor contents.
+4. Click `Validate YAML`.
+5. Click `Save Recipe` if the draft should become a persistent recipe file.
+
+`Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
+for loading and saving recipes. GUI dry-runs write a temporary draft recipe under
+`data/gui_drafts` before calling the same core runner used by the CLI.
 
 Run browsing workflow:
 

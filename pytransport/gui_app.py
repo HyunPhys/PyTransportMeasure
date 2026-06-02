@@ -14,13 +14,13 @@ from .gui_services import (
     default_recipe_text,
     drain_iv_form_from_text,
     drain_iv_text_from_form,
-    format_gui_plan,
+    format_gui_plan_text,
     list_gui_runs,
     load_gui_saved_run,
     load_recipe_text,
     primary_plot_path,
     primary_report_path,
-    run_gui_dry_run,
+    run_gui_dry_run_text,
     save_recipe_text,
     validate_recipe_text,
 )
@@ -85,15 +85,15 @@ class DryRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
 
-    def __init__(self, measurement_type: str, recipe_path: Path, fake: GuiFakeSettings):
+    def __init__(self, measurement_type: str, recipe_text: str, fake: GuiFakeSettings):
         super().__init__()
         self.measurement_type = measurement_type
-        self.recipe_path = recipe_path
+        self.recipe_text = recipe_text
         self.fake = fake
 
     def run(self) -> None:
         try:
-            self.finished_ok.emit(run_gui_dry_run(self.measurement_type, self.recipe_path, fake=self.fake))
+            self.finished_ok.emit(run_gui_dry_run_text(self.measurement_type, self.recipe_text, fake=self.fake))
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
@@ -369,12 +369,16 @@ class MainWindow(QMainWindow):
 
     def show_plan(self) -> None:
         try:
-            plan = format_gui_plan(self.current_method(), self.recipe_path(), preview_points=self.preview_spin.value())
+            plan = format_gui_plan_text(
+                self.current_method(),
+                self.editor_text.toPlainText(),
+                preview_points=self.preview_spin.value(),
+            )
         except Exception as exc:
             self.show_error(exc)
             return
         self.plan_text.setPlainText(plan)
-        self.status_label.setText("Plan ready")
+        self.status_label.setText("Plan ready from editor YAML")
 
     def load_recipe_into_editor(self) -> None:
         try:
@@ -483,7 +487,7 @@ class MainWindow(QMainWindow):
         self.summary_text.clear()
         self.metadata_text.clear()
         self.report_text.clear()
-        self.worker = DryRunWorker(self.current_method(), self.recipe_path(), fake)
+        self.worker = DryRunWorker(self.current_method(), self.editor_text.toPlainText(), fake)
         self.worker.finished_ok.connect(self.handle_result)
         self.worker.failed.connect(self.handle_failure)
         self.worker.finished.connect(lambda: self.set_running(False))

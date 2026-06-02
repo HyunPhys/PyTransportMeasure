@@ -9,6 +9,7 @@ from pytransport.gui_services import (
     drain_iv_form_from_text,
     drain_iv_text_from_form,
     format_gui_plan,
+    format_gui_plan_text,
     list_gui_runs,
     load_gui_saved_run,
     primary_plot_path,
@@ -16,6 +17,7 @@ from pytransport.gui_services import (
     save_recipe_text,
     validate_recipe_text,
     run_gui_dry_run,
+    run_gui_dry_run_text,
 )
 
 
@@ -246,3 +248,39 @@ def test_drain_iv_form_rejects_missing_required_field():
 
     with pytest.raises(ValueError, match="address is required"):
         drain_iv_text_from_form(values)
+
+
+def test_gui_plan_text_uses_unsaved_editor_yaml(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "unsaved_gui_plan"
+    values["points"] = "7"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    plan = format_gui_plan_text("drain_iv", text, preview_points=7)
+
+    assert "unsaved_gui_plan" in plan
+    assert "points: 7" in plan or "Points: 7" in plan
+
+
+def test_gui_dry_run_text_uses_unsaved_editor_yaml(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "unsaved_gui_dry_run"
+    values["points"] = "9"
+    values["min_points"] = "9"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    result = run_gui_dry_run_text(
+        "drain_iv",
+        text,
+        fake=GuiFakeSettings(resistance_ohm=1000, noise_std_a=0),
+        index_path=tmp_path / "index.jsonl",
+        draft_dir=tmp_path / "drafts",
+    )
+
+    assert result.metadata["measurement_name"] == "unsaved_gui_dry_run"
+    assert result.metadata["points_written"] == 9
+    assert Path(result.metadata["plot_path"]).exists()
+    assert Path(result.metadata["report_path"]).exists()
+    assert (tmp_path / "drafts" / "drain_iv_unsaved_gui_dry_run.yaml").exists()

@@ -141,6 +141,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - edit common Drain I-V fields in a structured form
   - convert form values into validated YAML
   - keep advanced recipes editable through YAML
+- [x] Phase 24f: GUI editor-backed runs
+  - plan from current YAML editor text
+  - dry-run from current YAML editor text
+  - keep recipe path as load/save source
 
 ## Next GUI
 
