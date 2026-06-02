@@ -8,6 +8,7 @@ from pytransport.gui_services import (
     default_recipe_text,
     drain_iv_form_from_text,
     drain_iv_text_from_form,
+    format_hardware_confirmation_text,
     format_gui_plan,
     format_gui_plan_text,
     list_gui_runs,
@@ -15,11 +16,13 @@ from pytransport.gui_services import (
     primary_plot_path,
     primary_report_path,
     run_gui_preflight_text,
+    run_gui_hardware_text,
     save_recipe_text,
     validate_recipe_text,
     run_gui_dry_run,
     run_gui_dry_run_text,
 )
+from pytransport.instruments.fake import FakeSMU
 
 
 def test_gui_methods_include_dry_run_families():
@@ -318,3 +321,65 @@ def test_gui_preflight_text_rejects_non_drain_method():
 
     with pytest.raises(ValueError, match="Drain I-V"):
         run_gui_preflight_text("pulse_measurement", text)
+
+
+def test_hardware_confirmation_text_summarizes_editor_recipe(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "gui_confirm_summary"
+    values["address"] = "GPIB0::7::INSTR"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    message = format_hardware_confirmation_text("drain_iv", text)
+
+    assert "turn Keithley output ON" in message
+    assert "gui_confirm_summary" in message
+    assert "GPIB0::7::INSTR" in message
+    assert "Compliance: 0.0002 A" in message
+
+
+def test_gui_hardware_text_runs_after_preflight_with_injected_smu(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "gui_hardware_injected"
+    values["points"] = "5"
+    values["min_points"] = "5"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    result = run_gui_hardware_text(
+        "drain_iv",
+        text,
+        index_path=tmp_path / "index.jsonl",
+        draft_dir=tmp_path / "drafts",
+        resource_lister=lambda: ("GPIB0::2::INSTR",),
+        probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        smu_factory=lambda address, timeout: FakeSMU(resistance_ohm=1000, noise_std_a=0),
+    )
+
+    assert result.metadata["completed"] is True
+    assert result.metadata["measurement_name"] == "gui_hardware_injected"
+    assert result.metadata["points_written"] == 5
+    assert Path(result.metadata["plot_path"]).exists()
+    assert Path(result.metadata["report_path"]).exists()
+
+
+def test_gui_hardware_text_blocks_when_preflight_fails(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "gui_hardware_blocked"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    with pytest.raises(RuntimeError, match="preflight did not pass"):
+        run_gui_hardware_text(
+            "drain_iv",
+            text,
+            index_path=tmp_path / "index.jsonl",
+            draft_dir=tmp_path / "drafts",
+            resource_lister=lambda: ("ASRL1::INSTR",),
+            smu_factory=lambda address, timeout: FakeSMU(resistance_ohm=1000, noise_std_a=0),
+        )

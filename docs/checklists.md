@@ -22,8 +22,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Drain I-V form builder can generate validated YAML for common sweeps.
 - [x] GUI plan and dry-run use the current editor YAML draft.
 - [x] GUI Drain I-V preflight uses the current editor YAML draft.
+- [x] GUI guarded Drain I-V hardware run uses confirmation and preflight gating.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
-- [ ] GUI hardware runs are a future milestone.
+- [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
+  milestones.
 
 ## Daily Setup
 
@@ -281,7 +283,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Select an older indexed run.
 - [ ] Click `Load Selected` and confirm Summary, Metadata, and Report update.
 - [ ] Open `Plot Preview` and confirm the plot appears in the app.
-- [ ] Confirm no hardware output controls are exposed in this GUI phase.
+- [ ] Confirm `Hardware Run` appears only for Drain I-V in this GUI phase.
 
 ## GUI Drain I-V Preflight Checklist
 
@@ -295,7 +297,27 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm `Recipe address found: True`.
 - [ ] Confirm the probe identifies the Keithley 2450.
 - [ ] Confirm `Preflight OK: True`.
-- [ ] Confirm no GUI hardware run button is available yet.
+- [ ] Confirm `Hardware Run` shows a confirmation dialog before any output can
+  be enabled.
+
+## GUI Drain I-V Hardware Run Checklist
+
+- [ ] Start with a 1 kOhm resistor or another safe test load.
+- [ ] Confirm the Keithley is connected and in SCPI command set.
+- [ ] Confirm the expected VISA address with `ptm list-resources`.
+- [ ] Launch `ptm-gui`.
+- [ ] Select `Drain I-V`.
+- [ ] Confirm the YAML editor has the intended address, terminal, sweep,
+  compliance, safety preset, and output directory.
+- [ ] Click `Plan` and inspect the sweep points.
+- [ ] Click `Preflight` and confirm `Preflight OK: True`.
+- [ ] Click `Hardware Run`.
+- [ ] Read the confirmation dialog and confirm every field.
+- [ ] Click `No` once to confirm cancellation works.
+- [ ] Click `Hardware Run` again and click `Yes` only when ready.
+- [ ] Confirm Keithley output turns off after the run.
+- [ ] Confirm Summary, Metadata, Plot Preview, and Report update.
+- [ ] Confirm `completed=True` for a normal run.
 
 ## Development Checklist
 

@@ -347,7 +347,8 @@ The current GUI phase supports method selection, recipe selection, YAML recipe
 editing, schema validation, saving edited recipes, plan preview, dry-run
 execution, summary, metadata, in-app SVG plot preview, report preview, indexed
 run browsing, opening generated run artifacts, structured Drain I-V recipe
-editing, editor-backed plan/dry-run, and Drain I-V preflight.
+editing, editor-backed plan/dry-run, Drain I-V preflight, and guarded Drain I-V
+hardware runs.
 
 Drain I-V form workflow:
 
@@ -381,8 +382,20 @@ Preflight workflow:
 4. Open the `Preflight` tab.
 5. Confirm `Recipe address found: True` and `Preflight OK: True`.
 
-The GUI still does not expose hardware runs. Preflight is the readiness layer
-before a future guarded hardware-run workflow.
+Guarded hardware run workflow:
+
+1. Complete the preflight workflow above.
+2. Click `Hardware Run`.
+3. Read the confirmation dialog.
+4. Confirm the measurement name, VISA address, terminal, sweep span, point
+   count, compliance, and safety preset.
+5. Click `Yes` only when the wiring and recipe are correct.
+6. Wait for the run to finish.
+7. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
+
+`Hardware Run` reruns preflight immediately before enabling output. If preflight
+does not pass, the run is blocked before the Keithley output is enabled. GUI
+hardware runs currently support only Keithley 2450 Drain I-V recipes.
 
 Run browsing workflow:
 

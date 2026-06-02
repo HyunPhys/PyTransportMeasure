@@ -149,6 +149,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - preflight from current YAML editor text
   - show VISA resources and Keithley probe report
   - keep GUI hardware output controls unavailable
+- [x] Phase 24h: GUI guarded Drain I-V hardware run
+  - explicit confirmation before output can be enabled
+  - rerun preflight inside the hardware worker
+  - reuse core Drain I-V runner and artifact pipeline
 
 ## Next GUI
 

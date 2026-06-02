@@ -14,6 +14,7 @@ from .gui_services import (
     default_recipe_text,
     drain_iv_form_from_text,
     drain_iv_text_from_form,
+    format_hardware_confirmation_text,
     format_gui_plan_text,
     list_gui_runs,
     load_gui_saved_run,
@@ -21,6 +22,7 @@ from .gui_services import (
     primary_plot_path,
     primary_report_path,
     run_gui_preflight_text,
+    run_gui_hardware_text,
     run_gui_dry_run_text,
     save_recipe_text,
     validate_recipe_text,
@@ -115,6 +117,22 @@ class PreflightWorker(QThread):
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
 
+class HardwareRunWorker(QThread):
+    finished_ok = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, measurement_type: str, recipe_text: str):
+        super().__init__()
+        self.measurement_type = measurement_type
+        self.recipe_text = recipe_text
+
+    def run(self) -> None:
+        try:
+            self.finished_ok.emit(run_gui_hardware_text(self.measurement_type, self.recipe_text))
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -122,6 +140,7 @@ class MainWindow(QMainWindow):
         self.resize(1180, 760)
         self.worker: DryRunWorker | None = None
         self.preflight_worker: PreflightWorker | None = None
+        self.hardware_worker: HardwareRunWorker | None = None
         self.last_result: Any | None = None
 
         self.method_combo = QComboBox()
@@ -153,6 +172,8 @@ class MainWindow(QMainWindow):
         self.run_button.clicked.connect(self.start_dry_run)
         self.preflight_button = QPushButton("Preflight")
         self.preflight_button.clicked.connect(self.start_preflight)
+        self.hardware_run_button = QPushButton("Hardware Run")
+        self.hardware_run_button.clicked.connect(self.confirm_and_start_hardware_run)
         self.load_editor_button = QPushButton("Load Editor")
         self.load_editor_button.clicked.connect(self.load_recipe_into_editor)
         self.validate_editor_button = QPushButton("Validate YAML")
@@ -258,6 +279,7 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.plan_button)
         button_row.addWidget(self.run_button)
         button_row.addWidget(self.preflight_button)
+        button_row.addWidget(self.hardware_run_button)
         button_row.addWidget(self.load_editor_button)
         button_row.addWidget(self.validate_editor_button)
         button_row.addWidget(self.save_editor_button)
@@ -384,6 +406,7 @@ class MainWindow(QMainWindow):
             self.load_form_button.setEnabled(is_drain_iv)
             self.apply_form_button.setEnabled(is_drain_iv)
             self.preflight_button.setEnabled(is_drain_iv)
+            self.hardware_run_button.setEnabled(is_drain_iv)
             if not is_drain_iv and hasattr(self, "form_status"):
                 self.form_status.setText("Structured form is available for Drain I-V recipes in this phase.")
 
@@ -529,6 +552,47 @@ class MainWindow(QMainWindow):
         self.preflight_worker.finished.connect(lambda: self.set_preflighting(False))
         self.preflight_worker.start()
 
+    def confirm_and_start_hardware_run(self) -> None:
+        if self.hardware_worker is not None and self.hardware_worker.isRunning():
+            return
+        try:
+            message = format_hardware_confirmation_text(self.current_method(), self.editor_text.toPlainText())
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        answer = QMessageBox.warning(
+            self,
+            "Confirm Hardware Run",
+            message,
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+        if answer != QMessageBox.Yes:
+            self.status_label.setText("Hardware run cancelled")
+            return
+        self.start_hardware_run()
+
+    def start_hardware_run(self) -> None:
+        self.set_hardware_running(True)
+        self.summary_text.clear()
+        self.metadata_text.clear()
+        self.report_text.clear()
+        self.preflight_text.setPlainText("Hardware run starting. Preflight will run before output is enabled.")
+        self.hardware_worker = HardwareRunWorker(self.current_method(), self.editor_text.toPlainText())
+        self.hardware_worker.finished_ok.connect(self.handle_hardware_result)
+        self.hardware_worker.failed.connect(self.handle_hardware_failure)
+        self.hardware_worker.finished.connect(lambda: self.set_hardware_running(False))
+        self.hardware_worker.start()
+
+    def handle_hardware_result(self, result) -> None:
+        self.display_result(result, add_to_table=True)
+        self.status_label.setText(f"Hardware run completed: {result.metadata.get('completed')} | {result.run_dir}")
+
+    def handle_hardware_failure(self, message: str) -> None:
+        self.preflight_text.setPlainText(message)
+        self.status_label.setText("Hardware run failed or blocked")
+        QMessageBox.critical(self, "PyTransportMeasure", message)
+
     def handle_preflight_result(self, text: str) -> None:
         self.preflight_text.setPlainText(text)
         status = "Preflight passed" if "Preflight OK: True" in text else "Preflight failed"
@@ -566,6 +630,7 @@ class MainWindow(QMainWindow):
         self.run_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
+        self.hardware_run_button.setEnabled(is_drain_iv and not running)
         if running:
             self.status_label.setText("Running dry-run...")
 
@@ -574,8 +639,18 @@ class MainWindow(QMainWindow):
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.plan_button.setEnabled(not running)
         self.run_button.setEnabled(not running)
+        self.hardware_run_button.setEnabled(is_drain_iv and not running)
         if running:
             self.status_label.setText("Running preflight...")
+
+    def set_hardware_running(self, running: bool) -> None:
+        is_drain_iv = self.current_method() == "drain_iv"
+        self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        self.preflight_button.setEnabled(is_drain_iv and not running)
+        self.run_button.setEnabled(not running)
+        self.plan_button.setEnabled(not running)
+        if running:
+            self.status_label.setText("Running hardware measurement...")
 
     def add_recent_run(self, result) -> None:
         row = self.recent_table.rowCount()
