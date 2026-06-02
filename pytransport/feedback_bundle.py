@@ -29,6 +29,7 @@ def create_feedback_bundle(
     include_points: bool = True,
     include_plots: bool = True,
     include_reports: bool = True,
+    extra_files: list[str | Path] | None = None,
 ) -> FeedbackBundlePaths:
     source_run_dir = Path(run_dir)
     metadata = read_run_metadata(source_run_dir)
@@ -51,6 +52,7 @@ def create_feedback_bundle(
     quality_path = bundle_dir / "quality.txt"
     quality_report = evaluate_run_quality(source_run_dir)
     quality_path.write_text(format_quality_report(quality_report), encoding="utf-8")
+    extra_records = copy_extra_files(extra_files or [], bundle_dir / "extras")
 
     manifest = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
@@ -72,12 +74,32 @@ def create_feedback_bundle(
             {"kind": "inspection", "path": inspection_path.relative_to(bundle_dir).as_posix()},
             {"kind": "environment", "path": environment_path.relative_to(bundle_dir).as_posix()},
             {"kind": "quality", "path": quality_path.relative_to(bundle_dir).as_posix()},
-        ],
+        ]
+        + extra_records,
     }
     manifest_path = bundle_dir / "bundle_manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True, default=str), encoding="utf-8")
     zip_path = Path(shutil.make_archive(str(bundle_dir), "zip", root_dir=bundle_dir))
     return FeedbackBundlePaths(bundle_dir=bundle_dir, manifest_path=manifest_path, zip_path=zip_path)
+
+
+def copy_extra_files(extra_files: list[str | Path], target_extra_dir: Path) -> list[dict[str, str]]:
+    copied: list[dict[str, str]] = []
+    for source_value in extra_files:
+        source = Path(source_value)
+        if not source.exists() or not source.is_file():
+            raise FileNotFoundError(f"Extra feedback file does not exist: {source}")
+        target_extra_dir.mkdir(parents=True, exist_ok=True)
+        target = unique_target_path(target_extra_dir, source.name)
+        shutil.copy2(source, target)
+        copied.append(
+            {
+                "kind": "extra",
+                "source": str(source),
+                "path": target.relative_to(target_extra_dir.parent).as_posix(),
+            }
+        )
+    return copied
 
 
 def copy_run_files(
@@ -150,6 +172,19 @@ def unique_feedback_dir(output_dir: Path, run_dir: Path, metadata: dict[str, Any
     raise FileExistsError(f"Could not create a unique feedback bundle directory for {measurement_name}")
 
 
+def unique_target_path(directory: Path, filename: str) -> Path:
+    candidate = directory / safe_name(filename)
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    for index in range(2, 1000):
+        next_candidate = directory / f"{stem}_{index:02d}{suffix}"
+        if not next_candidate.exists():
+            return next_candidate
+    raise FileExistsError(f"Could not create a unique feedback extra filename for {filename}")
+
+
 def safe_name(value: str) -> str:
-    cleaned = "".join(char if char.isalnum() or char in {"-", "_"} else "_" for char in value.strip())
+    cleaned = "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in value.strip())
     return cleaned.strip("_") or "run"

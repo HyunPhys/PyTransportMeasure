@@ -21,7 +21,7 @@ Current verified setup and supported workflows:
   artifacts, indexed run browsing, in-app plot preview, Drain I-V form recipe
   building, editor-backed dry-runs, lab doctor, Drain I-V preflight, guarded
   Drain I-V hardware runs, progress streaming, feedback bundles, and report
-  review
+  review, with GUI session logs included in feedback bundles
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -86,6 +86,7 @@ ptm-gui
 - Lab-laptop doctor: [docs/phase33_lab_doctor.md](docs/phase33_lab_doctor.md)
 - GUI lab doctor: [docs/phase34_gui_doctor.md](docs/phase34_gui_doctor.md)
 - GUI progress stream: [docs/phase35_gui_progress_stream.md](docs/phase35_gui_progress_stream.md)
+- GUI session log: [docs/phase36_gui_session_log.md](docs/phase36_gui_session_log.md)
 
 ## Hardware Smoke Test
 
@@ -139,6 +140,7 @@ ptm campaign --name resistor_analytics_check --sample resistor_box --device 1k_r
 ptm campaign-stats data\campaigns\<campaign_folder>
 ptm campaign-histogram data\campaigns\<campaign_folder>
 ptm campaign-bundle data\campaigns\<campaign_folder>
+ptm feedback-bundle data\raw\<run_folder> --extra-file doctor.json
 ptm batch-report data\batches\<batch_folder>
 ptm batch-plot data\batches\<batch_folder>
 ptm batch-csv data\batches\<batch_folder>
@@ -147,6 +149,7 @@ ptm batch-stats data\batches\<batch_folder>
 ptm list-runs
 ptm list-runs --sample resistor_box --tag resistor
 ptm rebuild-index
+ptm feedback-bundle data\raw\<run_folder> --extra-file doctor.json
 ptm inspect-run data\raw\<run_folder>
 ptm report data\raw\<run_folder>
 ptm summarize data\raw\<run_folder>

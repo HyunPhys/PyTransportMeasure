@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from .gui_session import GuiSessionLogger
 from .gui_services import (
     DRAIN_IV_FORM_FIELDS,
     GuiFakeSettings,
@@ -177,6 +178,7 @@ class MainWindow(QMainWindow):
         self.preflight_worker: PreflightWorker | None = None
         self.hardware_worker: HardwareRunWorker | None = None
         self.last_result: Any | None = None
+        self.session_logger = GuiSessionLogger.create()
 
         self.method_combo = QComboBox()
         for key, label in available_gui_methods().items():
@@ -229,6 +231,8 @@ class MainWindow(QMainWindow):
         self.open_report_button.clicked.connect(self.open_report)
         self.feedback_bundle_button = QPushButton("Feedback Bundle")
         self.feedback_bundle_button.clicked.connect(self.create_feedback_bundle)
+        self.open_log_button = QPushButton("Open Log")
+        self.open_log_button.clicked.connect(self.open_session_log_folder)
         self.refresh_runs_button = QPushButton("Refresh Runs")
         self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
         self.load_run_button = QPushButton("Load Selected")
@@ -255,6 +259,8 @@ class MainWindow(QMainWindow):
         self.preflight_text.setReadOnly(True)
         self.progress_text = QPlainTextEdit()
         self.progress_text.setReadOnly(True)
+        self.session_log_text = QPlainTextEdit()
+        self.session_log_text.setReadOnly(True)
         self.summary_text = QPlainTextEdit()
         self.summary_text.setReadOnly(True)
         self.metadata_text = QPlainTextEdit()
@@ -280,6 +286,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.doctor_text, "Doctor")
         tabs.addTab(self.preflight_text, "Preflight")
         tabs.addTab(self.progress_text, "Progress")
+        tabs.addTab(self.session_log_text, "Session Log")
         tabs.addTab(self.summary_text, "Summary")
         tabs.addTab(self.build_plot_preview(), "Plot Preview")
         tabs.addTab(self.metadata_text, "Metadata")
@@ -295,6 +302,7 @@ class MainWindow(QMainWindow):
         self.setStyleSheet(APP_STYLESHEET)
         self.build_menu()
         self.apply_default_recipe()
+        self.log_session(f"Session log path: {self.session_logger.path}")
 
     def build_controls(self) -> QWidget:
         box = QGroupBox("Measurement")
@@ -339,6 +347,7 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.open_plot_button)
         button_row.addWidget(self.open_report_button)
         button_row.addWidget(self.feedback_bundle_button)
+        button_row.addWidget(self.open_log_button)
         layout.addLayout(button_row, 2, 0, 1, 8)
         return box
 
@@ -475,6 +484,7 @@ class MainWindow(QMainWindow):
             return
         self.plan_text.setPlainText(plan)
         self.status_label.setText("Plan ready from editor YAML")
+        self.log_session(f"Plan generated for {self.current_method()}")
 
     def load_recipe_into_editor(self) -> None:
         try:
@@ -485,6 +495,7 @@ class MainWindow(QMainWindow):
         self.validation_text.clear()
         self.load_form_from_editor(silent=True)
         self.status_label.setText("Recipe loaded into editor")
+        self.log_session(f"Recipe loaded into editor: {self.recipe_path()}")
 
     def load_form_from_editor(self, silent: bool = False) -> bool:
         if self.current_method() != "drain_iv":
@@ -517,6 +528,7 @@ class MainWindow(QMainWindow):
         self.validation_text.clear()
         self.form_status.setText("Drain I-V YAML updated from form")
         self.status_label.setText("YAML updated from form")
+        self.log_session("Drain I-V form applied to YAML editor")
         return True
 
     def form_values(self) -> dict[str, str]:
@@ -550,6 +562,7 @@ class MainWindow(QMainWindow):
         )
         self.validation_text.setPlainText(message)
         self.status_label.setText("Recipe validation passed" if ok else "Recipe validation failed")
+        self.log_session(f"Recipe validation {'passed' if ok else 'failed'} for {self.current_method()}")
         return ok
 
     def save_editor_as(self) -> None:
@@ -570,6 +583,7 @@ class MainWindow(QMainWindow):
             return
         self.recipe_edit.setText(str(path))
         self.status_label.setText(f"Recipe saved: {path}")
+        self.log_session(f"Recipe saved: {path}")
 
     def start_dry_run(self) -> None:
         if self.worker is not None and self.worker.isRunning():
@@ -584,6 +598,7 @@ class MainWindow(QMainWindow):
         self.metadata_text.clear()
         self.report_text.clear()
         self.progress_text.setPlainText("Dry-run starting...")
+        self.log_session(f"Dry-run starting: {self.current_method()}")
         self.worker = DryRunWorker(self.current_method(), self.editor_text.toPlainText(), fake)
         self.worker.progress.connect(self.append_progress)
         self.worker.finished_ok.connect(self.handle_result)
@@ -596,6 +611,7 @@ class MainWindow(QMainWindow):
             return
         self.set_preflighting(True)
         self.preflight_text.setPlainText("Preflight running...")
+        self.log_session(f"Preflight starting: {self.current_method()}")
         self.preflight_worker = PreflightWorker(self.current_method(), self.editor_text.toPlainText())
         self.preflight_worker.finished_ok.connect(self.handle_preflight_result)
         self.preflight_worker.failed.connect(self.handle_preflight_failure)
@@ -607,6 +623,7 @@ class MainWindow(QMainWindow):
             return
         self.set_doctor_running(True)
         self.doctor_text.setPlainText("Doctor running...")
+        self.log_session(f"Doctor starting: {self.current_method()}")
         self.doctor_worker = DoctorWorker(self.current_method(), self.editor_text.toPlainText())
         self.doctor_worker.finished_ok.connect(self.handle_doctor_result)
         self.doctor_worker.failed.connect(self.handle_doctor_failure)
@@ -616,10 +633,13 @@ class MainWindow(QMainWindow):
     def handle_doctor_result(self, text: str) -> None:
         self.doctor_text.setPlainText(text)
         self.status_label.setText("Doctor passed" if "OK: True" in text else "Doctor found an issue")
+        self.log_session("Doctor finished")
+        self.log_session(text)
 
     def handle_doctor_failure(self, message: str) -> None:
         self.doctor_text.setPlainText(f"Doctor failed\n\n{message}")
         self.status_label.setText("Doctor failed")
+        self.log_session(f"Doctor failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def confirm_and_start_hardware_run(self) -> None:
@@ -639,6 +659,7 @@ class MainWindow(QMainWindow):
         )
         if answer != QMessageBox.Yes:
             self.status_label.setText("Hardware run cancelled")
+            self.log_session("Hardware run cancelled at confirmation dialog")
             return
         self.start_hardware_run()
 
@@ -649,6 +670,7 @@ class MainWindow(QMainWindow):
         self.report_text.clear()
         self.progress_text.setPlainText("Hardware run starting...")
         self.preflight_text.setPlainText("Hardware run starting. Preflight will run before output is enabled.")
+        self.log_session(f"Hardware run starting: {self.current_method()}")
         self.hardware_worker = HardwareRunWorker(self.current_method(), self.editor_text.toPlainText())
         self.hardware_worker.progress.connect(self.append_progress)
         self.hardware_worker.finished_ok.connect(self.handle_hardware_result)
@@ -659,28 +681,35 @@ class MainWindow(QMainWindow):
     def handle_hardware_result(self, result) -> None:
         self.display_result(result, add_to_table=True)
         self.status_label.setText(f"Hardware run completed: {result.metadata.get('completed')} | {result.run_dir}")
+        self.log_session(f"Hardware run finished: completed={result.metadata.get('completed')} | {result.run_dir}")
 
     def handle_hardware_failure(self, message: str) -> None:
         self.preflight_text.setPlainText(message)
         self.progress_text.appendPlainText(f"Hardware run failed or blocked: {message}")
         self.status_label.setText("Hardware run failed or blocked")
+        self.log_session(f"Hardware run failed or blocked: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def append_progress(self, line: str) -> None:
         self.progress_text.appendPlainText(line)
+        self.log_session(f"Progress: {line}")
 
     def handle_preflight_result(self, text: str) -> None:
         self.preflight_text.setPlainText(text)
         status = "Preflight passed" if "Preflight OK: True" in text else "Preflight failed"
         self.status_label.setText(status)
+        self.log_session(status)
+        self.log_session(text)
 
     def handle_preflight_failure(self, message: str) -> None:
         self.preflight_text.setPlainText(f"Preflight failed\n\n{message}")
         self.status_label.setText("Preflight failed")
+        self.log_session(f"Preflight failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def handle_result(self, result) -> None:
         self.display_result(result, add_to_table=True)
+        self.log_session(f"Dry-run finished: completed={result.metadata.get('completed')} | {result.run_dir}")
 
     def display_result(self, result, add_to_table: bool) -> None:
         self.last_result = result
@@ -697,10 +726,12 @@ class MainWindow(QMainWindow):
         self.open_report_button.setEnabled(self.report_path() is not None)
         self.feedback_bundle_button.setEnabled(True)
         self.status_label.setText(f"Completed: {result.metadata.get('completed')} | {result.run_dir}")
+        self.log_session(f"Displayed run: completed={result.metadata.get('completed')} | {result.run_dir}")
 
     def handle_failure(self, message: str) -> None:
         self.progress_text.appendPlainText(f"Run failed: {message}")
         self.status_label.setText("Failed")
+        self.log_session(f"Run failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def set_running(self, running: bool) -> None:
@@ -778,6 +809,7 @@ class MainWindow(QMainWindow):
             for column, value in enumerate(values):
                 self.recent_table.setItem(row, column, QTableWidgetItem(str(value)))
         self.status_label.setText(f"Loaded {len(records)} indexed runs")
+        self.log_session(f"Indexed runs refreshed: {len(records)} records")
 
     def selected_run_dir(self) -> Path | None:
         selected = self.recent_table.selectedItems()
@@ -802,6 +834,7 @@ class MainWindow(QMainWindow):
             self.show_error(exc)
             return
         self.display_result(result, add_to_table=False)
+        self.log_session(f"Saved run loaded: {run_dir}")
 
     def plot_path(self) -> Path | None:
         if self.last_result is None:
@@ -840,15 +873,28 @@ class MainWindow(QMainWindow):
         if self.last_result is None:
             return
         try:
-            zip_path = create_gui_feedback_bundle(self.last_result.run_dir)
+            zip_path = create_gui_feedback_bundle(
+                self.last_result.run_dir,
+                extra_files=[self.session_logger.path],
+            )
         except Exception as exc:
             self.show_error(exc)
             return
         self.status_label.setText(f"Feedback bundle: {zip_path}")
+        self.log_session(f"Feedback bundle created: {zip_path}")
         open_path(zip_path.parent)
 
     def show_error(self, exc: Exception) -> None:
+        self.log_session(f"Error dialog: {type(exc).__name__}: {exc}")
         QMessageBox.critical(self, "PyTransportMeasure", f"{type(exc).__name__}: {exc}")
+
+    def open_session_log_folder(self) -> None:
+        open_path(self.session_logger.path.parent)
+
+    def log_session(self, message: str) -> None:
+        self.session_logger.write(message)
+        if hasattr(self, "session_log_text"):
+            self.session_log_text.setPlainText(self.session_logger.read_text())
 
 
 def read_text(path: Path) -> str:

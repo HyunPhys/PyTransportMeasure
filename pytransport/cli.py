@@ -412,6 +412,13 @@ def build_parser() -> argparse.ArgumentParser:
     feedback_bundle.add_argument("--no-points", action="store_true", help="Do not include points.csv.")
     feedback_bundle.add_argument("--no-plots", action="store_true", help="Do not include SVG plot files.")
     feedback_bundle.add_argument("--no-reports", action="store_true", help="Do not include Markdown report files.")
+    feedback_bundle.add_argument(
+        "--extra-file",
+        type=Path,
+        action="append",
+        default=[],
+        help="Add an extra diagnostic file, such as doctor.json or a GUI session log.",
+    )
 
     list_runs = subparsers.add_parser("list-runs", help="List recent indexed measurement runs.")
     list_runs.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
@@ -1596,6 +1603,7 @@ def command_feedback_bundle(args: argparse.Namespace) -> int:
         include_points=not args.no_points,
         include_plots=not args.no_plots,
         include_reports=not args.no_reports,
+        extra_files=args.extra_file,
     )
     print(f"Feedback bundle directory: {paths.bundle_dir}")
     print(f"Feedback bundle manifest: {paths.manifest_path}")

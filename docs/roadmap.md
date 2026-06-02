@@ -169,6 +169,11 @@ This roadmap tracks the large development phases. Completed items are checked.
   - stream dry-run point progress to GUI
   - stream guarded Drain I-V hardware point progress to GUI
   - reuse core runner progress callbacks
+- [x] Phase 24m: GUI session log
+  - persist GUI Doctor/Preflight/Progress/error events to `data/gui_logs`
+  - show the current session log in the GUI
+  - include the GUI session log in feedback bundles
+  - allow CLI feedback bundles to include extra diagnostic files
 
 ## Next GUI
 

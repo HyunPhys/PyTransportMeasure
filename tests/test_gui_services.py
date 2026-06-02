@@ -490,3 +490,50 @@ checks:
 
     assert zip_path.exists()
     assert zip_path.suffix == ".zip"
+
+
+def test_gui_feedback_bundle_helper_includes_session_log(tmp_path):
+    recipe_path = tmp_path / "drain.yaml"
+    recipe_path.write_text(
+        """
+measurement_name: gui_feedback_bundle_with_log
+safety_preset: nano_device_safe
+instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  voltage_range_v: 0.1
+  current_range_a: 1.0e-6
+sweep:
+  mode: linear_one_way
+  start_v: -0.01
+  stop_v: 0.01
+  points: 3
+  delay_s: 0.0
+  current_compliance_a: 1.0e-6
+output:
+  directory: {output}
+checks:
+  require_completed: true
+  min_points: 3
+""".format(output=str(tmp_path).replace("\\", "/")),
+        encoding="utf-8",
+    )
+    result = run_gui_dry_run(
+        "drain_iv",
+        recipe_path,
+        fake=GuiFakeSettings(resistance_ohm=1_000_000, noise_std_a=0),
+        index_path=tmp_path / "index.jsonl",
+    )
+    session_log = tmp_path / "gui_session.log"
+    session_log.write_text("progress line", encoding="utf-8")
+
+    zip_path = create_gui_feedback_bundle(
+        result.run_dir,
+        output_dir=tmp_path / "feedback",
+        extra_files=[session_log],
+    )
+
+    import zipfile
+
+    with zipfile.ZipFile(zip_path) as archive:
+        assert "extras/gui_session.log" in archive.namelist()

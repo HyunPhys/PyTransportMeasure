@@ -72,3 +72,19 @@ def test_create_feedback_bundle_can_exclude_large_artifacts(tmp_path):
     assert not (paths.bundle_dir / "run" / "points.csv").exists()
     manifest = json.loads(paths.manifest_path.read_text(encoding="utf-8"))
     assert manifest["included"]["points"] is False
+
+
+def test_create_feedback_bundle_includes_extra_files(tmp_path):
+    metadata = run_drain_iv(make_recipe(tmp_path), make_safety(), FakeSMU(resistance_ohm=1000, noise_std_a=0))
+    run_dir = Path(metadata["run_dir"])
+    extra_file = tmp_path / "doctor.json"
+    extra_file.write_text('{"ok": true}', encoding="utf-8")
+
+    paths = create_feedback_bundle(run_dir, output_dir=tmp_path / "feedback", extra_files=[extra_file])
+
+    copied_extra = paths.bundle_dir / "extras" / "doctor.json"
+    assert copied_extra.read_text(encoding="utf-8") == '{"ok": true}'
+    manifest = json.loads(paths.manifest_path.read_text(encoding="utf-8"))
+    assert any(record["kind"] == "extra" and record["path"] == "extras/doctor.json" for record in manifest["files"])
+    with zipfile.ZipFile(paths.zip_path) as archive:
+        assert "extras/doctor.json" in archive.namelist()

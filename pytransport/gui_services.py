@@ -608,8 +608,12 @@ def load_gui_saved_run(run_dir: str | Path) -> GuiRunResult:
     )
 
 
-def create_gui_feedback_bundle(run_dir: str | Path, output_dir: str | Path = "data/feedback") -> Path:
-    return create_feedback_bundle(run_dir, output_dir=output_dir).zip_path
+def create_gui_feedback_bundle(
+    run_dir: str | Path,
+    output_dir: str | Path = "data/feedback",
+    extra_files: list[str | Path] | None = None,
+) -> Path:
+    return create_feedback_bundle(run_dir, output_dir=output_dir, extra_files=extra_files).zip_path
 
 
 def artifact_paths_from_metadata(metadata: dict[str, Any]) -> dict[str, str]:

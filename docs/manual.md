@@ -208,6 +208,7 @@ ptm plot data\raw\<run_folder>
 ptm report data\raw\<run_folder>
 ptm check-run data\raw\<run_folder>
 ptm feedback-bundle data\raw\<run_folder>
+ptm feedback-bundle data\raw\<run_folder> --extra-file doctor.json
 ```
 
 ## Command Selection
@@ -227,6 +228,8 @@ Use this as the practical decision tree:
   run folders.
 - Use `ptm feedback-bundle` before sending lab-laptop run results for
   debugging or review.
+- Add `--extra-file doctor.json` or another diagnostic file when the run needs
+  lab-laptop context beyond the saved run folder.
 
 Lab doctor workflow:
 
@@ -368,7 +371,8 @@ editing, schema validation, saving edited recipes, plan preview, dry-run
 execution, summary, metadata, in-app SVG plot preview, report preview, indexed
 run browsing, opening generated run artifacts, structured Drain I-V recipe
 editing, editor-backed plan/dry-run, lab doctor, Drain I-V preflight, and
-guarded Drain I-V hardware runs with progress streaming.
+guarded Drain I-V hardware runs with progress streaming and persistent GUI
+session logs.
 
 Drain I-V form workflow:
 
@@ -414,8 +418,9 @@ Guarded hardware run workflow:
 5. Click `Yes` only when the wiring and recipe are correct.
 6. Wait for the run to finish.
 7. Open `Progress` and confirm point lines appear during the run.
-8. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
-9. Click `Feedback Bundle` if the run should be shared for review/debugging.
+8. Open `Session Log` and confirm Doctor/Preflight/Progress events were saved.
+9. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
+10. Click `Feedback Bundle` if the run should be shared for review/debugging.
 
 `Hardware Run` reruns preflight immediately before enabling output. If preflight
 does not pass, the run is blocked before the Keithley output is enabled. GUI
@@ -430,7 +435,23 @@ ptm feedback-bundle data\raw\<run_folder>
 This creates a folder and ZIP under `data/feedback`. The bundle includes copied
 run artifacts, `inspection.txt`, `environment.json`, `quality.txt`, and
 `bundle_manifest.json`. In the GUI, run or load a saved run and click `Feedback
-Bundle` to create the same ZIP.
+Bundle` to create the same ZIP. GUI-created feedback bundles include the current
+GUI session log under `extras/`.
+
+To add extra diagnostic files from the CLI:
+
+```powershell
+ptm feedback-bundle data\raw\<run_folder> --extra-file doctor.json
+```
+
+GUI session log workflow:
+
+1. Launch `ptm-gui`.
+2. Open `Session Log` and confirm `GUI session started`.
+3. Run `Doctor`, `Preflight`, `Dry Run`, or guarded `Hardware Run`.
+4. Confirm the Session Log tab records the same major events and progress lines.
+5. Use `Open Log` to open the log folder, or click `Feedback Bundle` after a
+   run to include the log automatically.
 
 Run browsing workflow:
 

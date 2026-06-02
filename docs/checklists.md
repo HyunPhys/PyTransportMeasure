@@ -28,6 +28,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Doctor can run lab-laptop diagnostics from the current editor address.
 - [x] GUI Progress tab streams point-by-point dry-run and Drain I-V hardware
   updates.
+- [x] GUI Session Log records diagnostics/progress and is included in feedback
+  bundles.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -55,6 +57,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ```powershell
   ptm doctor --address "GPIB0::2::INSTR"
   ```
+- [ ] When using the GUI, confirm the Session Log tab is updating before a
+  hardware run.
 
 ## New Drain I-V Recipe
 
@@ -120,7 +124,25 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ptm inspect-run data\raw\<run_folder>
   ptm check-run data\raw\<run_folder>
   ```
+- [ ] If reporting a lab-laptop issue, create a feedback bundle with diagnostic
+  context.
+  ```powershell
+  ptm feedback-bundle data\raw\<run_folder> --extra-file doctor.json
+  ```
 - [ ] Confirm output is off after normal completion, error, or interrupt.
+
+## GUI Lab Feedback
+
+- [ ] Start the GUI.
+  ```powershell
+  ptm-gui
+  ```
+- [ ] Confirm `Session Log` shows `GUI session started`.
+- [ ] Run `Doctor`, `Preflight`, or `Dry Run`.
+- [ ] Confirm the Session Log tab accumulates the same major events and progress
+  lines.
+- [ ] After a saved run is loaded or completed, press `Feedback Bundle`.
+- [ ] Confirm the ZIP contains the run artifacts and `extras/<gui_session_log>.log`.
 
 ## Batch / Scheme Workflow
 
