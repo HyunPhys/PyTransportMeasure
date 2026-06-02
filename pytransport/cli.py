@@ -38,6 +38,7 @@ from .campaign import (
     write_campaign_resistance_histogram_svg,
     write_campaign_stats_csv,
 )
+from .feedback_bundle import create_feedback_bundle
 from .inspect import inspect_run
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .instruments.keithley_2450 import Keithley2450
@@ -397,6 +398,13 @@ def build_parser() -> argparse.ArgumentParser:
     campaign_bundle.add_argument("--no-points", action="store_true", help="Do not include run points.csv files.")
     campaign_bundle.add_argument("--no-plots", action="store_true", help="Do not include SVG plot files.")
     campaign_bundle.add_argument("--no-reports", action="store_true", help="Do not include Markdown report files.")
+
+    feedback_bundle = subparsers.add_parser("feedback-bundle", help="Create a portable ZIP for sharing one run's lab feedback.")
+    feedback_bundle.add_argument("run_dir", type=Path)
+    feedback_bundle.add_argument("--output-dir", type=Path, default=Path("data/feedback"))
+    feedback_bundle.add_argument("--no-points", action="store_true", help="Do not include points.csv.")
+    feedback_bundle.add_argument("--no-plots", action="store_true", help="Do not include SVG plot files.")
+    feedback_bundle.add_argument("--no-reports", action="store_true", help="Do not include Markdown report files.")
 
     list_runs = subparsers.add_parser("list-runs", help="List recent indexed measurement runs.")
     list_runs.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
@@ -1562,6 +1570,20 @@ def command_campaign_bundle(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_feedback_bundle(args: argparse.Namespace) -> int:
+    paths = create_feedback_bundle(
+        args.run_dir,
+        output_dir=args.output_dir,
+        include_points=not args.no_points,
+        include_plots=not args.no_plots,
+        include_reports=not args.no_reports,
+    )
+    print(f"Feedback bundle directory: {paths.bundle_dir}")
+    print(f"Feedback bundle manifest: {paths.manifest_path}")
+    print(f"Feedback bundle ZIP: {paths.zip_path}")
+    return 0
+
+
 def command_list_runs(args: argparse.Namespace) -> int:
     records = read_run_index(args.index_path)
     completed = True if args.completed else None
@@ -1676,6 +1698,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_campaign_histogram(args)
     if args.command == "campaign-bundle":
         return command_campaign_bundle(args)
+    if args.command == "feedback-bundle":
+        return command_feedback_bundle(args)
     if args.command == "list-runs":
         return command_list_runs(args)
     if args.command == "rebuild-index":

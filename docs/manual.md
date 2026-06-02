@@ -67,6 +67,7 @@ Important modules:
 | Batch sessions | Dry-run and hardware-capable for Drain I-V recipes | `ptm batch`, `ptm batch-report`, `ptm batch-stats` |
 | Measurement schemes | Dry-run and hardware-capable for supported nested steps | `ptm scheme-plan`, `ptm scheme` |
 | Campaign analysis | Offline artifact analysis | `ptm campaign`, `ptm campaign-bundle` |
+| Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
 | SR860 / AC lock-in | Dry-run verified; hardware run intentionally blocked | `ptm ac-lockin-plan`, `ptm ac-lockin --dry-run` |
 | 4-probe / remote sense | Designed and deferred | No active command |
@@ -204,6 +205,7 @@ ptm summarize data\raw\<run_folder>
 ptm plot data\raw\<run_folder>
 ptm report data\raw\<run_folder>
 ptm check-run data\raw\<run_folder>
+ptm feedback-bundle data\raw\<run_folder>
 ```
 
 ## Command Selection
@@ -219,6 +221,8 @@ Use this as the practical decision tree:
 - Use `ptm pulse --dry-run` for the current pulse-measurement artifact path.
 - Use `ptm inspect-run`, `ptm summarize`, `ptm plot`, and `ptm report` on saved
   run folders.
+- Use `ptm feedback-bundle` before sending lab-laptop run results for
+  debugging or review.
 
 `ptm summarize`, `ptm plot`, and `ptm report` dispatch from the saved
 `measurement_type`, so the same commands work for both Drain I-V and single-gate
@@ -392,10 +396,22 @@ Guarded hardware run workflow:
 5. Click `Yes` only when the wiring and recipe are correct.
 6. Wait for the run to finish.
 7. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
+8. Click `Feedback Bundle` if the run should be shared for review/debugging.
 
 `Hardware Run` reruns preflight immediately before enabling output. If preflight
 does not pass, the run is blocked before the Keithley output is enabled. GUI
 hardware runs currently support only Keithley 2450 Drain I-V recipes.
+
+Feedback bundle workflow:
+
+```powershell
+ptm feedback-bundle data\raw\<run_folder>
+```
+
+This creates a folder and ZIP under `data/feedback`. The bundle includes copied
+run artifacts, `inspection.txt`, `environment.json`, `quality.txt`, and
+`bundle_manifest.json`. In the GUI, run or load a saved run and click `Feedback
+Bundle` to create the same ZIP.
 
 Run browsing workflow:
 
@@ -404,11 +420,11 @@ Run browsing workflow:
 3. Select a saved run.
 4. Click `Load Selected`.
 5. Open `Plot Preview` to inspect the SVG inside the app.
-6. Use `Run Folder`, `Plot`, or `Report` to open artifacts externally.
+6. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
+   artifacts externally.
 
-Hardware runs are intentionally not exposed in the GUI yet. The GUI calls the
-same core recipe, runner, safety, method registry, quality, and artifact APIs as
-the CLI instead of reimplementing measurement logic.
+The GUI calls the same core recipe, runner, safety, method registry, quality,
+and artifact APIs as the CLI instead of reimplementing measurement logic.
 
 ## Output Files
 

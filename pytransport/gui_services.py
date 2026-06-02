@@ -15,6 +15,7 @@ from typing import Any, Literal
 import yaml
 
 from .ac_lockin import run_ac_lockin_sweep
+from .feedback_bundle import create_feedback_bundle
 from .inspect import read_run_metadata
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .instruments.keithley_2450 import Keithley2450
@@ -574,6 +575,10 @@ def load_gui_saved_run(run_dir: str | Path) -> GuiRunResult:
         quality_text=quality_text,
         artifact_paths=artifact_paths_from_metadata(metadata),
     )
+
+
+def create_gui_feedback_bundle(run_dir: str | Path, output_dir: str | Path = "data/feedback") -> Path:
+    return create_feedback_bundle(run_dir, output_dir=output_dir).zip_path
 
 
 def artifact_paths_from_metadata(metadata: dict[str, Any]) -> dict[str, str]:

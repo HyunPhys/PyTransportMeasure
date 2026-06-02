@@ -153,6 +153,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - explicit confirmation before output can be enabled
   - rerun preflight inside the hardware worker
   - reuse core Drain I-V runner and artifact pipeline
+- [x] Phase 24i: lab feedback bundle
+  - package one run folder with inspection, quality, environment, and manifest
+  - expose `ptm feedback-bundle`
+  - expose GUI `Feedback Bundle`
 
 ## Next GUI
 

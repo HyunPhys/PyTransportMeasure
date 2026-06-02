@@ -19,7 +19,7 @@ Current verified setup and supported workflows:
 - PySide6 GUI foundation for plan preview, YAML recipe validation, dry-run
   artifacts, indexed run browsing, in-app plot preview, Drain I-V form recipe
   building, editor-backed dry-runs, Drain I-V preflight, guarded Drain I-V
-  hardware runs, and report review
+  hardware runs, feedback bundles, and report review
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -80,6 +80,7 @@ ptm-gui
 - GUI editor-backed runs: [docs/phase29_gui_editor_backed_runs.md](docs/phase29_gui_editor_backed_runs.md)
 - GUI Drain I-V preflight: [docs/phase30_gui_preflight.md](docs/phase30_gui_preflight.md)
 - GUI guarded hardware run: [docs/phase31_gui_guarded_hardware_run.md](docs/phase31_gui_guarded_hardware_run.md)
+- Run feedback bundles: [docs/phase32_feedback_bundle.md](docs/phase32_feedback_bundle.md)
 
 ## Hardware Smoke Test
 

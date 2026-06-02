@@ -11,6 +11,7 @@ from .gui_services import (
     DRAIN_IV_FORM_FIELDS,
     GuiFakeSettings,
     available_gui_methods,
+    create_gui_feedback_bundle,
     default_recipe_text,
     drain_iv_form_from_text,
     drain_iv_text_from_form,
@@ -190,6 +191,8 @@ class MainWindow(QMainWindow):
         self.open_plot_button.clicked.connect(self.open_plot)
         self.open_report_button = QPushButton("Report")
         self.open_report_button.clicked.connect(self.open_report)
+        self.feedback_bundle_button = QPushButton("Feedback Bundle")
+        self.feedback_bundle_button.clicked.connect(self.create_feedback_bundle)
         self.refresh_runs_button = QPushButton("Refresh Runs")
         self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
         self.load_run_button = QPushButton("Load Selected")
@@ -197,6 +200,7 @@ class MainWindow(QMainWindow):
         self.open_run_button.setEnabled(False)
         self.open_plot_button.setEnabled(False)
         self.open_report_button.setEnabled(False)
+        self.feedback_bundle_button.setEnabled(False)
         self.load_run_button.setEnabled(False)
 
         self.status_label = QLabel("Ready")
@@ -291,6 +295,7 @@ class MainWindow(QMainWindow):
         button_row.addWidget(self.open_run_button)
         button_row.addWidget(self.open_plot_button)
         button_row.addWidget(self.open_report_button)
+        button_row.addWidget(self.feedback_bundle_button)
         layout.addLayout(button_row, 2, 0, 1, 8)
         return box
 
@@ -619,6 +624,7 @@ class MainWindow(QMainWindow):
         self.open_run_button.setEnabled(True)
         self.open_plot_button.setEnabled(self.plot_path() is not None)
         self.open_report_button.setEnabled(self.report_path() is not None)
+        self.feedback_bundle_button.setEnabled(True)
         self.status_label.setText(f"Completed: {result.metadata.get('completed')} | {result.run_dir}")
 
     def handle_failure(self, message: str) -> None:
@@ -744,6 +750,17 @@ class MainWindow(QMainWindow):
         path = self.report_path()
         if path is not None:
             open_path(path)
+
+    def create_feedback_bundle(self) -> None:
+        if self.last_result is None:
+            return
+        try:
+            zip_path = create_gui_feedback_bundle(self.last_result.run_dir)
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.status_label.setText(f"Feedback bundle: {zip_path}")
+        open_path(zip_path.parent)
 
     def show_error(self, exc: Exception) -> None:
         QMessageBox.critical(self, "PyTransportMeasure", f"{type(exc).__name__}: {exc}")

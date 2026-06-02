@@ -23,6 +23,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI plan and dry-run use the current editor YAML draft.
 - [x] GUI Drain I-V preflight uses the current editor YAML draft.
 - [x] GUI guarded Drain I-V hardware run uses confirmation and preflight gating.
+- [x] Run feedback bundles can package lab-laptop results for review.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -318,6 +319,22 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm Keithley output turns off after the run.
 - [ ] Confirm Summary, Metadata, Plot Preview, and Report update.
 - [ ] Confirm `completed=True` for a normal run.
+- [ ] Click `Feedback Bundle` and confirm a ZIP is created under
+  `data/feedback`.
+
+## Lab Laptop Feedback Checklist
+
+- [ ] Pull the latest branch on the lab laptop.
+- [ ] Run the intended dry-run or hardware measurement.
+- [ ] Record the exact command or GUI workflow used.
+- [ ] Create a feedback bundle.
+  ```powershell
+  ptm feedback-bundle data\raw\<run_folder>
+  ```
+- [ ] Confirm the command prints `Feedback bundle ZIP: ...`.
+- [ ] Send the ZIP path/name along with a short description of what happened.
+- [ ] If the bundle is large, rerun with `--no-points`, `--no-plots`, or
+  `--no-reports` as appropriate.
 
 ## Development Checklist
 
