@@ -22,6 +22,7 @@ from .gui_services import (
     load_recipe_text,
     primary_plot_path,
     primary_report_path,
+    run_gui_doctor_text,
     run_gui_preflight_text,
     run_gui_hardware_text,
     run_gui_dry_run_text,
@@ -118,6 +119,22 @@ class PreflightWorker(QThread):
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
 
+class DoctorWorker(QThread):
+    finished_ok = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, measurement_type: str, recipe_text: str):
+        super().__init__()
+        self.measurement_type = measurement_type
+        self.recipe_text = recipe_text
+
+    def run(self) -> None:
+        try:
+            self.finished_ok.emit(run_gui_doctor_text(self.measurement_type, self.recipe_text))
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+
 class HardwareRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
@@ -140,6 +157,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("PyTransportMeasure")
         self.resize(1180, 760)
         self.worker: DryRunWorker | None = None
+        self.doctor_worker: DoctorWorker | None = None
         self.preflight_worker: PreflightWorker | None = None
         self.hardware_worker: HardwareRunWorker | None = None
         self.last_result: Any | None = None
@@ -171,6 +189,8 @@ class MainWindow(QMainWindow):
         self.plan_button.clicked.connect(self.show_plan)
         self.run_button = QPushButton("Dry Run")
         self.run_button.clicked.connect(self.start_dry_run)
+        self.doctor_button = QPushButton("Doctor")
+        self.doctor_button.clicked.connect(self.start_doctor)
         self.preflight_button = QPushButton("Preflight")
         self.preflight_button.clicked.connect(self.start_preflight)
         self.hardware_run_button = QPushButton("Hardware Run")
@@ -213,6 +233,8 @@ class MainWindow(QMainWindow):
         self.form_status = QLabel("Drain I-V form builder")
         self.validation_text = QPlainTextEdit()
         self.validation_text.setReadOnly(True)
+        self.doctor_text = QPlainTextEdit()
+        self.doctor_text.setReadOnly(True)
         self.preflight_text = QPlainTextEdit()
         self.preflight_text.setReadOnly(True)
         self.summary_text = QPlainTextEdit()
@@ -237,6 +259,7 @@ class MainWindow(QMainWindow):
         tabs.addTab(self.build_drain_iv_form(), "Drain I-V Form")
         tabs.addTab(self.editor_text, "Recipe YAML")
         tabs.addTab(self.validation_text, "Validation")
+        tabs.addTab(self.doctor_text, "Doctor")
         tabs.addTab(self.preflight_text, "Preflight")
         tabs.addTab(self.summary_text, "Summary")
         tabs.addTab(self.build_plot_preview(), "Plot Preview")
@@ -282,6 +305,7 @@ class MainWindow(QMainWindow):
         button_row = QHBoxLayout()
         button_row.addWidget(self.plan_button)
         button_row.addWidget(self.run_button)
+        button_row.addWidget(self.doctor_button)
         button_row.addWidget(self.preflight_button)
         button_row.addWidget(self.hardware_run_button)
         button_row.addWidget(self.load_editor_button)
@@ -557,6 +581,26 @@ class MainWindow(QMainWindow):
         self.preflight_worker.finished.connect(lambda: self.set_preflighting(False))
         self.preflight_worker.start()
 
+    def start_doctor(self) -> None:
+        if self.doctor_worker is not None and self.doctor_worker.isRunning():
+            return
+        self.set_doctor_running(True)
+        self.doctor_text.setPlainText("Doctor running...")
+        self.doctor_worker = DoctorWorker(self.current_method(), self.editor_text.toPlainText())
+        self.doctor_worker.finished_ok.connect(self.handle_doctor_result)
+        self.doctor_worker.failed.connect(self.handle_doctor_failure)
+        self.doctor_worker.finished.connect(lambda: self.set_doctor_running(False))
+        self.doctor_worker.start()
+
+    def handle_doctor_result(self, text: str) -> None:
+        self.doctor_text.setPlainText(text)
+        self.status_label.setText("Doctor passed" if "OK: True" in text else "Doctor found an issue")
+
+    def handle_doctor_failure(self, message: str) -> None:
+        self.doctor_text.setPlainText(f"Doctor failed\n\n{message}")
+        self.status_label.setText("Doctor failed")
+        QMessageBox.critical(self, "PyTransportMeasure", message)
+
     def confirm_and_start_hardware_run(self) -> None:
         if self.hardware_worker is not None and self.hardware_worker.isRunning():
             return
@@ -634,6 +678,7 @@ class MainWindow(QMainWindow):
     def set_running(self, running: bool) -> None:
         is_drain_iv = self.current_method() == "drain_iv"
         self.run_button.setEnabled(not running)
+        self.doctor_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
@@ -644,6 +689,7 @@ class MainWindow(QMainWindow):
         is_drain_iv = self.current_method() == "drain_iv"
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.plan_button.setEnabled(not running)
+        self.doctor_button.setEnabled(not running)
         self.run_button.setEnabled(not running)
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
         if running:
@@ -653,10 +699,21 @@ class MainWindow(QMainWindow):
         is_drain_iv = self.current_method() == "drain_iv"
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
+        self.doctor_button.setEnabled(not running)
         self.run_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         if running:
             self.status_label.setText("Running hardware measurement...")
+
+    def set_doctor_running(self, running: bool) -> None:
+        is_drain_iv = self.current_method() == "drain_iv"
+        self.doctor_button.setEnabled(not running)
+        self.preflight_button.setEnabled(is_drain_iv and not running)
+        self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        self.run_button.setEnabled(not running)
+        self.plan_button.setEnabled(not running)
+        if running:
+            self.status_label.setText("Running doctor...")
 
     def add_recent_run(self, result) -> None:
         row = self.recent_table.rowCount()

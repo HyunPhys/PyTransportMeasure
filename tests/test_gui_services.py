@@ -16,6 +16,7 @@ from pytransport.gui_services import (
     load_gui_saved_run,
     primary_plot_path,
     primary_report_path,
+    run_gui_doctor_text,
     run_gui_preflight_text,
     run_gui_hardware_text,
     save_recipe_text,
@@ -315,6 +316,42 @@ def test_gui_preflight_text_uses_unsaved_editor_yaml(tmp_path):
     assert "Recipe address found: True" in report
     assert "Preflight OK: True" in report
     assert (tmp_path / "drafts" / "drain_iv_unsaved_gui_preflight.yaml").exists()
+
+
+def test_gui_doctor_text_uses_drain_iv_editor_address(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["address"] = "GPIB0::8::INSTR"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+
+    report = run_gui_doctor_text(
+        "drain_iv",
+        text,
+        resource_lister=lambda: ("GPIB0::8::INSTR",),
+        probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+    )
+
+    assert "OK: True" in report
+    assert "Requested address: GPIB0::8::INSTR" in report
+    assert "Address found: True" in report
+    assert "MODEL 2450" in report
+
+
+def test_gui_doctor_text_can_run_without_method_address():
+    report = run_gui_doctor_text(
+        "pulse_measurement",
+        "measurement_name: placeholder\n",
+        resource_lister=lambda: ("ASRL1::INSTR",),
+    )
+
+    assert "OK: True" in report
+    assert "ASRL1::INSTR" in report
+    assert "Requested address" not in report
 
 
 def test_gui_preflight_text_rejects_non_drain_method():

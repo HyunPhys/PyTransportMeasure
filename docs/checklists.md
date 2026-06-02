@@ -25,6 +25,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI guarded Drain I-V hardware run uses confirmation and preflight gating.
 - [x] Run feedback bundles can package lab-laptop results for review.
 - [x] Lab-laptop doctor can report environment, VISA resources, and probe state.
+- [x] GUI Doctor can run lab-laptop diagnostics from the current editor address.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -276,6 +277,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.
+- [ ] Click `Doctor` and confirm the `Doctor` tab updates.
 - [ ] Click `Preflight` for Drain I-V and confirm the `Preflight` tab updates.
 - [ ] Click `Validate YAML` and confirm validation passes or reports a useful
   schema error.
@@ -298,6 +300,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Launch `ptm-gui`.
 - [ ] Select `Drain I-V`.
 - [ ] Confirm the YAML editor has the intended address and safety preset.
+- [ ] Click `Doctor` and confirm `OK: True`.
 - [ ] Click `Preflight`.
 - [ ] Confirm the `Preflight` tab lists the VISA resources.
 - [ ] Confirm `Recipe address found: True`.
@@ -316,6 +319,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the YAML editor has the intended address, terminal, sweep,
   compliance, safety preset, and output directory.
 - [ ] Click `Plan` and inspect the sweep points.
+- [ ] Click `Doctor` and confirm `Address found: True`.
 - [ ] Click `Preflight` and confirm `Preflight OK: True`.
 - [ ] Click `Hardware Run`.
 - [ ] Read the confirmation dialog and confirm every field.

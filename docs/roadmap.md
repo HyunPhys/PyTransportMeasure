@@ -161,6 +161,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - report Python/platform/PyVISA environment
   - list VISA resources
   - optionally check and probe a Keithley address
+- [x] Phase 24k: GUI lab doctor
+  - run doctor from GUI
+  - infer Drain I-V address from current editor YAML
+  - display diagnostics in a Doctor tab
 
 ## Next GUI
 

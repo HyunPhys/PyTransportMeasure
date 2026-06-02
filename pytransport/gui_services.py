@@ -16,6 +16,7 @@ import yaml
 
 from .ac_lockin import run_ac_lockin_sweep
 from .feedback_bundle import create_feedback_bundle
+from .doctor import format_doctor_report, run_doctor
 from .inspect import read_run_metadata
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .instruments.keithley_2450 import Keithley2450
@@ -368,6 +369,27 @@ def run_gui_preflight_text(
         kwargs["probe_factory"] = probe_factory
     report = run_preflight_for_recipe(recipe, draft_path, safety_dir=safety_dir, **kwargs)
     return format_preflight_report(report)
+
+
+def run_gui_doctor_text(
+    measurement_type: GuiMethod,
+    text: str,
+    timeout_ms: int = 10000,
+    resource_lister=None,
+    probe_factory=None,
+) -> str:
+    address = None
+    if measurement_type == "drain_iv":
+        recipe = load_recipe_from_text(measurement_type, text)
+        address = recipe.instrument.address
+        timeout_ms = recipe.instrument.timeout_ms
+    kwargs = {}
+    if resource_lister is not None:
+        kwargs["resource_lister"] = resource_lister
+    if probe_factory is not None:
+        kwargs["probe_factory"] = probe_factory
+    report = run_doctor(address=address, timeout_ms=timeout_ms, **kwargs)
+    return format_doctor_report(report)
 
 
 def run_gui_hardware_text(
