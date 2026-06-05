@@ -49,6 +49,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   method, and status.
 - [x] GUI Analysis can scan selected run folders, sort Runs columns, and
   highlight the currently loaded row.
+- [x] GUI Recipe Overview summarizes the current YAML by method, experiment,
+  instrument, sweep/pulse/lock-in, output, and checks.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -353,6 +355,8 @@ Use this checklist before pulse hardware work begins.
 - [ ] Open `Recipe YAML` and confirm the generated YAML reflects the form value.
 - [ ] Edit `Recipe YAML` directly and confirm the status says YAML remains the
   execution source.
+- [ ] Open `Recipe Overview` and confirm the current method, instrument block,
+  sweep or pulse block, output, and checks match the YAML.
 - [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.

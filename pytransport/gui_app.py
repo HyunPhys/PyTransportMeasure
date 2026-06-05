@@ -20,6 +20,7 @@ from .gui_services import (
     format_hardware_confirmation_text,
     format_gui_plan_text,
     format_gui_progress,
+    format_recipe_overview_text,
     list_gui_runs,
     load_gui_saved_run,
     load_recipe_from_text,
@@ -464,6 +465,8 @@ class MainWindow(QMainWindow):
 
         self.plan_text = QPlainTextEdit()
         self.plan_text.setReadOnly(True)
+        self.recipe_overview_text = QPlainTextEdit()
+        self.recipe_overview_text.setReadOnly(True)
         self.workflow_text = QPlainTextEdit()
         self.workflow_text.setReadOnly(True)
         self.editor_text = QPlainTextEdit()
@@ -604,6 +607,7 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.build_controls())
         measurement_tabs = QTabWidget()
         measurement_tabs.addTab(self.workflow_text, "Workflow")
+        measurement_tabs.addTab(self.recipe_overview_text, "Recipe Overview")
         measurement_tabs.addTab(self.plan_text, "Plan")
         measurement_tabs.addTab(self.build_drain_iv_form(), "Drain I-V Form")
         measurement_tabs.addTab(self.editor_text, "Recipe YAML")
@@ -764,6 +768,7 @@ class MainWindow(QMainWindow):
         if self._syncing_recipe_widgets:
             return
         self.validation_text.clear()
+        self.update_recipe_overview()
         self.recipe_sync_status.setText(
             "YAML edited. YAML is the execution source. Use YAML -> Form if the form should mirror these edits."
         )
@@ -806,6 +811,22 @@ class MainWindow(QMainWindow):
             "- Form edits must be applied with Form -> YAML before they affect runs.",
         ]
         self.workflow_text.setPlainText("\n".join(lines))
+
+    def update_recipe_overview(self) -> None:
+        if not hasattr(self, "recipe_overview_text"):
+            return
+        try:
+            text = format_recipe_overview_text(self.current_method(), self.editor_text.toPlainText())
+        except Exception as exc:
+            text = "\n".join(
+                [
+                    "Recipe Overview",
+                    "",
+                    "Current YAML cannot be summarized yet.",
+                    f"{type(exc).__name__}: {exc}",
+                ]
+            )
+        self.recipe_overview_text.setPlainText(text)
 
     def next_workflow_hint(self) -> str:
         if not self.workflow_state["yaml_checked"]:
@@ -858,6 +879,7 @@ class MainWindow(QMainWindow):
                 self.validation_text.clear()
                 self.load_form_from_editor(silent=True)
                 self.sync_recipe_address_to_instrument_combo()
+                self.update_recipe_overview()
                 self.recipe_sync_status.setText(
                     "Execution source: Recipe YAML. Form is synced from the default recipe."
                 )
@@ -892,6 +914,7 @@ class MainWindow(QMainWindow):
             self.show_error(exc)
             return
         self.plan_text.setPlainText(plan)
+        self.update_recipe_overview()
         self.status_label.setText("Plan ready from editor YAML")
         self.mark_workflow("plan_ready", True, "Plan generated. Inspect sweep points before running.")
         self.log_session(f"Plan generated for {self.current_method()}")
@@ -908,6 +931,7 @@ class MainWindow(QMainWindow):
         self.validation_text.clear()
         self.load_form_from_editor(silent=True)
         self.sync_recipe_address_to_instrument_combo()
+        self.update_recipe_overview()
         self.recipe_sync_status.setText("Recipe file loaded. YAML is the execution source; form is synced from YAML.")
         self.reset_workflow_after_recipe_change("Recipe file loaded. Click Check YAML.")
         self.status_label.setText("Recipe loaded into editor")
@@ -952,6 +976,7 @@ class MainWindow(QMainWindow):
             self._syncing_recipe_widgets = False
         self.validation_text.clear()
         self.sync_recipe_address_to_instrument_combo()
+        self.update_recipe_overview()
         self.form_status.setText("Drain I-V YAML updated from form")
         self.recipe_sync_status.setText("YAML regenerated from form. YAML is now the execution source for runs.")
         self.reset_workflow_after_recipe_change("YAML regenerated from form. Click Check YAML next.")
@@ -989,6 +1014,7 @@ class MainWindow(QMainWindow):
             preview_points=self.preview_spin.value(),
         )
         self.validation_text.setPlainText(message)
+        self.update_recipe_overview()
         self.status_label.setText("Recipe validation passed" if ok else "Recipe validation failed")
         self.mark_workflow(
             "yaml_checked",

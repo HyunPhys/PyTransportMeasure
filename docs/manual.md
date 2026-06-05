@@ -367,25 +367,27 @@ ptm-gui
 ```
 
 The current GUI phase supports method selection, recipe selection, YAML recipe
-editing, schema validation, saving edited recipes, plan preview, dry-run
-execution, summary, metadata, in-app points-based plot preview, report preview, indexed
-run browsing, opening generated run artifacts, structured Drain I-V recipe
-editing, editor-backed plan/dry-run, lab doctor, Drain I-V preflight, and
-guarded Drain I-V hardware runs with progress streaming and persistent GUI
-session logs. The GUI is organized into `Measurement`, `Instruments`, and
-`Analysis` workspaces. `Measurement > Workflow` shows the major preparation
-steps and the next recommended action.
+editing, a method-aware Recipe Overview, schema validation, saving edited
+recipes, plan preview, dry-run execution, summary, metadata, in-app points-based
+plot preview, report preview, indexed run browsing, opening generated run
+artifacts, structured Drain I-V recipe editing, editor-backed plan/dry-run, lab
+doctor, Drain I-V preflight, and guarded Drain I-V hardware runs with progress
+streaming and persistent GUI session logs. The GUI is organized into
+`Measurement`, `Instruments`, and `Analysis` workspaces. `Measurement >
+Workflow` shows the major preparation steps and the next recommended action.
 
 Recommended GUI workflow:
 
 1. Open `Measurement > Workflow`.
-2. Click `Check YAML`.
-3. Open `Instruments`, click `Refresh Instruments`, select the intended VISA
+2. Open `Measurement > Recipe Overview` and confirm the method, experiment
+   metadata, instrument blocks, sweep/pulse blocks, output, and checks.
+3. Click `Check YAML`.
+4. Open `Instruments`, click `Refresh Instruments`, select the intended VISA
    address, and click `Test Selected Address`.
-4. Return to `Measurement`, click `Plan`, and inspect the sweep.
-5. Run `Dry Run` and inspect the live plot and generated artifacts.
-6. On the lab laptop, click `Preflight` immediately before hardware.
-7. Click `Hardware Run` only after the confirmation dialog matches the wiring
+5. Return to `Measurement`, click `Plan`, and inspect the sweep.
+6. Run `Dry Run` and inspect the live plot and generated artifacts.
+7. On the lab laptop, click `Preflight` immediately before hardware.
+8. Click `Hardware Run` only after the confirmation dialog matches the wiring
    and recipe.
 
 The workflow guide marks completed steps with `[x]`. Editing YAML or the
@@ -437,6 +439,10 @@ Recipe tool button meanings:
 - `YAML -> Form`: copy values from the current YAML editor into the structured
   Drain I-V form.
 - `Form -> YAML`: regenerate the YAML editor contents from the structured form.
+
+`Recipe Overview` is read-only and updates from the current YAML editor text. It
+is for quick structural inspection; `Plan` remains the exact sweep and safety
+preview before a run.
 
 Lab context metadata:
 

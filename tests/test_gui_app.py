@@ -46,10 +46,12 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert "Measurement" in tab_labels
     assert "Instruments" in tab_labels
     assert "Analysis" in tab_labels
+    assert "Recipe Overview" in tab_labels
     assert "Doctor" not in tab_labels
     assert window.doctor_button.text() == "Full Doctor"
     assert window.refresh_instruments_button.text() == "Refresh Instruments"
     assert window.test_connection_button.text() == "Test Selected Address"
+    assert "Method: Drain I-V (drain_iv)" in window.recipe_overview_text.toPlainText()
     window.close()
 
 
@@ -74,6 +76,7 @@ def test_gui_recipe_sync_status_tracks_yaml_and_form_edits(app):
 
     window.editor_text.appendPlainText("# user note")
     assert "YAML edited" in window.recipe_sync_status.text()
+    assert "Recipe Overview" in window.recipe_overview_text.toPlainText()
     assert "[ ] Check YAML" in window.workflow_text.toPlainText()
 
     field = window.form_fields["measurement_name"]

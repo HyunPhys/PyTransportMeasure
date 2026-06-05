@@ -213,6 +213,12 @@ This roadmap tracks the large development phases. Completed items are checked.
 - [x] Phase 24w: GUI Analysis source folder, sorting, and loaded row
   - scan selected run folders or parent folders in Analysis
   - enable Runs table sorting and highlight the currently loaded run
+- [x] Phase 24x: GUI Recipe Overview
+  - summarize the current YAML by method, experiment, instrument, sweep, pulse,
+    lock-in, output, and checks blocks
+  - update the overview from the editor YAML without adding GUI-only recipe
+    parsing
+  - keep the path open for schema-driven form builder work
 
 ## Next GUI
 

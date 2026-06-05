@@ -330,6 +330,98 @@ def format_gui_plan_text(
     return handler.format_plan(recipe, "<editor>", safety_dir, preview_points)
 
 
+def format_recipe_overview_text(measurement_type: GuiMethod, text: str) -> str:
+    handler = handler_for_measurement_type(measurement_type)
+    recipe = load_recipe_from_text(measurement_type, text)
+    data = recipe.model_dump(mode="json", exclude_none=True)
+    lines = [
+        "Recipe Overview",
+        "",
+        f"Method: {handler.display_name} ({handler.measurement_type})",
+        f"Measurement: {data.get('measurement_name') or 'n/a'}",
+        f"Safety preset: {data.get('safety_preset') or 'n/a'}",
+    ]
+
+    _append_overview_block(
+        lines,
+        "Experiment",
+        data.get("experiment") or {},
+        [
+            "sample_id",
+            "device_id",
+            "cooldown_id",
+            "contact_geometry",
+            "contact_notes",
+            "lab_notebook_ref",
+            "operator",
+            "tags",
+            "notes",
+        ],
+    )
+    for block_name in [
+        "instrument",
+        "drain_instrument",
+        "gate_instrument",
+        "source_instrument",
+        "lockin",
+    ]:
+        _append_overview_block(lines, _overview_title(block_name), data.get(block_name) or {})
+    for block_name in [
+        "sweep",
+        "drain_sweep",
+        "gate_sweep",
+        "bias_sweep",
+        "pulse",
+        "pulse_limits",
+        "checks",
+        "output",
+    ]:
+        _append_overview_block(lines, _overview_title(block_name), data.get(block_name) or {})
+    return "\n".join(lines)
+
+
+def _append_overview_block(
+    lines: list[str],
+    title: str,
+    values: dict[str, Any],
+    ordered_keys: list[str] | None = None,
+) -> None:
+    if not values:
+        return
+    keys = ordered_keys or list(values)
+    rows = [(key, values.get(key)) for key in keys if _overview_has_value(values.get(key))]
+    extra_keys = [key for key in values if key not in keys and _overview_has_value(values.get(key))]
+    rows.extend((key, values.get(key)) for key in extra_keys)
+    if not rows:
+        return
+    lines.extend(["", title])
+    for key, value in rows:
+        lines.append(f"- {_overview_label(key)}: {_overview_value(value)}")
+
+
+def _overview_has_value(value: Any) -> bool:
+    return value is not None and value != "" and value != [] and value != {}
+
+
+def _overview_title(name: str) -> str:
+    return name.replace("_", " ").title()
+
+
+def _overview_label(name: str) -> str:
+    return name.replace("_", " ")
+
+
+def _overview_value(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:g}"
+    if isinstance(value, list):
+        return ", ".join(_overview_value(item) for item in value) or "n/a"
+    if isinstance(value, dict):
+        parts = [f"{_overview_label(str(key))}={_overview_value(item)}" for key, item in value.items() if _overview_has_value(item)]
+        return ", ".join(parts) or "n/a"
+    return str(value)
+
+
 def format_gui_plan(
     measurement_type: GuiMethod,
     recipe_path: str | Path,

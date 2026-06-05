@@ -13,6 +13,7 @@ from pytransport.gui_services import (
     format_gui_plan,
     format_gui_plan_text,
     format_gui_progress,
+    format_recipe_overview_text,
     refresh_gui_instruments,
     list_gui_runs,
     load_gui_saved_run,
@@ -64,6 +65,30 @@ def test_gui_plan_uses_method_registry():
 
     assert "Pulse Measurement Plan" in plan
     assert "pulse_dry_run" in plan
+
+
+def test_gui_recipe_overview_summarizes_drain_iv_recipe():
+    overview = format_recipe_overview_text("drain_iv", default_recipe_text("drain_iv"))
+
+    assert "Recipe Overview" in overview
+    assert "Method: Drain I-V (drain_iv)" in overview
+    assert "Measurement: drain_iv_1k_resistor_check" in overview
+    assert "Experiment" in overview
+    assert "- sample id: resistor_box" in overview
+    assert "Instrument" in overview
+    assert "- address: GPIB0::2::INSTR" in overview
+    assert "Sweep" in overview
+    assert "- points: 21" in overview
+
+
+def test_gui_recipe_overview_is_method_aware_for_pulse_recipe():
+    overview = format_recipe_overview_text("pulse_measurement", default_recipe_text("pulse_measurement"))
+
+    assert "Method: Pulse measurement (pulse_measurement)" in overview
+    assert "Source Instrument" in overview
+    assert "Pulse" in overview
+    assert "- amplitude v:" in overview
+    assert "Pulse Limits" in overview
 
 
 def test_gui_recipe_editor_validates_default_recipe_text(tmp_path):
