@@ -941,13 +941,17 @@ ptm doctor --instrument srs_sr860 --address "GPIB0::4::INSTR"
 ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml
 ```
 
-Keithley 2450 source blocks may set `nplc`. This controls current measurement
-integration time and is part of the saved recipe snapshot:
+Keithley 2450 source blocks should explicitly set `voltage_range_v`,
+`current_range_a`, and `nplc`. NPLC controls current measurement integration
+time, while the ranges keep the hardware measurement condition traceable and
+avoid accidental autorange behavior:
 
 ```yaml
 instrument:
   id: keithley_2450
   address: GPIB0::2::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-7
   nplc: 1.0
 ```
 
@@ -955,10 +959,11 @@ Longer NPLC improves current averaging at the cost of sweep speed. For DC gate
 leakage and source-current checks, set NPLC deliberately in every active
 Keithley block before a hardware run.
 
-CLI hardware paths now require explicit NPLC before any Keithley output can be
-enabled. Dry-runs remain allowed without NPLC, but real Drain I-V, single-gate,
-AC lock-in, dual-gate lock-in active-gate smoke, and dual-gate lock-in active
-sweeps are blocked until every active Keithley 2450 block has `nplc`.
+CLI hardware paths now require explicit `voltage_range_v`, `current_range_a`,
+and `nplc` before any Keithley output can be enabled. Dry-runs remain allowed
+without these values, but real Drain I-V, single-gate, AC lock-in, dual-gate
+lock-in active-gate smoke, and dual-gate lock-in active sweeps are blocked
+until every active Keithley 2450 block has them.
 
 Keithley source blocks may also set an instrument voltage-source delay:
 

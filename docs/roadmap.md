@@ -282,7 +282,13 @@ root.
   - run strict `dual-gate-lockin-audit` on the previous artifact before output
   - save accepted previous run path, audit pass state, and point counts in
     `hardware_guard`
-- [ ] Phase 25z: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25z: Explicit Keithley range hardware gate
+  - require `voltage_range_v`, `current_range_a`, and `nplc` before active
+    Keithley hardware output paths can start
+  - keep dry-run paths available for recipe/artifact tests with incomplete SMU
+    settings
+  - add the missing guard to dual-gate lock-in active-gate smoke
+- [ ] Phase 25aa: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

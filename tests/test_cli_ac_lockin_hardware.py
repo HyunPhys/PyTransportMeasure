@@ -132,9 +132,9 @@ def test_cli_ac_lockin_hardware_run_blocks_when_preflight_fails(tmp_path, monkey
     assert not (tmp_path / "raw").exists()
 
 
-def test_cli_ac_lockin_hardware_run_requires_source_nplc(tmp_path, monkeypatch):
+def test_cli_ac_lockin_hardware_run_requires_source_smu_parameters(tmp_path, monkeypatch):
     recipe = write_ac_lockin_cli_recipe(tmp_path)
-    text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "")
+    text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "").replace("  current_range_a: 1.0e-7\n", "")
     recipe.write_text(text, encoding="utf-8")
     monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
 
@@ -144,9 +144,9 @@ def test_cli_ac_lockin_hardware_run_requires_source_nplc(tmp_path, monkeypatch):
     assert not (tmp_path / "raw").exists()
 
 
-def test_cli_ac_lockin_dry_run_allows_missing_source_nplc(tmp_path):
+def test_cli_ac_lockin_dry_run_allows_missing_source_smu_parameters(tmp_path):
     recipe = write_ac_lockin_cli_recipe(tmp_path)
-    text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "")
+    text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "").replace("  current_range_a: 1.0e-7\n", "")
     recipe.write_text(text, encoding="utf-8")
 
     code = cli.main(

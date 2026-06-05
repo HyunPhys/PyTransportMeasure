@@ -30,7 +30,25 @@ def smu_instrument_roles(recipe: Any) -> tuple[tuple[str, Any], ...]:
     return tuple(found)
 
 
+REQUIRED_KEITHLEY_HARDWARE_PARAMETERS = {
+    "nplc": "NPLC",
+    "voltage_range_v": "voltage range",
+    "current_range_a": "current range",
+}
+
+
 def missing_explicit_nplc(recipe: Any, roles: tuple[str, ...] | None = None) -> tuple[MeasurementParameterIssue, ...]:
+    return tuple(
+        issue
+        for issue in missing_required_smu_hardware_parameters(recipe, roles)
+        if issue.parameter == "nplc"
+    )
+
+
+def missing_required_smu_hardware_parameters(
+    recipe: Any,
+    roles: tuple[str, ...] | None = None,
+) -> tuple[MeasurementParameterIssue, ...]:
     allowed_roles = set(roles) if roles is not None else None
     issues: list[MeasurementParameterIssue] = []
     for role, instrument in smu_instrument_roles(recipe):
@@ -38,14 +56,15 @@ def missing_explicit_nplc(recipe: Any, roles: tuple[str, ...] | None = None) -> 
             continue
         if getattr(instrument, "id", None) != "keithley_2450":
             continue
-        if getattr(instrument, "nplc", None) is None:
-            issues.append(
-                MeasurementParameterIssue(
-                    role=role,
-                    parameter="nplc",
-                    message=f"{role} Keithley 2450 hardware runs require explicit NPLC",
+        for parameter, label in REQUIRED_KEITHLEY_HARDWARE_PARAMETERS.items():
+            if getattr(instrument, parameter, None) is None:
+                issues.append(
+                    MeasurementParameterIssue(
+                        role=role,
+                        parameter=parameter,
+                        message=f"{role} Keithley 2450 hardware runs require explicit {label}",
+                    )
                 )
-            )
     return tuple(issues)
 
 
@@ -59,5 +78,11 @@ def format_measurement_parameter_issues(issues: tuple[MeasurementParameterIssue,
 
 def assert_explicit_nplc_for_hardware(recipe: Any, roles: tuple[str, ...] | None = None) -> None:
     issues = missing_explicit_nplc(recipe, roles)
+    if issues:
+        raise ValueError(format_measurement_parameter_issues(issues))
+
+
+def assert_required_smu_parameters_for_hardware(recipe: Any, roles: tuple[str, ...] | None = None) -> None:
+    issues = missing_required_smu_hardware_parameters(recipe, roles)
     if issues:
         raise ValueError(format_measurement_parameter_issues(issues))

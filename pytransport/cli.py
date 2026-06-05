@@ -78,7 +78,7 @@ from .instruments.fake import (
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
-from .measurement_parameters import assert_explicit_nplc_for_hardware
+from .measurement_parameters import assert_explicit_nplc_for_hardware, assert_required_smu_parameters_for_hardware
 from .model import MeasurementPoint
 from .plot import write_iv_svg
 from .preflight import (
@@ -708,7 +708,7 @@ def command_run(args: argparse.Namespace) -> int:
         print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
         print()
         try:
-            assert_explicit_nplc_for_hardware(recipe)
+            assert_required_smu_parameters_for_hardware(recipe)
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
@@ -769,7 +769,7 @@ def command_single_gate(args: argparse.Namespace) -> int:
             print("Single-gate hardware run requires separate drain and gate instrument addresses.", file=sys.stderr)
             return 2
         try:
-            assert_explicit_nplc_for_hardware(recipe)
+            assert_required_smu_parameters_for_hardware(recipe)
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
@@ -984,6 +984,11 @@ def command_dual_gate_lockin_active_smoke(args: argparse.Namespace) -> int:
             args.fake_noise_std,
         )
     else:
+        try:
+            assert_required_smu_parameters_for_hardware(recipe, roles=("gate1", "gate2"))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
         preflight_text = format_dual_gate_lockin_preflight_report(report)
         print(preflight_text)
@@ -1097,7 +1102,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             print(f"Hardware approval note: {approval_note}")
             print(f"Accepted previous run: {args.accepted_previous_run}")
         try:
-            assert_explicit_nplc_for_hardware(recipe, roles=("gate1", "gate2"))
+            assert_required_smu_parameters_for_hardware(recipe, roles=("gate1", "gate2"))
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
@@ -1224,7 +1229,7 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
         )
     else:
         try:
-            assert_explicit_nplc_for_hardware(recipe, roles=("source",))
+            assert_required_smu_parameters_for_hardware(recipe, roles=("source",))
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2

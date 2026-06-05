@@ -122,8 +122,9 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   `experiment.contact_notes`, and `experiment.lab_notebook_ref` when available.
 - [ ] Confirm `measurement_geometry.method` is `two_terminal` for the current
   implemented runners.
-- [ ] Set Keithley `instrument.nplc` intentionally. Hardware runs are blocked
-  when active Keithley 2450 NPLC is missing.
+- [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
+  and `instrument.nplc` intentionally. Hardware runs are blocked when any active
+  Keithley 2450 block is missing these values.
 - [ ] If using Keithley source delay, set `instrument.source_delay_s` and
   remember it is in addition to Python-side sweep delay.
 - [ ] Choose a conservative safety preset.
@@ -490,9 +491,11 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   decimal `lia_status`.
 - [ ] Confirm the active method recipe owns the lock-in block.
 - [ ] Confirm the timing mode is explicit, starting with `after_dc_settle`.
-- [ ] Confirm every Keithley source block has the intended `nplc` value.
-- [ ] Confirm AC lock-in hardware smoke is blocked if `source_instrument.nplc`
-  is missing.
+- [ ] Confirm every Keithley source block has the intended `voltage_range_v`,
+  `current_range_a`, and `nplc` values.
+- [ ] Confirm AC lock-in hardware smoke is blocked if
+  `source_instrument.voltage_range_v`, `source_instrument.current_range_a`, or
+  `source_instrument.nplc` is missing.
 - [ ] Confirm SR860 expected settings are explicit when they matter:
   `reference_source`, `reference_frequency_hz`, `sine_output_amplitude_v`,
   `input_mode`, `voltage_input`, `input_coupling`, `input_grounding`,

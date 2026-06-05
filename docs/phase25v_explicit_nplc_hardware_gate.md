@@ -50,3 +50,7 @@ source_instrument:
 
 Use larger NPLC values for quieter low-current measurements when the slower
 scan speed is acceptable.
+
+Later policy note: Phase 25z extends this hardware-output guard to require
+explicit Keithley `voltage_range_v` and `current_range_a` as well. NPLC remains
+required, but it is now part of a broader SMU parameter readiness check.
