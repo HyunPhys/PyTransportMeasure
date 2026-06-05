@@ -438,10 +438,16 @@ root.
     NPLC, gate settle time, SR860 sensitivity/time constant, and read-settle
     parameters after lab feedback
   - write an adjustment review markdown with plan/preflight commands
-- [ ] Phase 25bf: Hall-suite full acquisition readiness
-  - use the adjusted recipe flow for Vxx/+B/-B/0B suite recipes when needed
-  - decide whether suite-level adjusted recipes should be generated as a group
-  - keep point-count guard, previous-run acceptance, and preflight mandatory
+- [x] Phase 25bf: Hall-suite full acquisition readiness
+  - add `ptm dual-gate-lockin-hall-suite-adjust-recipes`
+  - generate adjusted Vxx/+B/-B/0B recipe sets as a group after chunk feedback
+  - keep shared Keithley NPLC, gate settle, and SR860 settings consistent before
+    suite preflight and chunked acquisition
+- [ ] Phase 25bg: Hall-suite acquisition package
+  - produce one folder-level packet for adjusted suite recipes, chunk feedback,
+    preflight outputs, acquisition notes, and analysis commands
+  - make the lab-laptop handoff explicit for no-local-hardware development
+  - keep the package hardware-free until the researcher runs it in the lab
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -70,6 +70,7 @@ from .dual_gate_lockin_hall_suite import (
     format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_plan,
     format_hall_suite_audit,
+    write_dual_gate_lockin_hall_suite_adjusted_recipes,
     write_dual_gate_lockin_hall_suite_template,
 )
 from .dual_gate_lockin_smoke import (
@@ -539,6 +540,31 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_template.add_argument("--run-output-directory", type=Path)
     dual_gate_lockin_hall_suite_template.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_template.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_adjust_recipes = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-adjust-recipes",
+        help="Create a consistent adjusted Vxx/+B/-B/0B Hall-suite recipe set after lab feedback.",
+    )
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("longitudinal_recipe", type=Path)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("plus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("minus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("output_dir", type=Path)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--zero-field-recipe", type=Path)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--measurement-prefix")
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--run-output-directory", type=Path)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--gate-nplc", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--gate1-nplc", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--gate2-nplc", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--gate-settle-s", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--gate1-settle-s", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--gate2-settle-s", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--lockin-sensitivity-index", type=int)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--lockin-time-constant-index", type=int)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--lockin-settle-time-constants", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--lockin-read-settle-s", type=float)
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--adjustment-note")
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_adjust_recipes.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_suite_check = subparsers.add_parser(
         "dual-gate-lockin-hall-suite-check",
@@ -1784,6 +1810,42 @@ def command_dual_gate_lockin_hall_suite_template(args: argparse.Namespace) -> in
     print(f"Negative-field Vxy recipe: {result.minus_hall_recipe}")
     print(f"Zero-field Vxy recipe: {result.zero_hall_recipe if result.zero_hall_recipe is not None else 'not generated'}")
     print(f"Review: {result.review_path}")
+    return 0
+
+
+def command_dual_gate_lockin_hall_suite_adjust_recipes(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_adjusted_recipes(
+            args.longitudinal_recipe,
+            args.plus_hall_recipe,
+            args.minus_hall_recipe,
+            args.output_dir,
+            zero_hall_recipe=args.zero_field_recipe,
+            measurement_prefix=args.measurement_prefix,
+            run_output_directory=args.run_output_directory,
+            gate1_nplc=args.gate1_nplc,
+            gate2_nplc=args.gate2_nplc,
+            gate_nplc=args.gate_nplc,
+            gate1_settle_s=args.gate1_settle_s,
+            gate2_settle_s=args.gate2_settle_s,
+            gate_settle_s=args.gate_settle_s,
+            lockin_sensitivity_index=args.lockin_sensitivity_index,
+            lockin_time_constant_index=args.lockin_time_constant_index,
+            lockin_settle_time_constants=args.lockin_settle_time_constants,
+            lockin_read_settle_s=args.lockin_read_settle_s,
+            adjustment_note=args.adjustment_note,
+            safety_dir=args.safety_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite adjustment failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Adjusted Hall suite directory: {result.output_dir}")
+    print(f"Longitudinal Vxx recipe: {result.longitudinal_recipe}")
+    print(f"Positive-field Vxy recipe: {result.plus_hall_recipe}")
+    print(f"Negative-field Vxy recipe: {result.minus_hall_recipe}")
+    print(f"Zero-field Vxy recipe: {result.zero_hall_recipe if result.zero_hall_recipe is not None else 'not generated'}")
+    print(f"Adjustment review: {result.review_path}")
     return 0
 
 
@@ -3125,6 +3187,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_adjust_recipe(args)
     if args.command == "dual-gate-lockin-hall-suite-template":
         return command_dual_gate_lockin_hall_suite_template(args)
+    if args.command == "dual-gate-lockin-hall-suite-adjust-recipes":
+        return command_dual_gate_lockin_hall_suite_adjust_recipes(args)
     if args.command == "dual-gate-lockin-hall-suite-check":
         return command_dual_gate_lockin_hall_suite_check(args)
     if args.command == "dual-gate-lockin-hall-suite-plan":

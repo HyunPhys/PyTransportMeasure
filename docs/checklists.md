@@ -514,6 +514,20 @@ remain point-guarded.
 - [ ] Confirm the Hall-suite chunk plan shows per-recipe chunk-plan commands,
   stitch commands for Vxx/+B/-B/0B, and Hall analysis commands from stitched
   run folders.
+- [ ] If chunk feedback suggests changing NPLC, settle time, or SR860 settings,
+  generate a new adjusted Hall suite as a group.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-adjust-recipes configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml configs\recipes\<adjusted_suite> --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml --measurement-prefix <prefix_after_feedback> --gate-nplc <NPLC> --gate-settle-s <seconds> --lockin-sensitivity-index <index> --lockin-time-constant-index <index> --lockin-read-settle-s <seconds> --adjustment-note "<chunk feedback>"
+  ```
+- [ ] Confirm the command writes adjusted Vxx, `+B` Vxy, `-B` Vxy, optional
+  `0B` Vxy recipes, and `<prefix_after_feedback>_adjustment_review.md`.
+- [ ] Confirm the adjusted suite check passes.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-check configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxx.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_plus_b.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_zero_b.yaml
+  ```
+- [ ] Open the adjustment review and confirm Gate1/Gate2 NPLC, Gate1/Gate2
+  settle time, SR860 sensitivity/time constant, and SR860 read-settle settings
+  match the lab decision before preflight or output.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

@@ -248,3 +248,108 @@ def test_hall_suite_check_fails_for_mismatched_field(tmp_path):
         ]
     )
     assert code == 2
+
+
+def test_cli_dual_gate_lockin_hall_suite_adjust_recipes_updates_group_consistently(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="feedback_graphene",
+        magnetic_field_t=1.0,
+    )
+    output = tmp_path / "adjusted_suite"
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-adjust-recipes",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            str(output),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--measurement-prefix",
+            "feedback_graphene_after_chunk1",
+            "--gate-nplc",
+            "3",
+            "--gate-settle-s",
+            "0.4",
+            "--lockin-sensitivity-index",
+            "20",
+            "--lockin-time-constant-index",
+            "11",
+            "--lockin-read-settle-s",
+            "0.8",
+            "--adjustment-note",
+            "chunk feedback: reduce noise before full Hall suite",
+        ]
+    )
+
+    assert code == 0
+    longitudinal_path = output / "feedback_graphene_after_chunk1_vxx.yaml"
+    plus_path = output / "feedback_graphene_after_chunk1_vxy_plus_b.yaml"
+    minus_path = output / "feedback_graphene_after_chunk1_vxy_minus_b.yaml"
+    zero_path = output / "feedback_graphene_after_chunk1_vxy_zero_b.yaml"
+    assert longitudinal_path.exists()
+    assert plus_path.exists()
+    assert minus_path.exists()
+    assert zero_path.exists()
+
+    longitudinal = load_dual_gate_lockin_recipe(longitudinal_path)
+    plus = load_dual_gate_lockin_recipe(plus_path)
+    minus = load_dual_gate_lockin_recipe(minus_path)
+    zero = load_dual_gate_lockin_recipe(zero_path)
+    for recipe in [longitudinal, plus, minus, zero]:
+        assert recipe.gate1_instrument.nplc == 3.0
+        assert recipe.gate2_instrument.nplc == 3.0
+        assert recipe.gate1_sweep.settle_s == 0.4
+        assert recipe.gate2_sweep.settle_s == 0.4
+        assert recipe.lockin.sensitivity_index == 20
+        assert recipe.lockin.time_constant_index == 11
+        assert recipe.lockin.read_settle_s == 0.8
+        assert "chunk feedback" in recipe.experiment.notes
+    assert longitudinal.topology.voltage_probe_role == "longitudinal"
+    assert plus.topology.magnetic_field_t == 1.0
+    assert minus.topology.magnetic_field_t == -1.0
+    assert zero.topology.magnetic_field_t == 0.0
+
+    audit = audit_dual_gate_lockin_hall_suite(
+        longitudinal_path,
+        plus_path,
+        minus_path,
+        zero_hall_recipe=zero_path,
+    )
+    assert audit.compatible is True
+    review = (output / "feedback_graphene_after_chunk1_adjustment_review.md").read_text(encoding="utf-8")
+    assert "Dual-Gate Lock-In Hall Suite Adjustment Review" in review
+    assert "dual-gate-lockin-hall-suite-check" in review
+    assert "dual-gate-lockin-hall-suite-chunk-plan" in review
+    assert "Gate1 NPLC" in review
+
+
+def test_cli_dual_gate_lockin_hall_suite_adjust_recipes_rejects_incompatible_suite(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="bad_adjust",
+        magnetic_field_t=1.0,
+    )
+    plus_data = yaml.safe_load(result.plus_hall_recipe.read_text(encoding="utf-8"))
+    plus_data["gate1_sweep"]["points"] = 4
+    result.plus_hall_recipe.write_text(yaml.safe_dump(plus_data, sort_keys=False), encoding="utf-8")
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-adjust-recipes",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            str(tmp_path / "adjusted_suite"),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--gate-nplc",
+            "2",
+        ]
+    )
+
+    assert code == 2

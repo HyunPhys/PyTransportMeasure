@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from .dual_gate_lockin import dual_gate_lockin_point_count, format_dual_gate_lockin_plan
+from .dual_gate_lockin_scaleup import build_dual_gate_lockin_adjusted_recipe_data
 from .recipes import DualGateLockInRecipe, SafetyPreset, load_named_safety_preset, load_yaml
 
 
@@ -38,6 +39,16 @@ class HallSuiteAudit:
     compatible: bool
     point_count: int | None
     issues: tuple[HallSuiteIssue, ...]
+
+
+@dataclass(frozen=True)
+class HallSuiteAdjustmentResult:
+    output_dir: Path
+    longitudinal_recipe: Path
+    plus_hall_recipe: Path
+    minus_hall_recipe: Path
+    zero_hall_recipe: Path | None
+    review_path: Path
 
 
 def write_dual_gate_lockin_hall_suite_template(
@@ -137,6 +148,168 @@ def write_dual_gate_lockin_hall_suite_template(
         encoding="utf-8",
     )
     return HallSuiteTemplateResult(out, longitudinal_path, plus_path, minus_path, zero_path, review_path)
+
+
+def write_dual_gate_lockin_hall_suite_adjusted_recipes(
+    longitudinal_recipe: str | Path,
+    plus_hall_recipe: str | Path,
+    minus_hall_recipe: str | Path,
+    output_dir: str | Path,
+    *,
+    zero_hall_recipe: str | Path | None = None,
+    measurement_prefix: str | None = None,
+    run_output_directory: str | Path | None = None,
+    gate1_nplc: float | None = None,
+    gate2_nplc: float | None = None,
+    gate_nplc: float | None = None,
+    gate1_settle_s: float | None = None,
+    gate2_settle_s: float | None = None,
+    gate_settle_s: float | None = None,
+    lockin_sensitivity_index: int | None = None,
+    lockin_time_constant_index: int | None = None,
+    lockin_settle_time_constants: float | None = None,
+    lockin_read_settle_s: float | None = None,
+    adjustment_note: str | None = None,
+    safety_dir: str | Path = "configs/safety",
+    overwrite: bool = False,
+) -> HallSuiteAdjustmentResult:
+    input_audit = audit_dual_gate_lockin_hall_suite(
+        longitudinal_recipe,
+        plus_hall_recipe,
+        minus_hall_recipe,
+        zero_hall_recipe=zero_hall_recipe,
+    )
+    if not input_audit.compatible:
+        raise ValueError("input Hall suite is not compatible; run dual-gate-lockin-hall-suite-check first")
+
+    input_recipes = _load_suite_recipes(input_audit)
+    prefix = measurement_prefix or f"{input_recipes['longitudinal'].measurement_name}_adjusted_suite"
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    output_paths: dict[str, Path] = {}
+    for key, _, input_path, recipe in _suite_key_entries(input_audit, input_recipes):
+        measurement_name = _suite_adjusted_measurement_name(prefix, recipe)
+        output_path = out / f"{measurement_name}.yaml"
+        data = build_dual_gate_lockin_adjusted_recipe_data(
+            input_path,
+            measurement_name=measurement_name,
+            output_directory=run_output_directory,
+            gate1_nplc=gate1_nplc,
+            gate2_nplc=gate2_nplc,
+            gate_nplc=gate_nplc,
+            gate1_settle_s=gate1_settle_s,
+            gate2_settle_s=gate2_settle_s,
+            gate_settle_s=gate_settle_s,
+            lockin_sensitivity_index=lockin_sensitivity_index,
+            lockin_time_constant_index=lockin_time_constant_index,
+            lockin_settle_time_constants=lockin_settle_time_constants,
+            lockin_read_settle_s=lockin_read_settle_s,
+            adjustment_note=adjustment_note,
+        )
+        _write_recipe(output_path, data, overwrite=overwrite)
+        output_paths[key] = output_path
+
+    output_audit = audit_dual_gate_lockin_hall_suite(
+        output_paths["longitudinal"],
+        output_paths["plus"],
+        output_paths["minus"],
+        zero_hall_recipe=output_paths.get("zero"),
+    )
+    if not output_audit.compatible:
+        raise ValueError("adjusted Hall suite failed consistency check after writing recipes")
+
+    safety = load_named_safety_preset(input_recipes["longitudinal"].safety_preset, safety_dir)
+    review_path = out / f"{prefix}_adjustment_review.md"
+    if review_path.exists() and not overwrite:
+        raise FileExistsError(f"Adjustment review already exists: {review_path}")
+    review_path.write_text(
+        format_dual_gate_lockin_hall_suite_adjustment_review(
+            input_audit,
+            output_audit,
+            safety,
+            adjustment_note=adjustment_note,
+        ),
+        encoding="utf-8",
+    )
+    return HallSuiteAdjustmentResult(
+        out,
+        output_paths["longitudinal"],
+        output_paths["plus"],
+        output_paths["minus"],
+        output_paths.get("zero"),
+        review_path,
+    )
+
+
+def format_dual_gate_lockin_hall_suite_adjustment_review(
+    input_audit: HallSuiteAudit,
+    output_audit: HallSuiteAudit,
+    safety: SafetyPreset,
+    *,
+    adjustment_note: str | None = None,
+) -> str:
+    recipes = _load_suite_recipes(output_audit)
+    suite = _suite_entries(output_audit, recipes)
+    zero_arg = f" --zero-field-recipe {output_audit.zero_hall_recipe}" if output_audit.zero_hall_recipe else ""
+    return "\n".join(
+        [
+            "# Dual-Gate Lock-In Hall Suite Adjustment Review",
+            "",
+            "## Input Suite",
+            "",
+            format_hall_suite_audit(input_audit),
+            "",
+            "## Adjusted Suite",
+            "",
+            format_hall_suite_audit(output_audit),
+            "",
+            f"- Adjustment note: {adjustment_note or 'n/a'}",
+            "",
+            "## Adjusted Measurement Parameters",
+            "",
+            "| Role | Recipe | Gate1 NPLC | Gate2 NPLC | Gate1 settle (s) | Gate2 settle (s) | SR860 sensitivity | SR860 tau | SR860 read settle (s) |",
+            "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+            *[
+                _suite_adjustment_parameter_row(label, path, recipe)
+                for _, label, path, recipe in suite
+            ],
+            "",
+            "## Required Checks Before Hardware",
+            "",
+            "```powershell",
+            (
+                f"ptm dual-gate-lockin-hall-suite-check {output_audit.longitudinal_recipe} "
+                f"{output_audit.plus_hall_recipe} {output_audit.minus_hall_recipe}{zero_arg}"
+            ),
+            (
+                f"ptm dual-gate-lockin-hall-suite-plan {output_audit.longitudinal_recipe} "
+                f"{output_audit.plus_hall_recipe} {output_audit.minus_hall_recipe}{zero_arg}"
+            ),
+            (
+                f"ptm dual-gate-lockin-hall-suite-chunk-plan {output_audit.longitudinal_recipe} "
+                f"{output_audit.plus_hall_recipe} {output_audit.minus_hall_recipe} --chunk-size <N>{zero_arg}"
+            ),
+            *[f"ptm dual-gate-lockin-preflight {path}" for _, _, path, _ in suite],
+            "```",
+            "",
+            "## Plan Snapshots",
+            "",
+            *[
+                "\n".join(
+                    [
+                        f"### {label}",
+                        "",
+                        "```text",
+                        format_dual_gate_lockin_plan(recipe, safety, path, preview_points=3),
+                        "```",
+                        "",
+                    ]
+                )
+                for _, label, path, recipe in suite
+            ],
+        ]
+    )
 
 
 def format_hall_suite_review(
@@ -557,6 +730,49 @@ def _suite_entries(
     return entries
 
 
+def _suite_key_entries(
+    audit: HallSuiteAudit,
+    recipes: dict[str, DualGateLockInRecipe],
+) -> list[tuple[str, str, Path, DualGateLockInRecipe]]:
+    entries = [
+        ("longitudinal", "Longitudinal Vxx", audit.longitudinal_recipe, recipes["longitudinal"]),
+        ("plus", "+B Hall Vxy", audit.plus_hall_recipe, recipes["plus"]),
+        ("minus", "-B Hall Vxy", audit.minus_hall_recipe, recipes["minus"]),
+    ]
+    if audit.zero_hall_recipe is not None and "zero" in recipes:
+        entries.append(("zero", "0B Hall Vxy", audit.zero_hall_recipe, recipes["zero"]))
+    return entries
+
+
+def _suite_adjusted_measurement_name(prefix: str, recipe: DualGateLockInRecipe) -> str:
+    role = recipe.topology.voltage_probe_role
+    field = recipe.topology.magnetic_field_t
+    if role == "longitudinal":
+        return f"{prefix}_vxx"
+    if field is None or abs(field) <= 1e-12:
+        return f"{prefix}_vxy_zero_b"
+    if field > 0:
+        return f"{prefix}_vxy_plus_b"
+    return f"{prefix}_vxy_minus_b"
+
+
+def _suite_adjustment_parameter_row(
+    label: str,
+    path: Path,
+    recipe: DualGateLockInRecipe,
+) -> str:
+    return (
+        f"| {label} | `{path}` | "
+        f"{_fmt_optional(recipe.gate1_instrument.nplc)} | "
+        f"{_fmt_optional(recipe.gate2_instrument.nplc)} | "
+        f"{_fmt_optional(recipe.gate1_sweep.settle_s)} | "
+        f"{_fmt_optional(recipe.gate2_sweep.settle_s)} | "
+        f"{_fmt_optional(recipe.lockin.sensitivity_index)} | "
+        f"{_fmt_optional(recipe.lockin.time_constant_index)} | "
+        f"{_fmt_optional(recipe.lockin.read_settle_s)} |"
+    )
+
+
 def _recipe_variant(
     base_data: dict[str, Any],
     *,
@@ -681,3 +897,7 @@ def _compare_topology_shared_fields(
 
 def _fmt_field(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.6g} T"
+
+
+def _fmt_optional(value: object) -> str:
+    return "auto" if value is None else str(value)

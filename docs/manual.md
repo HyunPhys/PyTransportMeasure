@@ -531,6 +531,20 @@ ptm dual-gate-lockin-adjust-recipe configs\recipes\<candidate_recipe>.yaml confi
 The adjusted recipe keeps the existing gate grid and topology unless you change
 the measurement name or output directory. It writes a review markdown with the
 updated NPLC, settle, and SR860 settings plus plan/preflight commands.
+For a Hall suite, prefer adjusting Vxx/+B/-B/0B together so shared Keithley and
+SR860 measurement parameters cannot drift:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-adjust-recipes configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml configs\recipes\<adjusted_suite_dir> --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml --measurement-prefix <prefix_after_feedback> --gate-nplc <NPLC> --gate-settle-s <seconds> --lockin-sensitivity-index <index> --lockin-time-constant-index <index> --lockin-read-settle-s <seconds> --adjustment-note "<chunk feedback>"
+```
+
+This command first checks the input suite, writes a new adjusted suite, checks
+the adjusted suite again, and writes an adjustment review with the updated NPLC,
+settle, SR860 settings, suite-check command, suite-plan command, chunk-plan
+command, and per-recipe preflight commands. Treat Keithley NPLC as a core
+measurement parameter: it sets current integration time in power-line cycles,
+so it should be chosen deliberately for the noise/speed tradeoff and reviewed
+before every hardware acquisition.
 
 After all chunks are measured, stitch them into one analysis-ready run:
 
