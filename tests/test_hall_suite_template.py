@@ -1,3 +1,6 @@
+import json
+import zipfile
+
 import yaml
 
 from pytransport.cli import main
@@ -349,6 +352,103 @@ def test_cli_dual_gate_lockin_hall_suite_adjust_recipes_rejects_incompatible_sui
             str(result.zero_hall_recipe),
             "--gate-nplc",
             "2",
+        ]
+    )
+
+    assert code == 2
+
+
+def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="package_graphene",
+        magnetic_field_t=1.0,
+    )
+    feedback = tmp_path / "chunk_feedback.md"
+    feedback.write_text("Dual-gate lock-in chunk feedback: PASS\n", encoding="utf-8")
+    preflight = tmp_path / "preflight.txt"
+    preflight.write_text("Dual-gate lock-in preflight OK: True\n", encoding="utf-8")
+    output = tmp_path / "packages"
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-package",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            str(output),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--package-name",
+            "package_graphene_lab1",
+            "--chunk-size",
+            "4",
+            "--max-hardware-points",
+            "4",
+            "--chunk-feedback-file",
+            str(feedback),
+            "--preflight-file",
+            str(preflight),
+            "--acquisition-note",
+            "lab laptop handoff package",
+        ]
+    )
+
+    assert code == 0
+    package_dir = output / "package_graphene_lab1"
+    runbook = package_dir / "acquisition_runbook.md"
+    manifest_path = package_dir / "package_manifest.json"
+    zip_path = output / "package_graphene_lab1.zip"
+    assert (package_dir / "recipes" / result.longitudinal_recipe.name).exists()
+    assert (package_dir / "recipes" / result.plus_hall_recipe.name).exists()
+    assert (package_dir / "chunk_feedback" / "chunk_feedback.md").exists()
+    assert (package_dir / "preflight" / "preflight.txt").exists()
+    assert runbook.exists()
+    assert manifest_path.exists()
+    assert zip_path.exists()
+
+    runbook_text = runbook.read_text(encoding="utf-8")
+    assert "Dual-Gate Lock-In Hall Suite Acquisition Package" in runbook_text
+    assert "dual-gate-lockin-hall-suite-check" in runbook_text
+    assert "dual-gate-lockin-hall-suite-chunk-plan" in runbook_text
+    assert "dual-gate-lockin-chunk-feedback" in runbook_text
+    assert "dual-gate-lockin-hall-suite-adjust-recipes" in runbook_text
+    assert "lab laptop handoff package" in runbook_text
+
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert manifest["compatible"] is True
+    assert manifest["chunk_size"] == 4
+    assert manifest["max_hardware_points"] == 4
+    assert manifest["point_count"] == 25
+    assert manifest["copied_recipes"]["longitudinal"].endswith(result.longitudinal_recipe.name)
+    assert {record["kind"] for record in manifest["extras"]} == {"chunk_feedback", "preflight"}
+    with zipfile.ZipFile(zip_path) as archive:
+        names = set(archive.namelist())
+    assert "acquisition_runbook.md" in names
+    assert "package_manifest.json" in names
+    assert f"recipes/{result.longitudinal_recipe.name}" in names
+
+
+def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="bad_package",
+        magnetic_field_t=1.0,
+    )
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-package",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            str(tmp_path / "packages"),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--chunk-size",
+            "0",
         ]
     )
 

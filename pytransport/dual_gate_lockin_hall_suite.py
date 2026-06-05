@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import shutil
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -49,6 +52,15 @@ class HallSuiteAdjustmentResult:
     minus_hall_recipe: Path
     zero_hall_recipe: Path | None
     review_path: Path
+
+
+@dataclass(frozen=True)
+class HallSuiteAcquisitionPackageResult:
+    package_dir: Path
+    recipes_dir: Path
+    runbook_path: Path
+    manifest_path: Path
+    zip_path: Path
 
 
 def write_dual_gate_lockin_hall_suite_template(
@@ -239,6 +251,210 @@ def write_dual_gate_lockin_hall_suite_adjusted_recipes(
         output_paths["minus"],
         output_paths.get("zero"),
         review_path,
+    )
+
+
+def write_dual_gate_lockin_hall_suite_acquisition_package(
+    longitudinal_recipe: str | Path,
+    plus_hall_recipe: str | Path,
+    minus_hall_recipe: str | Path,
+    output_dir: str | Path,
+    *,
+    zero_hall_recipe: str | Path | None = None,
+    package_name: str | None = None,
+    chunk_size: int,
+    max_hardware_points: int = 9,
+    accepted_previous_run: str | Path | None = None,
+    chunk_feedback_files: list[str | Path] | None = None,
+    preflight_files: list[str | Path] | None = None,
+    note_files: list[str | Path] | None = None,
+    acquisition_note: str | None = None,
+    safety_dir: str | Path = "configs/safety",
+    overwrite: bool = False,
+) -> HallSuiteAcquisitionPackageResult:
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if max_hardware_points <= 0:
+        raise ValueError("max_hardware_points must be positive")
+    audit = audit_dual_gate_lockin_hall_suite(
+        longitudinal_recipe,
+        plus_hall_recipe,
+        minus_hall_recipe,
+        zero_hall_recipe=zero_hall_recipe,
+    )
+    if not audit.compatible:
+        raise ValueError("input Hall suite is not compatible; run dual-gate-lockin-hall-suite-check first")
+
+    recipes = _load_suite_recipes(audit)
+    base_name = package_name or f"{recipes['longitudinal'].measurement_name}_acquisition_package"
+    package_dir = Path(output_dir) / _safe_name(base_name)
+    if package_dir.exists():
+        if not overwrite:
+            raise FileExistsError(f"Acquisition package already exists: {package_dir}")
+        shutil.rmtree(package_dir)
+    package_dir.mkdir(parents=True, exist_ok=False)
+
+    recipes_dir = package_dir / "recipes"
+    recipes_dir.mkdir()
+    copied_recipes = _copy_suite_recipes(audit, recipes_dir)
+    extras = []
+    extras.extend(_copy_labeled_files(chunk_feedback_files or [], package_dir / "chunk_feedback", "chunk_feedback"))
+    extras.extend(_copy_labeled_files(preflight_files or [], package_dir / "preflight", "preflight"))
+    extras.extend(_copy_labeled_files(note_files or [], package_dir / "notes", "note"))
+
+    safety = load_named_safety_preset(recipes["longitudinal"].safety_preset, safety_dir)
+    runbook_path = package_dir / "acquisition_runbook.md"
+    runbook_path.write_text(
+        format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
+            audit,
+            copied_recipes,
+            recipes,
+            safety,
+            chunk_size=chunk_size,
+            max_hardware_points=max_hardware_points,
+            accepted_previous_run=accepted_previous_run,
+            acquisition_note=acquisition_note,
+            extras=extras,
+        ),
+        encoding="utf-8",
+    )
+    manifest_path = package_dir / "package_manifest.json"
+    manifest = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "package_name": base_name,
+        "source_recipes": {
+            "longitudinal": str(audit.longitudinal_recipe),
+            "plus_hall": str(audit.plus_hall_recipe),
+            "minus_hall": str(audit.minus_hall_recipe),
+            "zero_hall": str(audit.zero_hall_recipe) if audit.zero_hall_recipe is not None else None,
+        },
+        "copied_recipes": {key: path.relative_to(package_dir).as_posix() for key, path in copied_recipes.items()},
+        "compatible": audit.compatible,
+        "point_count": audit.point_count,
+        "chunk_size": chunk_size,
+        "max_hardware_points": max_hardware_points,
+        "accepted_previous_run": str(accepted_previous_run) if accepted_previous_run is not None else None,
+        "acquisition_note": acquisition_note,
+        "extras": extras,
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    zip_path = Path(shutil.make_archive(str(package_dir), "zip", root_dir=package_dir))
+    return HallSuiteAcquisitionPackageResult(package_dir, recipes_dir, runbook_path, manifest_path, zip_path)
+
+
+def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
+    audit: HallSuiteAudit,
+    copied_recipes: dict[str, Path],
+    recipes: dict[str, DualGateLockInRecipe],
+    safety: SafetyPreset,
+    *,
+    chunk_size: int,
+    max_hardware_points: int,
+    accepted_previous_run: str | Path | None,
+    acquisition_note: str | None,
+    extras: list[dict[str, str]],
+) -> str:
+    copied_audit = audit_dual_gate_lockin_hall_suite(
+        copied_recipes["longitudinal"],
+        copied_recipes["plus"],
+        copied_recipes["minus"],
+        zero_hall_recipe=copied_recipes.get("zero"),
+    )
+    copied_suite = _suite_entries(copied_audit, _load_suite_recipes(copied_audit))
+    zero_arg = f" --zero-field-recipe {copied_recipes['zero']}" if "zero" in copied_recipes else ""
+    accepted = str(accepted_previous_run) if accepted_previous_run is not None else "data\\raw\\<accepted_run>"
+    note = acquisition_note or "n/a"
+    return "\n".join(
+        [
+            "# Dual-Gate Lock-In Hall Suite Acquisition Package",
+            "",
+            "## Purpose",
+            "",
+            "This package is hardware-free. Use it on the lab laptop to review the adjusted Hall suite, run preflight, execute bounded chunks, collect feedback, stitch completed chunks, and run Hall analysis.",
+            "",
+            "## Acquisition Note",
+            "",
+            note,
+            "",
+            "## Suite Consistency",
+            "",
+            "```text",
+            format_hall_suite_audit(copied_audit),
+            "```",
+            "",
+            "## Included Recipes",
+            "",
+            *[f"- {label}: `{path}`" for _, label, path, _ in copied_suite],
+            "",
+            "## Hardware-Free Checks",
+            "",
+            "```powershell",
+            f"ptm dual-gate-lockin-hall-suite-check {copied_recipes['longitudinal']} {copied_recipes['plus']} {copied_recipes['minus']}{zero_arg}",
+            f"ptm dual-gate-lockin-hall-suite-plan {copied_recipes['longitudinal']} {copied_recipes['plus']} {copied_recipes['minus']}{zero_arg}",
+            f"ptm dual-gate-lockin-hall-suite-chunk-plan {copied_recipes['longitudinal']} {copied_recipes['plus']} {copied_recipes['minus']} --chunk-size {chunk_size} --max-hardware-points {max_hardware_points}{zero_arg}",
+            *[f"ptm dual-gate-lockin-plan {path}" for _, _, path, _ in copied_suite],
+            *[f"ptm dual-gate-lockin-preflight {path}" for _, _, path, _ in copied_suite],
+            "```",
+            "",
+            "## Guarded Chunk Acquisition Template",
+            "",
+            "Run the printed chunk-plan sequence for each recipe. Keep the accepted previous run and hardware approval note specific to the lab state.",
+            "",
+            "```powershell",
+            *[
+                (
+                    f"ptm dual-gate-lockin {path} --allow-active-sweep --stop-after-new-points {chunk_size} "
+                    f"--max-hardware-points {max_hardware_points} --hardware-approval-note \"<lab note>\" "
+                    f"--accepted-previous-run {accepted} --progress --plot --report --gate-stats"
+                )
+                for _, _, path, _ in copied_suite
+            ],
+            "```",
+            "",
+            "## Feedback And Adjustment Loop",
+            "",
+            "```powershell",
+            "ptm dual-gate-lockin-chunk-feedback data\\raw\\<chunk_01_run> data\\raw\\<chunk_02_run> --output docs\\<sample>_chunk_feedback.md",
+            f"ptm dual-gate-lockin-hall-suite-adjust-recipes {copied_recipes['longitudinal']} {copied_recipes['plus']} {copied_recipes['minus']} configs\\recipes\\<adjusted_suite> --gate-nplc <NPLC> --gate-settle-s <seconds> --lockin-sensitivity-index <index> --lockin-time-constant-index <index>{zero_arg}",
+            "```",
+            "",
+            "## Stitch And Hall Analysis",
+            "",
+            "```powershell",
+            *[
+                (
+                    f"ptm dual-gate-lockin-stitch-chunks data\\raw\\<{recipe.measurement_name}_chunk_01> "
+                    f"data\\raw\\<{recipe.measurement_name}_chunk_02> --measurement-name {recipe.measurement_name}_stitched "
+                    "--gate-stats --plot --report"
+                )
+                for _, _, _, recipe in copied_suite
+            ],
+            f"ptm dual-gate-lockin-hall-antisym data\\raw\\<{recipes['plus'].measurement_name}_stitched> data\\raw\\<{recipes['minus'].measurement_name}_stitched> --output-dir data\\analysis\\<hall_antisym_folder>",
+            *(
+                [
+                    f"ptm dual-gate-lockin-hall-zero-correct data\\raw\\<{recipes['plus'].measurement_name}_stitched> data\\raw\\<{recipes['zero'].measurement_name}_stitched> --output-dir data\\analysis\\<hall_zero_corrected_folder>"
+                ]
+                if "zero" in recipes
+                else []
+            ),
+            f"ptm dual-gate-lockin-hall-mobility data\\analysis\\<hall_density_folder> data\\raw\\<{recipes['longitudinal'].measurement_name}_stitched> --output-dir data\\analysis\\<hall_mobility_folder>",
+            "```",
+            "",
+            "## Attached Lab Files",
+            "",
+            *(
+                [f"- {record['kind']}: `{record['path']}`" for record in extras]
+                if extras
+                else ["- none"]
+            ),
+            "",
+            "## Plan Snapshot",
+            "",
+            "```text",
+            format_dual_gate_lockin_plan(recipes["longitudinal"], safety, copied_recipes["longitudinal"], preview_points=3),
+            "```",
+            "",
+        ]
     )
 
 
@@ -771,6 +987,63 @@ def _suite_adjustment_parameter_row(
         f"{_fmt_optional(recipe.lockin.time_constant_index)} | "
         f"{_fmt_optional(recipe.lockin.read_settle_s)} |"
     )
+
+
+def _copy_suite_recipes(audit: HallSuiteAudit, recipes_dir: Path) -> dict[str, Path]:
+    paths = {
+        "longitudinal": audit.longitudinal_recipe,
+        "plus": audit.plus_hall_recipe,
+        "minus": audit.minus_hall_recipe,
+    }
+    if audit.zero_hall_recipe is not None:
+        paths["zero"] = audit.zero_hall_recipe
+    copied = {}
+    for key, source in paths.items():
+        target = recipes_dir / source.name
+        shutil.copy2(source, target)
+        copied[key] = target
+    return copied
+
+
+def _copy_labeled_files(
+    files: list[str | Path],
+    target_dir: Path,
+    kind: str,
+) -> list[dict[str, str]]:
+    copied: list[dict[str, str]] = []
+    for value in files:
+        source = Path(value)
+        if not source.exists() or not source.is_file():
+            raise FileNotFoundError(f"{kind} file does not exist: {source}")
+        target_dir.mkdir(parents=True, exist_ok=True)
+        target = _unique_target_path(target_dir, source.name)
+        shutil.copy2(source, target)
+        copied.append(
+            {
+                "kind": kind,
+                "source": str(source),
+                "path": target.relative_to(target_dir.parent).as_posix(),
+            }
+        )
+    return copied
+
+
+def _unique_target_path(directory: Path, filename: str) -> Path:
+    candidate = directory / _safe_name(filename)
+    if not candidate.exists():
+        return candidate
+    stem = candidate.stem
+    suffix = candidate.suffix
+    for index in range(2, 1000):
+        next_candidate = directory / f"{stem}_{index:02d}{suffix}"
+        if not next_candidate.exists():
+            return next_candidate
+    raise FileExistsError(f"Could not create a unique target filename for {filename}")
+
+
+def _safe_name(value: str) -> str:
+    cleaned = "".join(char if char.isalnum() or char in {"-", "_", "."} else "_" for char in value.strip())
+    return cleaned.strip("_") or "hall_suite_package"
 
 
 def _recipe_variant(

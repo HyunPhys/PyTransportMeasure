@@ -528,6 +528,18 @@ remain point-guarded.
 - [ ] Open the adjustment review and confirm Gate1/Gate2 NPLC, Gate1/Gate2
   settle time, SR860 sensitivity/time constant, and SR860 read-settle settings
   match the lab decision before preflight or output.
+- [ ] Create a Hall-suite acquisition package for the lab laptop handoff.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-package configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxx.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_plus_b.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_zero_b.yaml --package-name <sample_lab_package> --chunk-size <N> --max-hardware-points <N> --acquisition-note "<lab handoff note>"
+  ```
+- [ ] Confirm the package folder contains `recipes/`, `acquisition_runbook.md`,
+  `package_manifest.json`, and a `.zip` next to the folder.
+- [ ] Confirm `acquisition_runbook.md` includes suite-check, suite-plan,
+  chunk-plan, per-recipe preflight, chunk feedback, adjustment, stitch, and Hall
+  analysis commands.
+- [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
+  rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
+  or `--note-file` and confirm those files are copied into the package.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

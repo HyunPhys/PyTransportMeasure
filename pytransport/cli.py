@@ -70,6 +70,7 @@ from .dual_gate_lockin_hall_suite import (
     format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_plan,
     format_hall_suite_audit,
+    write_dual_gate_lockin_hall_suite_acquisition_package,
     write_dual_gate_lockin_hall_suite_adjusted_recipes,
     write_dual_gate_lockin_hall_suite_template,
 )
@@ -600,6 +601,30 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
     )
+
+    dual_gate_lockin_hall_suite_package = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-package",
+        help="Create a portable hardware-free acquisition package for a Vxx/+B/-B/0B Hall suite.",
+    )
+    dual_gate_lockin_hall_suite_package.add_argument("longitudinal_recipe", type=Path)
+    dual_gate_lockin_hall_suite_package.add_argument("plus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_package.add_argument("minus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_package.add_argument("output_dir", type=Path)
+    dual_gate_lockin_hall_suite_package.add_argument("--zero-field-recipe", type=Path)
+    dual_gate_lockin_hall_suite_package.add_argument("--package-name")
+    dual_gate_lockin_hall_suite_package.add_argument("--chunk-size", type=int, required=True)
+    dual_gate_lockin_hall_suite_package.add_argument(
+        "--max-hardware-points",
+        type=int,
+        default=DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+    )
+    dual_gate_lockin_hall_suite_package.add_argument("--accepted-previous-run", type=Path)
+    dual_gate_lockin_hall_suite_package.add_argument("--chunk-feedback-file", type=Path, action="append", dest="chunk_feedback_files")
+    dual_gate_lockin_hall_suite_package.add_argument("--preflight-file", type=Path, action="append", dest="preflight_files")
+    dual_gate_lockin_hall_suite_package.add_argument("--note-file", type=Path, action="append", dest="note_files")
+    dual_gate_lockin_hall_suite_package.add_argument("--acquisition-note")
+    dual_gate_lockin_hall_suite_package.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_package.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -1904,6 +1929,36 @@ def command_dual_gate_lockin_hall_suite_chunk_plan(args: argparse.Namespace) -> 
     return 0 if audit.compatible else 2
 
 
+def command_dual_gate_lockin_hall_suite_package(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_acquisition_package(
+            args.longitudinal_recipe,
+            args.plus_hall_recipe,
+            args.minus_hall_recipe,
+            args.output_dir,
+            zero_hall_recipe=args.zero_field_recipe,
+            package_name=args.package_name,
+            chunk_size=args.chunk_size,
+            max_hardware_points=args.max_hardware_points,
+            accepted_previous_run=args.accepted_previous_run,
+            chunk_feedback_files=args.chunk_feedback_files,
+            preflight_files=args.preflight_files,
+            note_files=args.note_files,
+            acquisition_note=args.acquisition_note,
+            safety_dir=args.safety_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite package failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Hall suite acquisition package: {result.package_dir}")
+    print(f"Recipes: {result.recipes_dir}")
+    print(f"Runbook: {result.runbook_path}")
+    print(f"Manifest: {result.manifest_path}")
+    print(f"ZIP: {result.zip_path}")
+    return 0
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3195,6 +3250,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_plan(args)
     if args.command == "dual-gate-lockin-hall-suite-chunk-plan":
         return command_dual_gate_lockin_hall_suite_chunk_plan(args)
+    if args.command == "dual-gate-lockin-hall-suite-package":
+        return command_dual_gate_lockin_hall_suite_package(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

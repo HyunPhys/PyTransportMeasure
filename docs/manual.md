@@ -487,6 +487,25 @@ and mobility commands.
 The chunk-plan variant prints the chunked acquisition, per-recipe stitching,
 and stitched-run Hall analysis sequence for the same suite.
 
+To create one portable folder for lab-laptop execution, use the Hall-suite
+package command:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-package configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml --package-name sampleA_cd1_lab1 --chunk-size <N> --max-hardware-points <N> --acquisition-note "<lab handoff note>"
+```
+
+The package is hardware-free. It copies the suite recipes, writes
+`acquisition_runbook.md`, writes `package_manifest.json`, and creates a ZIP.
+You can attach chunk feedback, saved preflight text, or lab notes:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-package ... --chunk-feedback-file docs\<sample>_chunk_feedback.md --preflight-file docs\<sample>_preflight.txt --note-file docs\<sample>_lab_notes.md --overwrite
+```
+
+Use this when development happens on one computer but hardware validation
+happens on the lab laptop. The package records the exact recipe set and command
+sequence to use, but it does not enable any output or talk to VISA.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

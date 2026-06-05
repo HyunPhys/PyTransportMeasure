@@ -443,11 +443,16 @@ root.
   - generate adjusted Vxx/+B/-B/0B recipe sets as a group after chunk feedback
   - keep shared Keithley NPLC, gate settle, and SR860 settings consistent before
     suite preflight and chunked acquisition
-- [ ] Phase 25bg: Hall-suite acquisition package
+- [x] Phase 25bg: Hall-suite acquisition package
+  - add `ptm dual-gate-lockin-hall-suite-package`
   - produce one folder-level packet for adjusted suite recipes, chunk feedback,
     preflight outputs, acquisition notes, and analysis commands
   - make the lab-laptop handoff explicit for no-local-hardware development
   - keep the package hardware-free until the researcher runs it in the lab
+- [ ] Phase 25bh: Hall-suite execution result intake
+  - inspect a completed package session from the lab laptop
+  - verify Vxx/+B/-B/0B run folders against the packaged recipes and manifest
+  - produce a one-command post-run audit before Hall analysis
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
