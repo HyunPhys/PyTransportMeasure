@@ -517,6 +517,9 @@ remain point-guarded.
   ```
 - [ ] Confirm resume-check prints `Dual-gate lock-in resume check: PASS` and
   the intended next gate voltages before enabling hardware output.
+- [ ] For a deliberately limited checkpoint scan, use
+  `--stop-after-new-points <N>` and confirm the run ends with
+  `abort_class: checkpoint`, `checkpoint_reached: true`, and outputs off.
 - [ ] Confirm the resumed metadata records `resume_from_run`,
   `points_copied_from_resume`, `points_measured_this_run`, and
   `resume_next_point_index`.

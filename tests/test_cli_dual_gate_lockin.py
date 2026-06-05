@@ -392,6 +392,59 @@ def test_cli_dual_gate_lockin_active_sweep_hardware_path_with_guards(tmp_path, m
     assert (run_dirs[0] / "dual_gate_lockin_heatmap.svg").exists()
 
 
+def test_cli_dual_gate_lockin_checkpoint_allows_small_hardware_invocation(tmp_path, monkeypatch):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    state = DualGateFakeDeviceState(gate1_leak_resistance_ohm=1_000_000_000.0, gate2_leak_resistance_ohm=1_000_000_000.0)
+    gate1 = DualGateFakeSMU("gate1", state)
+    gate2 = DualGateFakeSMU("gate2", state)
+    lockin = DualGateFakeLockIn(state, base_r_v=2e-6, phase_deg=30, noise_std_v=0)
+
+    monkeypatch.setattr(
+        cli,
+        "run_dual_gate_lockin_preflight",
+        lambda recipe_path, safety_dir: DualGateLockInPreflightReport(
+            recipe_path=str(recipe_path),
+            validation_ok=True,
+            validation_error=None,
+            visa_resources=("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
+            distinct_addresses=True,
+            topology_lines=("Layout: hall_bar",),
+            gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", True, {"idn": "SRS,SR860"}, None),
+        ),
+    )
+    monkeypatch.setattr(cli, "Keithley2450", lambda address, timeout_ms: gate1 if address == "GPIB0::2::INSTR" else gate2)
+    monkeypatch.setattr(cli, "SRS_SR860", lambda address, timeout_ms: lockin)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--allow-active-sweep",
+            "--max-hardware-points",
+            "1",
+            "--stop-after-new-points",
+            "1",
+            "--yes",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    run_dir = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[0]
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["abort_class"] == "checkpoint"
+    assert metadata["points_written"] == 1
+    assert metadata["checkpoint_reached"] is True
+    assert metadata["hardware_guard"]["recipe_points"] == 4
+    assert metadata["hardware_guard"]["hardware_points_for_this_invocation"] == 1
+    assert metadata["hardware_guard"]["stop_after_new_points"] == 1
+    assert gate1.is_output_on is False
+    assert gate2.is_output_on is False
+
+
 def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_note(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 

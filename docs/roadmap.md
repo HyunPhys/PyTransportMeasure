@@ -398,7 +398,12 @@ root.
   - add `ptm dual-gate-lockin-resume-check`
   - verify partial-run compatibility without VISA or hardware output
   - print the next gate-grid index and gate voltages before resume
-- [ ] Phase 25ax: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ax: Dual-gate lock-in checkpoint stop
+  - add `ptm dual-gate-lockin --stop-after-new-points <N>`
+  - stop cleanly with `abort_class: checkpoint` after a bounded number of new
+    points
+  - let hardware point guard evaluate the bounded invocation size
+- [ ] Phase 25ay: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

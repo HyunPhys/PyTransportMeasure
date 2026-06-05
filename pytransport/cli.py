@@ -354,6 +354,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Create a new run by copying a partial dual-gate lock-in points.csv prefix and measuring remaining points.",
     )
+    dual_gate_lockin.add_argument(
+        "--stop-after-new-points",
+        type=int,
+        help="Stop cleanly after this many newly measured points, leaving a resumable checkpoint run.",
+    )
     dual_gate_lockin.add_argument("--allow-active-sweep", action="store_true", help="Enable the guarded hardware gate sweep path.")
     dual_gate_lockin.add_argument(
         "--max-hardware-points",
@@ -1180,6 +1185,25 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
     validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
     print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
     print()
+    if args.stop_after_new_points is not None and args.stop_after_new_points <= 0:
+        print("--stop-after-new-points must be >= 1", file=sys.stderr)
+        return 2
+    total_points = dual_gate_lockin_point_count(recipe)
+    remaining_points_for_this_invocation = total_points
+    if args.resume_from_run is not None:
+        resume_report = check_dual_gate_lockin_resume(recipe, args.recipe, args.resume_from_run)
+        print(format_dual_gate_lockin_resume_check(resume_report))
+        print()
+        if not resume_report.ok:
+            print("Dual-gate lock-in run blocked because resume-check did not pass.", file=sys.stderr)
+            return 2
+        remaining_points_for_this_invocation = resume_report.remaining_points
+    hardware_points_for_this_invocation = remaining_points_for_this_invocation
+    if args.stop_after_new_points is not None:
+        hardware_points_for_this_invocation = min(
+            remaining_points_for_this_invocation,
+            args.stop_after_new_points,
+        )
     if not args.dry_run and not args.allow_active_sweep:
         report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
         print(format_dual_gate_lockin_preflight_report(report))
@@ -1201,7 +1225,6 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             args.fake_noise_std,
         )
     else:
-        total_points = dual_gate_lockin_point_count(recipe)
         if args.max_hardware_points < 1:
             raise ValueError("--max-hardware-points must be >= 1")
         approval_note = str(args.hardware_approval_note or "").strip()
@@ -1249,16 +1272,19 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return 2
-        if total_points > args.max_hardware_points:
+        if hardware_points_for_this_invocation > args.max_hardware_points:
             print(
-                f"Dual-gate lock-in active sweep blocked: {total_points} points exceeds --max-hardware-points {args.max_hardware_points}.",
+                "Dual-gate lock-in active sweep blocked: "
+                f"{hardware_points_for_this_invocation} points for this invocation exceeds "
+                f"--max-hardware-points {args.max_hardware_points}.",
                 file=sys.stderr,
             )
             return 2
         print(
             "Dual-gate lock-in hardware guard: "
             f"default={DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS}, requested={args.max_hardware_points}, "
-            f"points={total_points}, raised={raised_point_guard}"
+            f"planned={total_points}, this_invocation={hardware_points_for_this_invocation}, "
+            f"raised={raised_point_guard}"
         )
         if raised_point_guard:
             print(f"Hardware approval note: {approval_note}")
@@ -1293,6 +1319,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             recipe_path=args.recipe,
             progress_callback=progress_callback,
             resume_from_run=args.resume_from_run,
+            stop_after_new_points=args.stop_after_new_points,
         )
     except ValueError as exc:
         print(f"Dual-gate lock-in resume blocked: {exc}", file=sys.stderr)
@@ -1309,6 +1336,9 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                     "default_max_hardware_points": DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
                     "requested_max_hardware_points": args.max_hardware_points,
                     "recipe_points": dual_gate_lockin_point_count(recipe),
+                    "remaining_points_for_this_invocation": remaining_points_for_this_invocation,
+                    "hardware_points_for_this_invocation": hardware_points_for_this_invocation,
+                    "stop_after_new_points": args.stop_after_new_points,
                     "raised_above_default": args.max_hardware_points > DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
                     "approval_note": str(args.hardware_approval_note or "").strip() or None,
                     "accepted_previous_run": str(args.accepted_previous_run) if args.accepted_previous_run else None,

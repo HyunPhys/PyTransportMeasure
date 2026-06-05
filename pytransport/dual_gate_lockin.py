@@ -512,8 +512,11 @@ def run_dual_gate_lockin_sweep(
     recipe_path: str | Path | None = None,
     progress_callback: Callable[[DualGateLockInPoint, int], None] | None = None,
     resume_from_run: str | Path | None = None,
+    stop_after_new_points: int | None = None,
 ) -> dict[str, Any]:
     validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
+    if stop_after_new_points is not None and stop_after_new_points <= 0:
+        raise ValueError("stop_after_new_points must be positive when supplied")
     resume_state = (
         load_dual_gate_lockin_resume_state(resume_from_run, recipe) if resume_from_run is not None else None
     )
@@ -546,6 +549,9 @@ def run_dual_gate_lockin_sweep(
         "points_written": 0,
         "points_copied_from_resume": points_copied_from_resume,
         "points_measured_this_run": 0,
+        "stop_after_new_points": stop_after_new_points,
+        "checkpoint_requested": stop_after_new_points is not None,
+        "checkpoint_reached": False,
         "planned_points": total_points,
         "planned_gate_grid": planned_dual_gate_lockin_grid(recipe),
         "planned_gate_grid_signature": dual_gate_lockin_grid_signature(recipe),
@@ -650,6 +656,7 @@ def run_dual_gate_lockin_sweep(
 
         start = time.monotonic()
         point_index = 0
+        checkpoint_reached = False
         for gate1_index, gate1_voltage_v in enumerate(gate1_voltages):
             gate1_row_end_index = point_index + len(gate2_voltages) - 1
             if resume_state is not None and resume_state.next_point_index > gate1_row_end_index:
@@ -715,10 +722,19 @@ def run_dual_gate_lockin_sweep(
                 point_index += 1
                 if progress_callback is not None:
                     progress_callback(point, total_points)
+                if stop_after_new_points is not None and points_measured_this_run >= stop_after_new_points:
+                    metadata["checkpoint_reached"] = True
+                    metadata["abort_class"] = "checkpoint"
+                    metadata["recovery_recommendation"] = "checkpoint_reached_resume_from_this_run_to_continue"
+                    checkpoint_reached = True
+                    break
+            if checkpoint_reached:
+                break
 
-        metadata["completed"] = True
-        metadata["abort_class"] = "completed"
-        metadata["recovery_recommendation"] = "run_completed_no_recovery_needed"
+        if points_written == total_points:
+            metadata["completed"] = True
+            metadata["abort_class"] = "completed"
+            metadata["recovery_recommendation"] = "run_completed_no_recovery_needed"
         return metadata
     except SafetyLimitError as exc:
         metadata["abort_class"] = "safety_stop"

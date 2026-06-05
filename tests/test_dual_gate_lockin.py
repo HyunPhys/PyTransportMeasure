@@ -509,6 +509,37 @@ def test_dual_gate_lockin_resume_copies_prefix_and_measures_remaining_points(tmp
     assert json.loads((source_run_dir / "metadata.json").read_text(encoding="utf-8"))["completed"] is False
 
 
+def test_dual_gate_lockin_checkpoint_stop_after_new_points(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+
+    metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_checkpoint.yaml",
+        stop_after_new_points=3,
+    )
+
+    assert metadata["completed"] is False
+    assert metadata["abort_class"] == "checkpoint"
+    assert metadata["checkpoint_requested"] is True
+    assert metadata["checkpoint_reached"] is True
+    assert metadata["points_written"] == 3
+    assert metadata["points_measured_this_run"] == 3
+    assert metadata["remaining_points"] == 6
+    assert metadata["next_point_index"] == 3
+    assert metadata["recovery_recommendation"] == "checkpoint_reached_resume_from_this_run_to_continue"
+    assert metadata["outputs_off_after_run"] is True
+    assert gate1_smu.is_output_on is False
+    assert gate2_smu.is_output_on is False
+    rows = list(csv.DictReader((Path(metadata["run_dir"]) / "points.csv").open(newline="", encoding="utf-8")))
+    assert [row["index"] for row in rows] == ["0", "1", "2"]
+
+
 def test_dual_gate_lockin_resume_check_reports_next_point(tmp_path):
     recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
     safety = load_named_safety_preset(recipe.safety_preset)
