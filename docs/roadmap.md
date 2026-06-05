@@ -796,6 +796,13 @@ root.
   - return nonzero when lock-in hardware recipes omit required measurement
     conditions
   - keep the existing Keithley-only audit command for focused checks
+- [x] Phase 25dac: Hall package SR860 parameter gate
+  - apply the stricter SR860 hardware-parameter audit inside Hall acquisition
+    packages
+  - mark package `measurement_condition_audits` as not hardware-ready when
+    SR860 required parameters or positive settle policy are missing
+  - include SR860 missing-parameter and settle-policy summaries in package
+    manifests and validation
 
 ## Next GUI
 

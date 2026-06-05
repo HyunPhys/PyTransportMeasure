@@ -34,8 +34,10 @@ from .hall_analysis import (
     write_dual_gate_lockin_hall_zero_corrected,
 )
 from .measurement_parameters import (
+    audit_lockin_hardware_parameters,
     audit_smu_hardware_parameters,
     format_smu_hardware_parameter_audit,
+    lockin_hardware_parameter_audit_to_dict,
     smu_hardware_parameter_audit_to_dict,
 )
 from .lockin_settings import expected_lockin_settings
@@ -1471,7 +1473,7 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
             ],
             *([] if keithley_audits else ["- none"]),
             "",
-            "## SR860 Setting Audits",
+            "## SR860 Measurement Parameter Audits",
             "",
             *[
                 (
@@ -2171,6 +2173,8 @@ def _write_hall_suite_lockin_audits(copied_recipes: dict[str, Path], package_dir
             "ok_for_hardware": bool(payload["ok_for_hardware"]),
             "declared_expected_setting_count": len(payload["expected_settings"]),
             "read_settle_s": payload["read_settle_s"],
+            "missing_required_parameters": payload["missing_required_parameters"],
+            "settle_policy_ok": payload["settle_policy_ok"],
         }
     return records
 
@@ -2182,7 +2186,7 @@ def _measurement_condition_audits_manifest(
     records: list[dict[str, Any]] = []
     for instrument, audit_type, source in [
         ("keithley_2450", "smu_hardware_parameters", keithley_audits),
-        ("srs_sr860", "lockin_expected_settings", lockin_audits),
+        ("srs_sr860", "lockin_hardware_parameters", lockin_audits),
     ]:
         for recipe_key, record in source.items():
             records.append(
@@ -2208,6 +2212,8 @@ def _measurement_condition_audit_summary(record: dict[str, Any]) -> dict[str, An
         "missing_roles",
         "declared_expected_setting_count",
         "read_settle_s",
+        "missing_required_parameters",
+        "settle_policy_ok",
     ]
     return {key: record[key] for key in summary_keys if key in record}
 
@@ -2215,8 +2221,14 @@ def _measurement_condition_audit_summary(record: dict[str, Any]) -> dict[str, An
 def _lockin_setting_audit_payload(key: str, recipe_path: str, recipe: DualGateLockInRecipe) -> dict[str, Any]:
     lockin = recipe.lockin.model_dump(mode="json")
     expected = expected_lockin_settings(lockin)
-    required_review_fields = ["sensitivity_index", "time_constant_index"]
-    missing_review_fields = [field for field in required_review_fields if lockin.get(field) is None]
+    hardware_audits = audit_lockin_hardware_parameters(recipe)
+    hardware_payload = lockin_hardware_parameter_audit_to_dict(hardware_audits)
+    missing_required_parameters = [
+        parameter
+        for role in hardware_payload["roles"]
+        for parameter in role["missing_required_parameters"]
+    ]
+    settle_policy_ok = all(bool(role["settle_policy_ok"]) for role in hardware_payload["roles"])
     return {
         "recipe_key": key,
         "recipe_path": recipe_path,
@@ -2230,8 +2242,11 @@ def _lockin_setting_audit_payload(key: str, recipe_path: str, recipe: DualGateLo
         "time_constant_s": lockin_time_constant_s(lockin),
         "settle_time_constants": recipe.lockin.settle_time_constants,
         "read_settle_s": lockin_read_settle_s(lockin),
-        "missing_review_fields": missing_review_fields,
-        "ok_for_hardware": recipe.lockin.enabled and not missing_review_fields,
+        "hardware_parameter_audit": hardware_payload,
+        "missing_required_parameters": missing_required_parameters,
+        "settle_policy_ok": settle_policy_ok,
+        "missing_review_fields": missing_required_parameters,
+        "ok_for_hardware": recipe.lockin.enabled and bool(hardware_payload["ok_for_hardware"]),
     }
 
 
@@ -2248,6 +2263,7 @@ def _format_lockin_setting_audit_markdown(payload: dict[str, Any]) -> str:
         f"- Time constant: {_fmt_optional(payload.get('time_constant_s'))} s",
         f"- Read settle: {_fmt_optional(payload.get('read_settle_s'))} s",
         f"- Hardware-ready: {payload['ok_for_hardware']}",
+        f"- Settle policy OK: {payload.get('settle_policy_ok')}",
         "",
         "## Expected SR860 Settings",
         "",
@@ -2256,14 +2272,70 @@ def _format_lockin_setting_audit_markdown(payload: dict[str, Any]) -> str:
         lines.extend(f"- {key}: {value}" for key, value in expected.items())
     else:
         lines.append("- none declared")
-    missing = payload.get("missing_review_fields") or []
-    lines.extend(["", "## Review Fields", ""])
+    missing = payload.get("missing_required_parameters") or payload.get("missing_review_fields") or []
+    lines.extend(["", "## Required Hardware Parameters", ""])
     if missing:
-        lines.append(f"- Missing review fields: {', '.join(missing)}")
+        lines.append(f"- Missing required parameters: {', '.join(missing)}")
     else:
-        lines.append("- sensitivity_index and time_constant_index are declared")
-    lines.append("")
+        lines.append("- all required SR860 hardware parameters are declared")
+    lines.extend(
+        [
+            "",
+            "## Hardware Parameter Audit",
+            "",
+            *_format_lockin_hardware_parameter_audit_payload(payload.get("hardware_parameter_audit") or {}),
+            "",
+        ]
+    )
     return "\n".join(lines)
+
+
+def _format_lockin_hardware_parameter_audit_payload(payload: dict[str, Any]) -> list[str]:
+    roles = payload.get("roles") if isinstance(payload.get("roles"), list) else []
+    lines = [
+        f"Hardware-ready: {payload.get('ok_for_hardware')}",
+        "",
+        "| Role | Instrument | Address | Ref | Freq (Hz) | Sine (V) | Input | Vin | Range (V) | Sens idx | TC idx | Settle TC | Read settle (s) | Slope | Sync | Status |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    if not roles:
+        lines.append("| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a | NO LOCK-IN |")
+        return lines
+    for role in roles:
+        if not isinstance(role, dict):
+            continue
+        status_items = []
+        missing = role.get("missing_required_parameters") if isinstance(role.get("missing_required_parameters"), list) else []
+        if missing:
+            status_items.append("MISSING " + ", ".join(str(item) for item in missing))
+        if role.get("settle_policy_ok") is not True:
+            status_items.append("MISSING positive settle policy")
+        status = "PASS" if not status_items else "; ".join(status_items)
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    str(role.get("role") or "n/a"),
+                    str(role.get("instrument_id") or "n/a"),
+                    f"`{role.get('address')}`" if role.get("address") else "n/a",
+                    str(role.get("reference_source") or "auto"),
+                    _fmt_optional(role.get("reference_frequency_hz")),
+                    _fmt_optional(role.get("sine_output_amplitude_v")),
+                    str(role.get("input_mode") or "auto"),
+                    str(role.get("voltage_input") or "auto"),
+                    _fmt_optional(role.get("voltage_input_range_v")),
+                    _fmt_optional(role.get("sensitivity_index")),
+                    _fmt_optional(role.get("time_constant_index")),
+                    _fmt_optional(role.get("settle_time_constants")),
+                    _fmt_optional(role.get("read_settle_s")),
+                    _fmt_optional(role.get("filter_slope_db_per_oct")),
+                    "auto" if role.get("synchronous_filter") is None else str(role.get("synchronous_filter")),
+                    status,
+                ]
+            )
+            + " |"
+        )
+    return lines
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: str | Path) -> Path:

@@ -11,8 +11,10 @@ from pytransport.dual_gate_lockin_hall_suite import (
     audit_dual_gate_lockin_hall_suite,
     format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_plan,
+    write_dual_gate_lockin_hall_suite_acquisition_package,
     write_dual_gate_lockin_hall_suite_template,
 )
+from pytransport.hall_workflow import validate_dual_gate_lockin_hall_suite_package_manifest
 from pytransport.instruments.fake import DualGateFakeDeviceState, DualGateFakeLockIn, DualGateFakeSMU
 from pytransport.recipes import load_dual_gate_lockin_recipe, load_named_safety_preset
 
@@ -454,7 +456,7 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert "dual-gate-lockin-hall-suite-adjust-recipes" in runbook_text
     assert "Keithley Parameter Audits" in runbook_text
     assert "longitudinal_keithley_audit.json" in runbook_text
-    assert "SR860 Setting Audits" in runbook_text
+    assert "SR860 Measurement Parameter Audits" in runbook_text
     assert "longitudinal_sr860_audit.json" in runbook_text
     assert "lab laptop handoff package" in runbook_text
 
@@ -479,8 +481,15 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
         for record in normalized_records
     } >= {
         ("longitudinal", "keithley_2450", "smu_hardware_parameters"),
-        ("longitudinal", "srs_sr860", "lockin_expected_settings"),
+        ("longitudinal", "srs_sr860", "lockin_hardware_parameters"),
     }
+    lockin_record = next(
+        record
+        for record in normalized_records
+        if record["recipe_key"] == "longitudinal" and record["instrument"] == "srs_sr860"
+    )
+    assert lockin_record["summary"]["missing_required_parameters"] == []
+    assert lockin_record["summary"]["settle_policy_ok"] is True
     assert {record["kind"] for record in manifest["extras"]} == {"chunk_feedback", "preflight"}
     with zipfile.ZipFile(zip_path) as archive:
         names = set(archive.namelist())
@@ -561,6 +570,54 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert lifecycle_stage_by_key["measurement_condition_audits"]["ok"] is True
     assert lifecycle_stage_by_key["keithley_parameter_audits"]["ok"] is True
     assert lifecycle_stage_by_key["lockin_setting_audits"]["ok"] is True
+
+
+def test_hall_suite_package_rejects_incomplete_sr860_measurement_parameters(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="incomplete_lockin",
+        magnetic_field_t=1.0,
+    )
+    for recipe_path in [
+        result.longitudinal_recipe,
+        result.plus_hall_recipe,
+        result.minus_hall_recipe,
+        result.zero_hall_recipe,
+    ]:
+        if recipe_path is None:
+            continue
+        data = yaml.safe_load(recipe_path.read_text(encoding="utf-8"))
+        data["lockin"].pop("sine_output_amplitude_v")
+        data["lockin"]["settle_time_constants"] = 0.0
+        recipe_path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+    package = write_dual_gate_lockin_hall_suite_acquisition_package(
+        result.longitudinal_recipe,
+        result.plus_hall_recipe,
+        result.minus_hall_recipe,
+        tmp_path / "packages",
+        zero_hall_recipe=result.zero_hall_recipe,
+        package_name="incomplete_lockin_package",
+        chunk_size=4,
+        max_hardware_points=4,
+    )
+
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    validation = validate_dual_gate_lockin_hall_suite_package_manifest(package.package_dir)
+    lockin_audit = manifest["lockin_setting_audits"]["longitudinal"]
+    lockin_json = json.loads((package.package_dir / lockin_audit["json"]).read_text(encoding="utf-8"))
+
+    assert manifest["measurement_condition_audits"]["ok_for_hardware"] is False
+    assert lockin_audit["ok_for_hardware"] is False
+    assert "sine_output_amplitude_v" in lockin_audit["missing_required_parameters"]
+    assert lockin_audit["settle_policy_ok"] is False
+    assert "lockin_hardware_parameters" in {
+        record["audit_type"] for record in manifest["measurement_condition_audits"]["records"]
+    }
+    assert lockin_json["hardware_parameter_audit"]["ok_for_hardware"] is False
+    assert validation["valid"] is False
+    assert any(issue["code"] == "measurement_condition_audits_not_hardware_ready" for issue in validation["issues"])
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):

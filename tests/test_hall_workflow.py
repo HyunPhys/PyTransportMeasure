@@ -73,7 +73,7 @@ def test_hall_workflow_status_reports_package_stage_readiness(tmp_path):
             {
                 "recipe_key": key,
                 "instrument": "srs_sr860",
-                "audit_type": "lockin_expected_settings",
+                "audit_type": "lockin_hardware_parameters",
                 **record,
             }
         )

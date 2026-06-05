@@ -562,12 +562,15 @@ remain point-guarded.
 - [ ] Confirm `acquisition_runbook.md` includes `Four-terminal AC smoke intake:
   PASS`, SR860 voltage contacts, excitation contacts, and source NPLC.
 - [ ] Confirm `acquisition_runbook.md` includes suite-check, suite-plan,
-  chunk-plan, Keithley parameter audits, SR860 setting audits, per-recipe
-  preflight, chunk feedback, adjustment, stitch, and Hall analysis commands.
+  chunk-plan, Keithley parameter audits, SR860 measurement-parameter audits,
+  per-recipe preflight, chunk feedback, adjustment, stitch, and Hall analysis
+  commands.
 - [ ] Confirm `package_manifest.json` contains `keithley_parameter_audits` and
   every copied recipe reports `ok_for_hardware: true`.
 - [ ] Confirm `package_manifest.json` contains `lockin_setting_audits` and every
   copied recipe reports `ok_for_hardware: true`.
+- [ ] Confirm each SR860 audit summary has no `missing_required_parameters` and
+  reports `settle_policy_ok: true`.
 - [ ] Confirm `package_manifest.json` contains `measurement_condition_audits`
   with `ok_for_hardware: true` and records for both Keithley and SR860 audits.
 - [ ] Confirm `package_manifest.json` contains

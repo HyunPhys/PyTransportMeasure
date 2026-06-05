@@ -530,7 +530,7 @@ ptm dual-gate-lockin-hall-suite-package configs\recipes\hall_suite_sampleA\sampl
 The package is hardware-free. It copies the suite recipes, writes
 `acquisition_runbook.md`, writes `package_manifest.json`, writes per-recipe
 Keithley audit files under `keithley_audit/`, writes per-recipe SR860 setting
-audits under `lockin_audit/`, and creates a ZIP.
+and measurement-parameter audits under `lockin_audit/`, and creates a ZIP.
 When `--four-terminal-ac-smoke-intake-json` is provided, the command first
 requires a PASS `ptm ac-lockin-lab-smoke-intake --json-output` artifact with
 four-terminal hardware guard evidence, SR860 `a-b` voltage input,
@@ -550,9 +550,13 @@ sequence to use, but it does not enable any output or talk to VISA.
 Before hardware preflight, inspect the runbook's Keithley Parameter Audits
 section or the package manifest's `keithley_parameter_audits` block. Every
 copied recipe should report `ok_for_hardware: true`.
-Also inspect the SR860 Setting Audits section or `lockin_setting_audits`.
-These records preserve the expected lock-in settings that preflight/readback
-must match on the lab laptop.
+Also inspect the `SR860 Measurement Parameter Audits` section or
+`lockin_setting_audits`.
+Older package docs may call this `SR860 Setting Audits`. These
+records preserve the expected lock-in settings that preflight/readback must
+match on the lab laptop, and they also require explicit SR860 reference,
+excitation amplitude, input wiring, input range, sensitivity, time constant,
+filter slope, synchronous filter state, and a positive settle policy.
 New packages also include `measurement_condition_audits`, a normalized manifest
 block that lists Keithley and SR860 audit records with stable `recipe_key`,
 `instrument`, `audit_type`, `json`, `markdown`, `ok_for_hardware`, and
@@ -568,7 +572,8 @@ ptm dual-gate-lockin-hall-suite-validate-package data\hall_packages\sampleA_cd1_
 The validator checks `package_manifest.json`, copied recipes, runbook, ZIP,
 Keithley audit artifacts, SR860 audit artifacts, and the normalized
 `measurement_condition_audits` block. It exits with nonzero status if any
-required lab-handoff file is missing or the manifest schema is incompatible.
+required lab-handoff file is missing, the manifest schema is incompatible, or
+any Keithley/SR860 measurement-condition audit is not hardware-ready.
 
 Then generate a lab-laptop smoke checklist from the validated package:
 
