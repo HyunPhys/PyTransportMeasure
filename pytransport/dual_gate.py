@@ -20,6 +20,7 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
+from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
 from .recipes import DualGateRecipe, SafetyPreset, gate_voltages_from_config, sweep_delays, sweep_voltages
 from .safety import validate_dual_gate_recipe_against_safety, validate_point_current
 from .smu_config import (
@@ -212,6 +213,7 @@ def run_dual_gate_sweep(
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
         "safety_snapshot_path": str(writer.safety_snapshot_path),
     }
+    initialize_output_state(metadata, ["drain", "gate1", "gate2"])
 
     try:
         drain_smu.connect()
@@ -238,9 +240,9 @@ def run_dual_gate_sweep(
         raise_for_voltage_source_config_readback_mismatch("drain", metadata["configured_drain_smu_readback_check"])
         raise_for_voltage_source_config_readback_mismatch("gate1", metadata["configured_gate1_smu_readback_check"])
         raise_for_voltage_source_config_readback_mismatch("gate2", metadata["configured_gate2_smu_readback_check"])
-        gate1_smu.output_on()
-        gate2_smu.output_on()
-        drain_smu.output_on()
+        output_on_with_state("gate1", gate1_smu, metadata)
+        output_on_with_state("gate2", gate2_smu, metadata)
+        output_on_with_state("drain", drain_smu, metadata)
 
         start = time.monotonic()
         gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
@@ -314,19 +316,13 @@ def run_dual_gate_sweep(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
-        try:
-            drain_smu.output_off()
-        finally:
-            try:
-                gate1_smu.output_off()
-            finally:
-                try:
-                    gate2_smu.output_off()
-                finally:
-                    drain_smu.close()
-                    gate1_smu.close()
-                    gate2_smu.close()
-                    metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
-                    metadata["points_written"] = points_written
-                    writer.write_metadata(metadata)
-                    writer.close()
+        output_off_with_state("drain", drain_smu, metadata)
+        output_off_with_state("gate1", gate1_smu, metadata)
+        output_off_with_state("gate2", gate2_smu, metadata)
+        drain_smu.close()
+        gate1_smu.close()
+        gate2_smu.close()
+        metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        metadata["points_written"] = points_written
+        writer.write_metadata(metadata)
+        writer.close()

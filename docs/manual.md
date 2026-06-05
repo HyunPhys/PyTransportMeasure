@@ -946,6 +946,12 @@ If a readback-capable SMU reports a contradiction, the runner saves
 output. This gate protects broader scans from silently running with the wrong
 NPLC, range, terminal, or current limit.
 
+Every active runner also writes `output_state` in `metadata.json`. It records
+whether each Keithley role attempted output on, whether it was marked enabled,
+whether output off was attempted, and whether cleanup reported `off_after_run`.
+For multi-SMU runs, inspect each role separately before repeating a partial or
+failed hardware scan.
+
 For the first AC/lock-in hardware smoke test, use:
 
 ```powershell

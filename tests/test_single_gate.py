@@ -109,6 +109,8 @@ def test_single_gate_dry_run_writes_csv_and_metadata(tmp_path):
     assert saved_metadata["configured_gate_smu"]["current_range_a"] == pytest.approx(1e-9)
     assert saved_metadata["configured_drain_smu_readback"]["source_current_limit"] == "1e-06"
     assert saved_metadata["configured_gate_smu_readback"]["source_current_limit"] == "1e-08"
+    assert saved_metadata["output_state"]["drain"]["off_after_run"] is True
+    assert saved_metadata["output_state"]["gate"]["off_after_run"] is True
     assert drain_smu.is_output_on is False
     assert gate_smu.is_output_on is False
 

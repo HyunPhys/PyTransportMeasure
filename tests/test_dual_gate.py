@@ -129,6 +129,9 @@ def test_dual_gate_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert saved_metadata["configured_drain_smu_readback"]["current_nplc"] == "1"
     assert saved_metadata["configured_gate1_smu_readback"]["source_current_limit"] == "1e-08"
     assert saved_metadata["configured_gate2_smu_readback"]["current_range"] == "1e-09"
+    assert saved_metadata["output_state"]["drain"]["off_after_run"] is True
+    assert saved_metadata["output_state"]["gate1"]["off_after_run"] is True
+    assert saved_metadata["output_state"]["gate2"]["off_after_run"] is True
 
     summary = summarize_dual_gate_run(run_dir)
     assert summary.points == 45

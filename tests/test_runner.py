@@ -74,6 +74,7 @@ def test_fake_smu_dry_run_writes_csv_and_metadata(tmp_path):
     assert metadata["configured_smu"]["current_compliance_a"] == 1e-6
     assert metadata["configured_smu"]["nplc"] is None
     assert metadata["configured_smu_readback"]["source_current_limit"] == "1e-06"
+    assert metadata["output_state"]["instrument"]["off_after_run"] is True
     csv_path = tmp_path / next(tmp_path.iterdir()).name / "points.csv"
     metadata_path = csv_path.with_name("metadata.json")
     assert csv_path.exists()
@@ -85,6 +86,7 @@ def test_fake_smu_dry_run_writes_csv_and_metadata(tmp_path):
     assert saved["recipe"]["experiment"]["tags"] == []
     assert saved["configured_smu"]["current_compliance_a"] == 1e-6
     assert saved["configured_smu_readback"]["source_function"] == "VOLT"
+    assert saved["output_state"]["instrument"]["enabled"] is False
     assert saved["recipe_snapshot_path"].endswith("recipe_snapshot.yaml")
     assert saved["safety_snapshot_path"].endswith("safety_snapshot.yaml")
 
@@ -166,3 +168,5 @@ def test_smu_readback_mismatch_stops_before_output_on(tmp_path):
     assert smu.is_output_on is False
     saved = json.loads((next(tmp_path.iterdir()) / "metadata.json").read_text(encoding="utf-8"))
     assert saved["configured_smu_readback_check"]["matched"] is False
+    assert saved["output_state"]["instrument"]["output_on_attempted"] is False
+    assert saved["output_state"]["instrument"]["off_after_run"] is True

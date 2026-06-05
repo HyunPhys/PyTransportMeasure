@@ -17,6 +17,13 @@ from .dual_gate_lockin import format_topology_settings
 from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
+from .output_state import (
+    all_outputs_off_after_run,
+    any_output_enabled,
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+)
 from .recipes import DualGateLockInRecipe, SafetyPreset
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
 from .smu_config import (
@@ -317,7 +324,6 @@ def run_dual_gate_lockin_active_gate_smoke(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
-    outputs_were_enabled = False
     gate1_config = build_voltage_source_config(recipe.gate1_instrument, recipe.gate1_sweep.current_compliance_a)
     gate2_config = build_voltage_source_config(recipe.gate2_instrument, recipe.gate2_sweep.current_compliance_a)
     metadata: dict[str, Any] = {
@@ -357,6 +363,7 @@ def run_dual_gate_lockin_active_gate_smoke(
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
         "safety_snapshot_path": str(writer.safety_snapshot_path),
     }
+    initialize_output_state(metadata, ["gate1", "gate2"])
     try:
         gate1_smu.connect()
         gate2_smu.connect()
@@ -378,10 +385,9 @@ def run_dual_gate_lockin_active_gate_smoke(
         raise_for_voltage_source_config_readback_mismatch("gate2", metadata["configured_gate2_smu_readback_check"])
         gate1_smu.set_voltage(float(gate1_voltage_v))
         gate2_smu.set_voltage(float(gate2_voltage_v))
-        gate1_smu.output_on()
-        gate2_smu.output_on()
-        outputs_were_enabled = True
-        metadata["gate_outputs_enabled"] = True
+        output_on_with_state("gate1", gate1_smu, metadata)
+        output_on_with_state("gate2", gate2_smu, metadata)
+        metadata["gate_outputs_enabled"] = any_output_enabled(metadata)
         if settle_s:
             time.sleep(settle_s)
         start = time.monotonic()
@@ -432,23 +438,18 @@ def run_dual_gate_lockin_active_gate_smoke(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
+        output_off_with_state("gate1", gate1_smu, metadata)
+        output_off_with_state("gate2", gate2_smu, metadata)
+        metadata["gate_outputs_enabled"] = any_output_enabled(metadata)
+        metadata["outputs_off_after_run"] = all_outputs_off_after_run(metadata, ["gate1", "gate2"])
         try:
-            if outputs_were_enabled:
-                try:
-                    gate1_smu.output_off()
-                finally:
-                    gate2_smu.output_off()
-            metadata["gate_outputs_enabled"] = False
-            metadata["outputs_off_after_run"] = True
+            gate1_smu.close()
         finally:
             try:
-                gate1_smu.close()
+                gate2_smu.close()
             finally:
-                try:
-                    gate2_smu.close()
-                finally:
-                    lockin.close()
-                    metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
-                    metadata["points_written"] = points_written
-                    writer.write_metadata(metadata)
-                    writer.close()
+                lockin.close()
+                metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+                metadata["points_written"] = points_written
+                writer.write_metadata(metadata)
+                writer.close()

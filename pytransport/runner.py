@@ -11,6 +11,7 @@ from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import RunWriter
 from .model import MeasurementPoint
+from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
 from .recipes import DrainIVRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_point_current, validate_recipe_against_safety
 from .smu_config import (
@@ -62,6 +63,7 @@ def run_drain_iv(
         "plot_path": None,
         "report_path": None,
     }
+    initialize_output_state(metadata, ["instrument"])
 
     try:
         smu.connect()
@@ -75,7 +77,7 @@ def run_drain_iv(
             smu_config, metadata["configured_smu_readback"]
         )
         raise_for_voltage_source_config_readback_mismatch("instrument", metadata["configured_smu_readback_check"])
-        smu.output_on()
+        output_on_with_state("instrument", smu, metadata)
 
         start = time.monotonic()
         voltages = sweep_voltages(recipe.sweep)
@@ -120,14 +122,12 @@ def run_drain_iv(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
-        try:
-            smu.output_off()
-        finally:
-            smu.close()
-            metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
-            metadata["points_written"] = points_written
-            writer.write_metadata(metadata)
-            writer.close()
+        output_off_with_state("instrument", smu, metadata)
+        smu.close()
+        metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        metadata["points_written"] = points_written
+        writer.write_metadata(metadata)
+        writer.close()
 
 
 def raise_if_stop_requested(stop_requested: Callable[[], bool] | None) -> None:

@@ -518,6 +518,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm `configured_*_smu_readback_check.matched` is `true` for every
   active Keithley block. If the run stopped with
   `*_smu_config_readback`, output should not have enabled.
+- [ ] Confirm every active role in `output_state` has `enabled: false` and
+  `off_after_run: true`. If `output_off_error` is present, treat the run as a
+  hardware cleanup issue before repeating the scan.
 
 ## Pulse Measurement Dry-Run Checklist
 

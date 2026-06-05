@@ -16,6 +16,7 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
+from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
 from .recipes import PulseRecipe, SafetyPreset
 from .safety import validate_point_current, validate_pulse_recipe_against_safety
 from .smu_config import (
@@ -169,6 +170,7 @@ def run_pulse_measurement(
     metadata["configured_source_smu"] = voltage_source_config_snapshot(source_config)
     metadata["configured_source_smu_readback"] = None
     metadata["configured_source_smu_readback_check"] = None
+    initialize_output_state(metadata, ["source"])
     try:
         source_smu.connect()
         metadata["source_instrument_probe"] = source_smu.probe()
@@ -179,7 +181,7 @@ def run_pulse_measurement(
         )
         raise_for_voltage_source_config_readback_mismatch("source", metadata["configured_source_smu_readback_check"])
         source_smu.set_voltage(float(pulse.base_v))
-        source_smu.output_on()
+        output_on_with_state("source", source_smu, metadata)
         start = time.monotonic()
         for index in range(pulse.count):
             source_smu.set_voltage(float(pulse.amplitude_v))
@@ -228,11 +230,9 @@ def run_pulse_measurement(
         try:
             source_smu.set_voltage(float(recipe.pulse.base_v))
         finally:
-            try:
-                source_smu.output_off()
-            finally:
-                source_smu.close()
-                metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
-                metadata["points_written"] = points_written
-                writer.write_metadata(metadata)
-                writer.close()
+            output_off_with_state("source", source_smu, metadata)
+            source_smu.close()
+            metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+            metadata["points_written"] = points_written
+            writer.write_metadata(metadata)
+            writer.close()

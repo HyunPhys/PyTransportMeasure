@@ -17,6 +17,7 @@ from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
+from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
 from .recipes import AcLockInRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_ac_lockin_recipe_against_safety, validate_point_current
 from .smu_config import (
@@ -221,6 +222,7 @@ def run_ac_lockin_sweep(
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
         "safety_snapshot_path": str(writer.safety_snapshot_path),
     }
+    initialize_output_state(metadata, ["source"])
 
     try:
         source_smu.connect()
@@ -233,7 +235,7 @@ def run_ac_lockin_sweep(
             source_config, metadata["configured_source_smu_readback"]
         )
         raise_for_voltage_source_config_readback_mismatch("source", metadata["configured_source_smu_readback_check"])
-        source_smu.output_on()
+        output_on_with_state("source", source_smu, metadata)
 
         start = time.monotonic()
         voltages = sweep_voltages(recipe.bias_sweep)
@@ -284,14 +286,12 @@ def run_ac_lockin_sweep(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
+        output_off_with_state("source", source_smu, metadata)
         try:
-            source_smu.output_off()
+            source_smu.close()
         finally:
-            try:
-                source_smu.close()
-            finally:
-                lockin.close()
-                metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
-                metadata["points_written"] = points_written
-                writer.write_metadata(metadata)
-                writer.close()
+            lockin.close()
+            metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+            metadata["points_written"] = points_written
+            writer.write_metadata(metadata)
+            writer.close()

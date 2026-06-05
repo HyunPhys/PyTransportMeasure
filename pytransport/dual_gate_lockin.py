@@ -22,6 +22,13 @@ from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
+from .output_state import (
+    all_outputs_off_after_run,
+    any_output_enabled,
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+)
 from .recipes import DualGateLockInRecipe, SafetyPreset, gate_voltages_from_config
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
 from .smu_config import (
@@ -340,6 +347,7 @@ def run_dual_gate_lockin_sweep(
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
         "safety_snapshot_path": str(writer.safety_snapshot_path),
     }
+    initialize_output_state(metadata, ["gate1", "gate2"])
 
     try:
         gate1_smu.connect()
@@ -360,9 +368,9 @@ def run_dual_gate_lockin_sweep(
         )
         raise_for_voltage_source_config_readback_mismatch("gate1", metadata["configured_gate1_smu_readback_check"])
         raise_for_voltage_source_config_readback_mismatch("gate2", metadata["configured_gate2_smu_readback_check"])
-        gate1_smu.output_on()
-        gate2_smu.output_on()
-        metadata["gate_outputs_enabled"] = True
+        output_on_with_state("gate1", gate1_smu, metadata)
+        output_on_with_state("gate2", gate2_smu, metadata)
+        metadata["gate_outputs_enabled"] = any_output_enabled(metadata)
 
         start = time.monotonic()
         point_index = 0
@@ -445,20 +453,16 @@ def run_dual_gate_lockin_sweep(
         metadata["recovery_recommendation"] = "manual_review_required_before_restart"
         return metadata
     finally:
-        try:
-            gate1_smu.output_off()
-        finally:
-            try:
-                gate2_smu.output_off()
-            finally:
-                metadata["gate_outputs_enabled"] = False
-                metadata["outputs_off_after_run"] = True
-                gate1_smu.close()
-                gate2_smu.close()
-                lockin.close()
-                metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
-                metadata["points_written"] = points_written
-                metadata["remaining_points"] = max(0, total_points - points_written)
-                metadata["next_point_index"] = None if metadata["completed"] else points_written
-                writer.write_metadata(metadata)
-                writer.close()
+        output_off_with_state("gate1", gate1_smu, metadata)
+        output_off_with_state("gate2", gate2_smu, metadata)
+        metadata["gate_outputs_enabled"] = any_output_enabled(metadata)
+        metadata["outputs_off_after_run"] = all_outputs_off_after_run(metadata, ["gate1", "gate2"])
+        gate1_smu.close()
+        gate2_smu.close()
+        lockin.close()
+        metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        metadata["points_written"] = points_written
+        metadata["remaining_points"] = max(0, total_points - points_written)
+        metadata["next_point_index"] = None if metadata["completed"] else points_written
+        writer.write_metadata(metadata)
+        writer.close()
