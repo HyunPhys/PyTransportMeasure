@@ -138,7 +138,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
     MeasurementMode(
         key="four_terminal_ac",
         label="Four-terminal AC lock-in",
-        status="dry_run_ready",
+        status="hardware_smoke_ready",
         measurement_type="ac_lockin_sweep",
         geometry="four_terminal, 4-terminal",
         primary_instruments=("Keithley 2450 source bias", "SRS SR860 differential voltage input"),
@@ -147,6 +147,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         preflight_commands=("ptm ac-lockin-preflight configs/recipes/ac_lockin_four_terminal_dry_run.yaml",),
         run_commands=(
             "ptm ac-lockin configs/recipes/ac_lockin_four_terminal_dry_run.yaml --dry-run --summary --plot --report",
+            "ptm ac-lockin configs/recipes/ac_lockin_four_terminal_dry_run.yaml --allow-four-terminal-ac --hardware-approval-note \"fixture contacts checked; SR860 A-B verified\" --max-hardware-points 3 --yes --progress --summary --plot --report",
         ),
         guarded_parameters=(
             "four-terminal contact map",
@@ -160,9 +161,10 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "contact overlap validation",
             "four-terminal lock-in recipes require topology with separate excitation and voltage contacts",
             "four-terminal lock-in recipes require SR860 voltage input a-b",
+            "active hardware output requires --allow-four-terminal-ac, an approval note, and a point-count guard",
         ),
-        current_limitations=("Dry-run and contact-topology guard exist; hardware execution needs lab smoke validation.",),
-        next_step="Promote to hardware-smoke-ready after SR860 differential voltage wiring test with declared contacts.",
+        current_limitations=("Guarded active path exists; first lab smoke feedback is still required before broadening.",),
+        next_step="Run a small SR860 differential voltage wiring smoke with declared contacts and ingest the saved run.",
     ),
     MeasurementMode(
         key="hall_dual_gate_lockin",

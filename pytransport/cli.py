@@ -16,7 +16,11 @@ from .batch import (
     load_batch,
     resolve_batch_entries,
 )
-from .ac_lockin import run_ac_lockin_sweep
+from .ac_lockin import (
+    build_four_terminal_ac_hardware_guard,
+    format_four_terminal_ac_hardware_guard,
+    run_ac_lockin_sweep,
+)
 from .ac_lockin_review import write_ac_lockin_plot_svg, write_ac_lockin_report
 from .ac_lockin_review import (
     format_ac_lockin_lab_smoke_intake,
@@ -1014,6 +1018,9 @@ def build_parser() -> argparse.ArgumentParser:
     ac_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     ac_lockin.add_argument("--preview-points", type=int, default=5)
     ac_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
+    ac_lockin.add_argument("--allow-four-terminal-ac", action="store_true", help="Enable guarded four-terminal AC hardware output.")
+    ac_lockin.add_argument("--hardware-approval-note", help="Required approval note for guarded four-terminal AC hardware output.")
+    ac_lockin.add_argument("--max-hardware-points", type=int, default=5)
 
     ac_lockin_lab_smoke_intake = subparsers.add_parser(
         "ac-lockin-lab-smoke-intake",
@@ -2887,12 +2894,23 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
             phase_deg=args.fake_lockin_phase_deg,
             noise_std_v=args.fake_noise_std,
         )
+        hardware_guard = None
     else:
         try:
             assert_required_smu_parameters_for_hardware(recipe, roles=("source",))
+            hardware_guard = build_four_terminal_ac_hardware_guard(
+                recipe,
+                allow_four_terminal_ac=args.allow_four_terminal_ac,
+                hardware_approval_note=args.hardware_approval_note,
+                max_hardware_points=args.max_hardware_points,
+            )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
+        guard_text = format_four_terminal_ac_hardware_guard(hardware_guard)
+        if guard_text:
+            print(guard_text)
+            print()
         report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
         print(format_ac_lockin_preflight_report(report))
         print()
@@ -2914,6 +2932,7 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
         lockin,
         recipe_path=args.recipe,
         progress_callback=progress_callback,
+        hardware_guard=hardware_guard,
     )
     run_dir = Path(metadata["run_dir"])
     print(f"CSV: {metadata['csv_path']}")

@@ -1052,6 +1052,7 @@ Four-terminal lock-in dry-run recipes are available for Hall-bar planning:
 
 ```powershell
 ptm ac-lockin-plan configs/recipes/ac_lockin_four_terminal_dry_run.yaml
+ptm ac-lockin-preflight configs/recipes/ac_lockin_four_terminal_dry_run.yaml
 ptm ac-lockin configs/recipes/ac_lockin_four_terminal_dry_run.yaml --dry-run --summary --plot --report --fake-noise-std 0
 ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
@@ -1063,6 +1064,21 @@ recipes also require two distinct `topology.lockin_input_contacts`, two distinct
 `topology.excitation_contacts`, and no overlap between those voltage and
 excitation contacts. Reports generated from these runs include the same context
 so an exported run folder remains interpretable even away from the recipe file.
+
+Four-terminal AC hardware output is guarded separately from the two-terminal AC
+smoke path. The first active run must be explicitly approved, point-limited, and
+small:
+
+```powershell
+ptm ac-lockin configs/recipes/ac_lockin_four_terminal_dry_run.yaml --allow-four-terminal-ac --hardware-approval-note "fixture contacts checked; SR860 A-B verified" --max-hardware-points 3 --yes --progress --summary --plot --report
+```
+
+Without `--allow-four-terminal-ac`, `ptm ac-lockin` refuses four-terminal AC
+hardware output before constructing instruments. The saved `metadata.json`
+records `hardware_guard`, including the approval note, point count, guard limit,
+measurement geometry, and contact topology. Check this together with
+`configured_source_smu.nplc`, voltage range, current range, and compliance
+before broadening the scan.
 
 ## Campaign
 

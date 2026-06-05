@@ -46,6 +46,60 @@ checks:
     return recipe
 
 
+def write_four_terminal_ac_lockin_cli_recipe(tmp_path: Path, *, points: int = 3) -> Path:
+    recipe = tmp_path / "ac_lockin_four_terminal_cli.yaml"
+    output_dir = str(tmp_path / "raw").replace("\\", "/")
+    recipe.write_text(
+        f"""
+measurement_name: ac_lockin_four_terminal_cli_hardware
+safety_preset: nano_device_safe
+measurement_geometry:
+  terminal_count: 4
+  method: four_terminal
+  notes: Keithley biases source-drain while SR860 reads differential voltage.
+source_instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  timeout_ms: 10000
+  terminal: FRONT
+  voltage_range_v: 0.02
+  current_range_a: 1.0e-7
+  nplc: 1.0
+lockin:
+  enabled: true
+  id: srs_sr860
+  address: GPIB0::4::INSTR
+  timeout_ms: 10000
+  channels: [x, y, r, theta]
+  read_timing: after_dc_settle
+  input_mode: voltage
+  voltage_input: a-b
+topology:
+  source_contact: S
+  drain_contact: D
+  lockin_input_mode: voltage
+  lockin_input_contacts: [Vxx+, Vxx-]
+  excitation_contacts: [S, D]
+  voltage_probe_role: longitudinal
+  notes: CLI hardware guard test topology.
+bias_sweep:
+  mode: linear_one_way
+  start_v: -0.001
+  stop_v: 0.001
+  points: {points}
+  delay_s: 0
+  current_compliance_a: 1.0e-7
+output:
+  directory: {output_dir}
+checks:
+  require_completed: true
+  min_points: {points}
+""".strip(),
+        encoding="utf-8",
+    )
+    return recipe
+
+
 def passing_ac_preflight(recipe_path, safety_dir):
     return AcLockInPreflightReport(
         recipe_path=str(recipe_path),
@@ -142,6 +196,105 @@ def test_cli_ac_lockin_hardware_run_uses_real_instrument_factories_after_preflig
     assert (run_dirs[0] / "metadata.json").exists()
     assert (run_dirs[0] / "ac_lockin_plot.svg").exists()
     assert (run_dirs[0] / "ac_lockin_report.md").exists()
+
+
+def test_cli_ac_lockin_four_terminal_hardware_blocks_without_allow_flag(tmp_path, monkeypatch):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
+
+    code = cli.main(["ac-lockin", str(recipe), "--yes"])
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
+
+
+def test_cli_ac_lockin_four_terminal_hardware_requires_approval_note(tmp_path, monkeypatch):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
+
+    code = cli.main(["ac-lockin", str(recipe), "--allow-four-terminal-ac", "--yes"])
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
+
+
+def test_cli_ac_lockin_four_terminal_hardware_blocks_too_many_points(tmp_path, monkeypatch):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path, points=7)
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
+
+    code = cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--allow-four-terminal-ac",
+            "--hardware-approval-note",
+            "fixture checked",
+            "--max-hardware-points",
+            "5",
+            "--yes",
+        ]
+    )
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
+
+
+def test_cli_ac_lockin_four_terminal_hardware_guard_saved_to_metadata(tmp_path, monkeypatch):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+    source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
+    lockin = FakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0)
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
+    monkeypatch.setattr(cli, "Keithley2450", lambda address, timeout_ms: source)
+    monkeypatch.setattr(cli, "SRS_SR860", lambda address, timeout_ms: lockin)
+
+    code = cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--allow-four-terminal-ac",
+            "--hardware-approval-note",
+            "fixture checked; SR860 A-B contacts verified",
+            "--max-hardware-points",
+            "3",
+            "--yes",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    run_dir = list((tmp_path / "raw").glob("*ac_lockin_four_terminal_cli_hardware"))[0]
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["hardware_guard"]["four_terminal_ac_allowed"] is True
+    assert metadata["hardware_guard"]["hardware_approval_note"] == "fixture checked; SR860 A-B contacts verified"
+    assert metadata["hardware_guard"]["point_count"] == 3
+    assert metadata["hardware_guard"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert metadata["configured_source_smu"]["nplc"] == 1.0
+
+
+def test_cli_ac_lockin_four_terminal_dry_run_does_not_require_hardware_guard(tmp_path):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    run_dir = list((tmp_path / "raw").glob("*ac_lockin_four_terminal_cli_hardware"))[0]
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["hardware_guard"] is None
 
 
 def test_cli_ac_lockin_lab_smoke_intake_outputs_text_and_json(tmp_path, monkeypatch, capsys):

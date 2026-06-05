@@ -1268,6 +1268,42 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm fitted resistance is within the expected resistor/contact
   tolerance before expanding point count or connecting a device.
 
+## Four-Terminal AC Guarded Hardware Checklist
+
+- [ ] Confirm the recipe has `measurement_geometry.method: four_terminal` and
+  `terminal_count: 4`.
+- [ ] Confirm `topology.source_contact` and `topology.drain_contact` are the
+  actual Keithley excitation contacts.
+- [ ] Confirm `topology.lockin_input_contacts` are the actual SR860 A-B voltage
+  contacts and do not overlap the excitation contacts.
+- [ ] Confirm `lockin.input_mode: voltage` and `lockin.voltage_input: a-b`.
+- [ ] Confirm `source_instrument.nplc`, `voltage_range_v`, `current_range_a`,
+  and `bias_sweep.current_compliance_a` are deliberate measurement settings.
+- [ ] Run the no-output checks first:
+  ```powershell
+  ptm ac-lockin-plan configs\recipes\ac_lockin_four_terminal_dry_run.yaml
+  ptm ac-lockin-preflight configs\recipes\ac_lockin_four_terminal_dry_run.yaml
+  ptm ac-lockin configs\recipes\ac_lockin_four_terminal_dry_run.yaml --dry-run --summary --plot --report
+  ```
+- [ ] Confirm running without `--allow-four-terminal-ac` refuses hardware output.
+- [ ] Keep the first active run small:
+  ```powershell
+  ptm ac-lockin configs\recipes\ac_lockin_four_terminal_dry_run.yaml --allow-four-terminal-ac --hardware-approval-note "fixture contacts checked; SR860 A-B verified" --max-hardware-points 3 --yes --progress --summary --plot --report
+  ```
+- [ ] Confirm the command prints `Four-terminal AC hardware guard: PASS`.
+- [ ] Confirm the printed point count is no larger than `--max-hardware-points`.
+- [ ] After the run, open `metadata.json` and confirm `hardware_guard` contains
+  the approval note, contact topology, point count, and guard limit.
+- [ ] Confirm `configured_source_smu.nplc`, voltage range, current range, and
+  compliance match the recipe and lab notebook.
+- [ ] Confirm `output_state.source.off_after_run: true`.
+- [ ] Audit the saved run with:
+  ```powershell
+  ptm ac-lockin-lab-smoke-intake data\raw\<run> --min-points 3 --min-abs-lockin-r-v <low> --max-abs-lockin-r-v <high>
+  ```
+- [ ] Do not broaden the four-terminal AC point count until the lab smoke intake
+  passes and the wiring/noise floor look reasonable.
+
 ## Development Checklist
 
 - [ ] Keep hardware logic out of CLI argument handling.

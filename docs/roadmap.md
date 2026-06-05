@@ -649,6 +649,12 @@ root.
     contacts and separate SR860 voltage contacts
   - print contact topology in AC lock-in plans and reports
   - reject hidden four-terminal AC wiring variants before preflight or hardware
+- [x] Phase 25cw: Four-terminal AC guarded hardware gate
+  - keep four-terminal AC hardware output blocked unless the user passes an
+    explicit four-terminal approval flag and hardware approval note
+  - limit first four-terminal AC active runs by `--max-hardware-points`
+  - save the approval note, point guard, contact topology, and Keithley NPLC
+    measurement condition in run metadata for lab intake review
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

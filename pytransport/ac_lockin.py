@@ -155,6 +155,54 @@ def format_ac_lockin_plan(
     return "\n".join(lines)
 
 
+def build_four_terminal_ac_hardware_guard(
+    recipe: AcLockInRecipe,
+    *,
+    allow_four_terminal_ac: bool,
+    hardware_approval_note: str | None,
+    max_hardware_points: int,
+) -> dict[str, Any] | None:
+    if recipe.measurement_geometry.method != "four_terminal":
+        return None
+    point_count = ac_lockin_point_count(recipe)
+    if not allow_four_terminal_ac:
+        raise ValueError(
+            "Four-terminal AC hardware output is blocked by default. "
+            "Rerun with --allow-four-terminal-ac after wiring/preflight review."
+        )
+    approval_note = (hardware_approval_note or "").strip()
+    if not approval_note:
+        raise ValueError("Four-terminal AC hardware output requires --hardware-approval-note.")
+    if point_count > max_hardware_points:
+        raise ValueError(
+            f"Four-terminal AC hardware point count {point_count} exceeds "
+            f"--max-hardware-points {max_hardware_points}."
+        )
+    topology = recipe.topology.model_dump(mode="json") if recipe.topology is not None else None
+    return {
+        "measurement_geometry": recipe.measurement_geometry.model_dump(mode="json"),
+        "topology": topology,
+        "four_terminal_ac_allowed": True,
+        "hardware_approval_note": approval_note,
+        "max_hardware_points": max_hardware_points,
+        "point_count": point_count,
+    }
+
+
+def format_four_terminal_ac_hardware_guard(guard: dict[str, Any] | None) -> str:
+    if guard is None:
+        return ""
+    topology = guard.get("topology") or {}
+    lines = [
+        "Four-terminal AC hardware guard: PASS",
+        f"Approval note: {guard['hardware_approval_note']}",
+        f"Point count: {guard['point_count']} <= {guard['max_hardware_points']}",
+        f"Excitation contacts: {', '.join(topology.get('excitation_contacts') or [])}",
+        f"SR860 voltage contacts: {', '.join(topology.get('lockin_input_contacts') or [])}",
+    ]
+    return "\n".join(lines)
+
+
 def format_geometry(geometry: dict) -> str:
     method = geometry.get("method") or "two_terminal"
     terminal_count = geometry.get("terminal_count") or 2
@@ -209,6 +257,7 @@ def run_ac_lockin_sweep(
     lockin: LockInAmplifier,
     recipe_path: str | Path | None = None,
     progress_callback: Callable[[AcLockInPoint, int], None] | None = None,
+    hardware_guard: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     validate_ac_lockin_recipe_against_safety(recipe, safety)
     writer = AcLockInRunWriter(Path(recipe.output.directory), recipe.measurement_name)
@@ -241,6 +290,7 @@ def run_ac_lockin_sweep(
         "configured_source_smu": voltage_source_config_snapshot(source_config),
         "configured_source_smu_readback": None,
         "configured_source_smu_readback_check": None,
+        "hardware_guard": hardware_guard,
         "lockin_time_constant_s": lockin_tc_s,
         "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
         "lockin_read_settle_s": lockin_settle_s,
