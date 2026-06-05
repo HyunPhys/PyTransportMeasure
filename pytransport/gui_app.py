@@ -194,6 +194,7 @@ class MainWindow(QMainWindow):
         self.preview_spin = QSpinBox()
         self.preview_spin.setRange(0, 50)
         self.preview_spin.setValue(5)
+        self.preview_spin.setToolTip("Number of sweep points shown in the Plan preview. Use 0 to show all points.")
 
         self.fake_resistance = QLineEdit("1000000")
         self.fake_noise = QLineEdit("0")
@@ -315,7 +316,9 @@ class MainWindow(QMainWindow):
         recipe_row.addWidget(self.recipe_edit, stretch=1)
         recipe_row.addWidget(self.browse_button)
         layout.addLayout(recipe_row, 0, 3, 1, 3)
-        layout.addWidget(QLabel("Preview"), 0, 6)
+        preview_label = QLabel("Plan lines")
+        preview_label.setToolTip("Number of sweep points shown in the Plan preview. Use 0 to show all points.")
+        layout.addWidget(preview_label, 0, 6)
         layout.addWidget(self.preview_spin, 0, 7)
 
         self.fake_box = QGroupBox("Dry-run Model")
