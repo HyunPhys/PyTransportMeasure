@@ -4,8 +4,10 @@ import pytest
 
 from pytransport.gui_services import (
     GuiFakeSettings,
+    GuiSchemeStepDraft,
     available_gui_methods,
     create_gui_feedback_bundle,
+    default_scheme_text,
     default_recipe_text,
     drain_iv_form_from_text,
     drain_iv_text_from_form,
@@ -27,6 +29,10 @@ from pytransport.gui_services import (
     save_recipe_text,
     schema_form_from_text,
     schema_form_text_from_values,
+    scheme_builder_from_text,
+    scheme_text_from_builder,
+    validate_scheme_text,
+    format_scheme_plan_text,
     validate_recipe_text,
     run_gui_dry_run,
     run_gui_dry_run_text,
@@ -41,6 +47,38 @@ def test_gui_methods_include_dry_run_families():
     assert methods["single_gate_sweep"] == "Single-gate sweep"
     assert methods["ac_lockin_sweep"] == "AC lock-in sweep"
     assert methods["pulse_measurement"] == "Pulse measurement"
+
+
+def test_gui_scheme_builder_generates_valid_scheme_text():
+    text = scheme_text_from_builder(
+        "gui_test_scheme",
+        True,
+        [
+            GuiSchemeStepDraft("drain_iv", "drain", "../recipes/drain_iv_1k_resistor.yaml"),
+            GuiSchemeStepDraft("single_gate", "gate", "../recipes/single_gate_dry_run.yaml", repeat=2, interval_s=0.1),
+        ],
+    )
+
+    name, stop_on_error, rows = scheme_builder_from_text(text)
+    ok, validation = validate_scheme_text(text, scheme_path="configs/schemes/gui_test_scheme.yaml")
+    plan = format_scheme_plan_text(text, scheme_path="configs/schemes/gui_test_scheme.yaml", preview_points=1)
+
+    assert name == "gui_test_scheme"
+    assert stop_on_error is True
+    assert rows[0].type == "drain_iv"
+    assert rows[1].repeat == 2
+    assert ok is True
+    assert "Scheme validation: PASS" in validation
+    assert "Enabled steps: 3" in plan
+    assert "drain" in plan
+    assert "gate_rep02" in plan
+
+
+def test_gui_default_scheme_text_is_loadable():
+    name, _stop_on_error, rows = scheme_builder_from_text(default_scheme_text())
+
+    assert name == "gui_scheme"
+    assert [row.type for row in rows] == ["drain_iv", "single_gate"]
 
 
 def test_gui_instrument_refresh_formats_resources():

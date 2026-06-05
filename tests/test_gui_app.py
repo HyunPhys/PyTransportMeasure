@@ -46,6 +46,7 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert "Measurement" in tab_labels
     assert "Instruments" in tab_labels
     assert "Analysis" in tab_labels
+    assert "Schemes" in tab_labels
     assert "Recipe Overview" in tab_labels
     assert "Recipe Form" in tab_labels
     assert "Doctor" not in tab_labels
@@ -53,6 +54,7 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert window.refresh_instruments_button.text() == "Refresh Instruments"
     assert window.test_connection_button.text() == "Test Selected Address"
     assert "Method: Drain I-V (drain_iv)" in window.recipe_overview_text.toPlainText()
+    assert window.scheme_step_table.rowCount() >= 2
     window.close()
 
 
@@ -109,6 +111,38 @@ def test_gui_schema_form_supports_non_drain_methods(app):
     assert "measurement_name: gui_schema_pulse" in text
     assert "count: 6" in text
     assert "Pulse measurement" in window.recipe_overview_text.toPlainText()
+    window.close()
+
+
+def test_gui_scheme_builder_generates_yaml_and_plan(app):
+    window = MainWindow()
+
+    window.scheme_name_edit.setText("gui_test_scheme")
+    window.scheme_step_table.setItem(0, 1, QtWidgets.QTableWidgetItem("first_drain"))
+    assert window.apply_scheme_form_to_yaml()
+
+    text = window.scheme_editor_text.toPlainText()
+    assert "name: gui_test_scheme" in text
+    assert "label: first_drain" in text
+
+    assert window.validate_scheme_yaml()
+    window.show_scheme_plan()
+
+    assert "Scheme plan" in window.scheme_plan_text.toPlainText()
+    assert "first_drain" in window.scheme_plan_text.toPlainText()
+
+    window.scheme_editor_text.setPlainText(
+        "name: edited_scheme\n"
+        "stop_on_error: true\n"
+        "steps:\n"
+        "  - type: batch\n"
+        "    label: batch_step\n"
+        "    batch: ../batches/drain_iv_1k_repeat_linear.yaml\n"
+    )
+    assert window.load_scheme_form_from_yaml()
+    assert window.scheme_name_edit.text() == "edited_scheme"
+    assert window.scheme_table_text(0, 0) == "batch"
+    assert window.scheme_table_text(0, 1) == "batch_step"
     window.close()
 
 

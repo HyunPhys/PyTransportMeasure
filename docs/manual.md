@@ -473,6 +473,27 @@ edited, those values are not used until `Form -> YAML` regenerates the YAML.
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under
 `data/gui_drafts` before calling the same core runner used by the CLI.
 
+Scheme Builder workflow:
+
+1. Open `Schemes`.
+2. Edit the scheme name and step table.
+3. Use step type `drain_iv` for a Drain I-V recipe, `single_gate` for a
+   single-gate recipe, or `batch` for a batch YAML.
+4. Enter the recipe or batch path relative to the scheme YAML location, such as
+   `../recipes/drain_iv_1k_resistor.yaml`.
+5. Click `Form -> Scheme YAML`.
+6. Click `Check Scheme`.
+7. Click `Scheme Plan` and inspect the expanded workflow.
+8. Click `Save Scheme As` only after validation passes.
+
+The GUI Scheme Builder currently creates, validates, previews, and saves scheme
+YAML. Scheme execution remains a CLI workflow for this phase:
+
+```powershell
+ptm scheme-plan configs/schemes/<scheme>.yaml
+ptm scheme configs/schemes/<scheme>.yaml --dry-run --summary --plot --report --scheme-runs --scheme-points --scheme-stats
+```
+
 Preflight workflow:
 
 1. Confirm the Keithley is in SCPI mode.

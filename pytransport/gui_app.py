@@ -12,12 +12,15 @@ from .gui_session import GuiSessionLogger
 from .gui_services import (
     GuiFakeSettings,
     GuiSchemaField,
+    GuiSchemeStepDraft,
     available_gui_methods,
     create_gui_feedback_bundle,
     default_recipe_text,
+    default_scheme_text,
     format_hardware_confirmation_text,
     format_gui_plan_text,
     format_gui_progress,
+    format_scheme_plan_text,
     format_recipe_overview_text,
     list_gui_runs,
     load_gui_saved_run,
@@ -34,6 +37,9 @@ from .gui_services import (
     save_recipe_text,
     schema_form_from_text,
     schema_form_text_from_values,
+    scheme_builder_from_text,
+    scheme_text_from_builder,
+    validate_scheme_text,
     validate_recipe_text,
 )
 
@@ -460,6 +466,26 @@ class MainWindow(QMainWindow):
         self.load_run_button.setEnabled(False)
         self.loaded_run_dir: Path | None = None
 
+        self.scheme_path_edit = QLineEdit("configs/schemes/gui_scheme.yaml")
+        self.scheme_path_edit.setMinimumWidth(260)
+        self.scheme_name_edit = QLineEdit("gui_scheme")
+        self.scheme_stop_on_error = QComboBox()
+        self.scheme_stop_on_error.addItems(["true", "false"])
+        self.add_scheme_step_button = QPushButton("Add Step")
+        self.add_scheme_step_button.clicked.connect(self.add_default_scheme_step)
+        self.remove_scheme_step_button = QPushButton("Remove Selected")
+        self.remove_scheme_step_button.clicked.connect(self.remove_selected_scheme_steps)
+        self.scheme_form_to_yaml_button = QPushButton("Form -> Scheme YAML")
+        self.scheme_form_to_yaml_button.clicked.connect(self.apply_scheme_form_to_yaml)
+        self.scheme_yaml_to_form_button = QPushButton("Scheme YAML -> Form")
+        self.scheme_yaml_to_form_button.clicked.connect(self.load_scheme_form_from_yaml)
+        self.validate_scheme_button = QPushButton("Check Scheme")
+        self.validate_scheme_button.clicked.connect(self.validate_scheme_yaml)
+        self.plan_scheme_button = QPushButton("Scheme Plan")
+        self.plan_scheme_button.clicked.connect(self.show_scheme_plan)
+        self.save_scheme_button = QPushButton("Save Scheme As")
+        self.save_scheme_button.clicked.connect(self.save_scheme_as)
+
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
@@ -491,6 +517,14 @@ class MainWindow(QMainWindow):
         self.metadata_text.setReadOnly(True)
         self.report_text = QPlainTextEdit()
         self.report_text.setReadOnly(True)
+        self.scheme_editor_text = QPlainTextEdit()
+        self.scheme_plan_text = QPlainTextEdit()
+        self.scheme_plan_text.setReadOnly(True)
+        self.scheme_validation_text = QPlainTextEdit()
+        self.scheme_validation_text.setReadOnly(True)
+        self.scheme_step_table = QTableWidget(0, 6)
+        self.scheme_step_table.setHorizontalHeaderLabels(["Type", "Label", "Path", "Enabled", "Repeat", "Interval s"])
+        self.scheme_step_table.horizontalHeader().setStretchLastSection(True)
         self.saved_plot_canvas = IvPlotCanvas()
         self.live_plot_canvas = IvPlotCanvas()
         self.plot_status = QLabel("No plot loaded")
@@ -518,6 +552,7 @@ class MainWindow(QMainWindow):
         workspace_tabs.addTab(self.build_measurement_workspace(), "Measurement")
         workspace_tabs.addTab(self.build_instrument_workspace(), "Instruments")
         workspace_tabs.addTab(self.build_analysis_workspace(), "Analysis")
+        workspace_tabs.addTab(self.build_scheme_workspace(), "Schemes")
 
         root = QWidget()
         layout = QVBoxLayout(root)
@@ -528,6 +563,7 @@ class MainWindow(QMainWindow):
         self.build_menu()
         self.connect_recipe_sync_signals()
         self.apply_default_recipe()
+        self.apply_default_scheme()
         self.update_workflow_guide("Start by checking YAML, then confirm instruments before hardware.")
         self.log_session(f"Session log path: {self.session_logger.path}")
 
@@ -675,6 +711,42 @@ class MainWindow(QMainWindow):
         layout.addWidget(analysis_tabs, stretch=1)
         return container
 
+    def build_scheme_workspace(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        controls = QGroupBox("Scheme Builder")
+        controls_layout = QVBoxLayout(controls)
+
+        top_row = QHBoxLayout()
+        top_row.addWidget(QLabel("Name"))
+        top_row.addWidget(self.scheme_name_edit)
+        top_row.addWidget(QLabel("Path"))
+        top_row.addWidget(self.scheme_path_edit, stretch=1)
+        top_row.addWidget(QLabel("Stop on error"))
+        top_row.addWidget(self.scheme_stop_on_error)
+
+        action_row = QHBoxLayout()
+        action_row.addWidget(self.add_scheme_step_button)
+        action_row.addWidget(self.remove_scheme_step_button)
+        action_row.addStretch(1)
+        action_row.addWidget(self.scheme_yaml_to_form_button)
+        action_row.addWidget(self.scheme_form_to_yaml_button)
+        action_row.addWidget(self.validate_scheme_button)
+        action_row.addWidget(self.plan_scheme_button)
+        action_row.addWidget(self.save_scheme_button)
+
+        controls_layout.addLayout(top_row)
+        controls_layout.addLayout(action_row)
+        layout.addWidget(controls)
+        layout.addWidget(self.scheme_step_table, stretch=1)
+
+        scheme_tabs = QTabWidget()
+        scheme_tabs.addTab(self.scheme_editor_text, "Scheme YAML")
+        scheme_tabs.addTab(self.scheme_plan_text, "Plan")
+        scheme_tabs.addTab(self.scheme_validation_text, "Validation")
+        layout.addWidget(scheme_tabs, stretch=1)
+        return container
+
     def build_plot_preview(self) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -803,6 +875,9 @@ class MainWindow(QMainWindow):
     def recipe_path(self) -> Path:
         return Path(self.recipe_edit.text()).expanduser()
 
+    def scheme_path(self) -> Path:
+        return Path(self.scheme_path_edit.text()).expanduser()
+
     def fake_settings(self) -> GuiFakeSettings:
         return GuiFakeSettings(
             resistance_ohm=float(self.fake_resistance.text()),
@@ -840,6 +915,134 @@ class MainWindow(QMainWindow):
             self.hardware_run_button.setEnabled(is_drain_iv)
         if hasattr(self, "workflow_text"):
             self.reset_workflow_after_recipe_change("Default recipe loaded. Click Check YAML.")
+
+    def apply_default_scheme(self) -> None:
+        if not hasattr(self, "scheme_editor_text"):
+            return
+        self.scheme_editor_text.setPlainText(default_scheme_text())
+        self.load_scheme_form_from_yaml(silent=True)
+
+    def add_default_scheme_step(self) -> None:
+        self.add_scheme_row(GuiSchemeStepDraft("drain_iv", "new_step", "../recipes/drain_iv_1k_resistor.yaml"))
+
+    def add_scheme_row(self, step: GuiSchemeStepDraft) -> None:
+        row = self.scheme_step_table.rowCount()
+        self.scheme_step_table.insertRow(row)
+        for column, text in enumerate(
+            [
+                step.type,
+                step.label,
+                step.path,
+                str(step.enabled).lower(),
+                str(step.repeat),
+                f"{step.interval_s:g}",
+            ]
+        ):
+            self.scheme_step_table.setItem(row, column, QTableWidgetItem(text))
+
+    def remove_selected_scheme_steps(self) -> None:
+        rows = sorted({index.row() for index in self.scheme_step_table.selectedIndexes()}, reverse=True)
+        for row in rows:
+            self.scheme_step_table.removeRow(row)
+
+    def scheme_rows_from_table(self) -> list[GuiSchemeStepDraft]:
+        rows: list[GuiSchemeStepDraft] = []
+        for row in range(self.scheme_step_table.rowCount()):
+            step_type = self.scheme_table_text(row, 0) or "drain_iv"
+            if step_type not in {"drain_iv", "single_gate", "batch"}:
+                raise ValueError("scheme step type must be drain_iv, single_gate, or batch")
+            rows.append(
+                GuiSchemeStepDraft(
+                    type=step_type,
+                    label=self.scheme_table_text(row, 1),
+                    path=self.scheme_table_text(row, 2),
+                    enabled=self.scheme_table_text(row, 3).lower() not in {"false", "0", "no", "n"},
+                    repeat=int(self.scheme_table_text(row, 4) or "1"),
+                    interval_s=float(self.scheme_table_text(row, 5) or "0"),
+                )
+            )
+        return rows
+
+    def scheme_table_text(self, row: int, column: int) -> str:
+        item = self.scheme_step_table.item(row, column)
+        return "" if item is None else item.text().strip()
+
+    def load_scheme_form_from_yaml(self, silent: bool = False) -> bool:
+        try:
+            name, stop_on_error, steps = scheme_builder_from_text(self.scheme_editor_text.toPlainText())
+        except Exception as exc:
+            if not silent:
+                self.show_error(exc)
+            self.scheme_validation_text.setPlainText(f"Could not load scheme form\n{type(exc).__name__}: {exc}")
+            return False
+        self.scheme_name_edit.setText(name)
+        self.scheme_stop_on_error.setCurrentText(str(stop_on_error).lower())
+        self.scheme_step_table.setRowCount(0)
+        for step in steps:
+            self.add_scheme_row(step)
+        if not silent:
+            self.status_label.setText("Scheme form loaded from YAML")
+        return True
+
+    def apply_scheme_form_to_yaml(self) -> bool:
+        try:
+            text = scheme_text_from_builder(
+                self.scheme_name_edit.text(),
+                self.scheme_stop_on_error.currentText() == "true",
+                self.scheme_rows_from_table(),
+            )
+        except Exception as exc:
+            self.show_error(exc)
+            self.scheme_validation_text.setPlainText(f"Could not generate scheme YAML\n{type(exc).__name__}: {exc}")
+            return False
+        self.scheme_editor_text.setPlainText(text)
+        self.scheme_validation_text.clear()
+        self.status_label.setText("Scheme YAML generated from form")
+        self.log_session("Scheme form applied to YAML editor")
+        return True
+
+    def validate_scheme_yaml(self) -> bool:
+        ok, message = validate_scheme_text(
+            self.scheme_editor_text.toPlainText(),
+            scheme_path=self.scheme_path(),
+            preview_points=self.preview_spin.value(),
+        )
+        self.scheme_validation_text.setPlainText(message)
+        self.status_label.setText("Scheme validation passed" if ok else "Scheme validation failed")
+        self.log_session(f"Scheme validation {'passed' if ok else 'failed'}")
+        return ok
+
+    def show_scheme_plan(self) -> None:
+        try:
+            plan = format_scheme_plan_text(
+                self.scheme_editor_text.toPlainText(),
+                scheme_path=self.scheme_path(),
+                preview_points=self.preview_spin.value(),
+            )
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.scheme_plan_text.setPlainText(plan)
+        self.status_label.setText("Scheme plan ready")
+        self.log_session("Scheme plan generated")
+
+    def save_scheme_as(self) -> None:
+        if not self.validate_scheme_yaml():
+            return
+        selected, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Scheme As",
+            str(Path("configs/schemes").resolve() / "gui_scheme.yaml"),
+            "YAML (*.yaml *.yml)",
+        )
+        if not selected:
+            return
+        path = Path(selected)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(self.scheme_editor_text.toPlainText(), encoding="utf-8")
+        self.scheme_path_edit.setText(str(path))
+        self.status_label.setText(f"Scheme saved: {path}")
+        self.log_session(f"Scheme saved: {path}")
 
     def browse_recipe(self) -> None:
         selected, _ = QFileDialog.getOpenFileName(self, "Open Recipe", str(Path("configs/recipes").resolve()), "YAML (*.yaml *.yml)")

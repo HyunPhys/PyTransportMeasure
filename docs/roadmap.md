@@ -225,13 +225,17 @@ This roadmap tracks the large development phases. Completed items are checked.
     one form path
   - apply form values back to YAML through the method recipe model
   - keep advanced YAML editing available for complex fields
+- [x] Phase 24z: GUI scheme builder MVP
+  - compose multiple recipes and method steps from the GUI
+  - validate and preview scheme plans using the shared scheme core
+  - keep generated scheme YAML visible and editable
 
 ## Next GUI
 
-- [ ] Phase 24z: GUI scheme builder
-  - compose multiple recipes and method steps from the GUI
-  - expose scheme overrides without hand-editing YAML
-  - keep generated scheme YAML visible and editable
+- [ ] Phase 24aa: GUI scheme execution and saved scheme review
+  - run scheme dry-runs from the GUI
+  - show saved scheme summary/report/artifacts
+  - keep hardware scheme execution gated behind later smoke tests
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation

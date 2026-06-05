@@ -27,6 +27,7 @@ from .quality import evaluate_run_quality, quality_report_to_dict
 from .recipes import load_named_safety_preset, sweep_voltages
 from .run_index import append_run_index, build_index_record, filter_run_index, read_run_index
 from .runner import run_drain_iv
+from .scheme import SchemeRecipe, format_scheme_plan
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import write_single_gate_stats_csv
 from .visa_utils import list_resources
@@ -74,6 +75,16 @@ class GuiSchemaField:
 class GuiSchemaSection:
     title: str
     fields: tuple[GuiSchemaField, ...]
+
+
+@dataclass(frozen=True)
+class GuiSchemeStepDraft:
+    type: Literal["drain_iv", "single_gate", "batch"]
+    label: str
+    path: str
+    enabled: bool = True
+    repeat: int = 1
+    interval_s: float = 0.0
 
 
 DRAIN_IV_FORM_FIELDS = [
@@ -152,6 +163,97 @@ def validate_recipe_text(
         return True, "\n".join(["Validation: PASS", f"Safety preset: {safety.name}", "", plan])
     except Exception as exc:
         return False, f"Validation: FAIL\n{type(exc).__name__}: {exc}"
+
+
+def default_scheme_text() -> str:
+    return scheme_text_from_builder(
+        "gui_scheme",
+        True,
+        [
+            GuiSchemeStepDraft("drain_iv", "drain_reference", "../recipes/drain_iv_1k_resistor.yaml"),
+            GuiSchemeStepDraft("single_gate", "gate_transfer_map", "../recipes/single_gate_dry_run.yaml"),
+        ],
+    )
+
+
+def load_scheme_from_text(text: str) -> SchemeRecipe:
+    data = yaml.safe_load(text)
+    if not isinstance(data, dict):
+        raise ValueError("scheme YAML must contain a mapping")
+    return SchemeRecipe.model_validate(data)
+
+
+def validate_scheme_text(
+    text: str,
+    scheme_path: str | Path = "configs/schemes/gui_scheme.yaml",
+    safety_dir: str | Path = "configs/safety",
+    preview_points: int = 3,
+) -> tuple[bool, str]:
+    try:
+        scheme = load_scheme_from_text(text)
+        plan = format_scheme_plan(scheme, scheme_path, safety_dir, preview_points)
+        return True, "\n".join(["Scheme validation: PASS", "", plan])
+    except Exception as exc:
+        return False, f"Scheme validation: FAIL\n{type(exc).__name__}: {exc}"
+
+
+def format_scheme_plan_text(
+    text: str,
+    scheme_path: str | Path = "configs/schemes/gui_scheme.yaml",
+    safety_dir: str | Path = "configs/safety",
+    preview_points: int = 3,
+) -> str:
+    return format_scheme_plan(load_scheme_from_text(text), scheme_path, safety_dir, preview_points)
+
+
+def scheme_builder_from_text(text: str) -> tuple[str, bool, tuple[GuiSchemeStepDraft, ...]]:
+    scheme = load_scheme_from_text(text)
+    rows: list[GuiSchemeStepDraft] = []
+    for step in scheme.steps:
+        path = step.batch if step.type == "batch" else step.recipe
+        rows.append(
+            GuiSchemeStepDraft(
+                type=step.type,
+                label=step.label or "",
+                path="" if path is None else str(path),
+                enabled=step.enabled,
+                repeat=step.repeat,
+                interval_s=step.interval_s,
+            )
+        )
+    return scheme.name, scheme.stop_on_error, tuple(rows)
+
+
+def scheme_text_from_builder(
+    name: str,
+    stop_on_error: bool,
+    steps: list[GuiSchemeStepDraft] | tuple[GuiSchemeStepDraft, ...],
+) -> str:
+    step_data = []
+    for step in steps:
+        if not step.path.strip():
+            raise ValueError("scheme step path is required")
+        data: dict[str, Any] = {
+            "type": step.type,
+            "enabled": step.enabled,
+            "repeat": step.repeat,
+            "interval_s": step.interval_s,
+        }
+        if step.label.strip():
+            data["label"] = step.label.strip()
+        if step.type == "batch":
+            data["batch"] = step.path.strip()
+        else:
+            data["recipe"] = step.path.strip()
+        step_data.append(data)
+    scheme = SchemeRecipe.model_validate(
+        {
+            "name": name.strip(),
+            "stop_on_error": stop_on_error,
+            "steps": step_data,
+        }
+    )
+    return yaml.safe_dump(scheme.model_dump(mode="json", exclude_none=True), sort_keys=False)
 
 
 def load_recipe_from_text(measurement_type: GuiMethod, text: str) -> Any:
