@@ -69,6 +69,7 @@ from .dual_gate_lockin_hall_suite import (
     audit_dual_gate_lockin_hall_suite,
     format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_condition_drift_audit,
+    format_dual_gate_lockin_hall_suite_condition_snapshot_report,
     format_dual_gate_lockin_hall_suite_plan,
     format_hall_suite_audit,
     write_dual_gate_lockin_hall_suite_acquisition_package,
@@ -78,6 +79,7 @@ from .dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_approved_next_scan_package,
     write_dual_gate_lockin_hall_suite_approved_next_scan_recipes,
     write_dual_gate_lockin_hall_suite_condition_drift_audit,
+    write_dual_gate_lockin_hall_suite_condition_snapshot_report,
     write_dual_gate_lockin_hall_suite_next_scan_proposal,
     write_dual_gate_lockin_hall_suite_result_intake,
     write_dual_gate_lockin_hall_suite_template,
@@ -680,6 +682,16 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_condition_drift.add_argument("--output", type=Path)
     dual_gate_lockin_hall_suite_condition_drift.add_argument("--json-output", type=Path)
     dual_gate_lockin_hall_suite_condition_drift.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_condition_snapshot = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-condition-snapshot",
+        help="Write a lab-notebook table of returned Vxx/+B/-B/0B Keithley/SR860 settings.",
+    )
+    dual_gate_lockin_hall_suite_condition_snapshot.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_condition_snapshot.add_argument("--result-intake-json", type=Path)
+    dual_gate_lockin_hall_suite_condition_snapshot.add_argument("--output", type=Path)
+    dual_gate_lockin_hall_suite_condition_snapshot.add_argument("--json-output", type=Path)
+    dual_gate_lockin_hall_suite_condition_snapshot.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_suite_analyze = subparsers.add_parser(
         "dual-gate-lockin-hall-suite-analyze",
@@ -2212,6 +2224,25 @@ def command_dual_gate_lockin_hall_suite_condition_drift(args: argparse.Namespace
     print(f"Report: {result.report_path}")
     print(f"JSON: {result.json_path}")
     return 0 if result.accepted else 2
+
+
+def command_dual_gate_lockin_hall_suite_condition_snapshot(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_condition_snapshot_report(
+            args.package_manifest_or_dir,
+            result_intake_json=args.result_intake_json,
+            output_path=args.output,
+            json_output_path=args.json_output,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite condition snapshot failed: {exc}", file=sys.stderr)
+        return 2
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    print(format_dual_gate_lockin_hall_suite_condition_snapshot_report(payload))
+    print(f"Report: {result.report_path}")
+    print(f"JSON: {result.json_path}")
+    return 0
 
 
 def command_dual_gate_lockin_hall_suite_analyze(args: argparse.Namespace) -> int:
@@ -3771,6 +3802,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_intake(args)
     if args.command == "dual-gate-lockin-hall-suite-condition-drift":
         return command_dual_gate_lockin_hall_suite_condition_drift(args)
+    if args.command == "dual-gate-lockin-hall-suite-condition-snapshot":
+        return command_dual_gate_lockin_hall_suite_condition_snapshot(args)
     if args.command == "dual-gate-lockin-hall-suite-analyze":
         return command_dual_gate_lockin_hall_suite_analyze(args)
     if args.command == "dual-gate-lockin-hall-suite-review":

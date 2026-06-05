@@ -127,6 +127,15 @@ class HallSuiteConditionDriftAudit:
 
 
 @dataclass(frozen=True)
+class HallSuiteConditionSnapshotReport:
+    package_manifest_path: Path
+    result_intake_json_path: Path
+    report_path: Path
+    json_path: Path
+    run_count: int
+
+
+@dataclass(frozen=True)
 class HallSuiteAnalysisResult:
     output_dir: Path
     antisym_dir: Path
@@ -771,6 +780,97 @@ def format_dual_gate_lockin_hall_suite_condition_drift_audit(payload: dict[str, 
             "",
             "Keithley NPLC/ranges/compliance/source-delay and SR860 settings are measurement conditions.",
             "If this audit fails, regenerate the package or repeat the run before comparing Hall scans.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_dual_gate_lockin_hall_suite_condition_snapshot_report(
+    package_manifest_or_dir: str | Path,
+    *,
+    result_intake_json: str | Path | None = None,
+    output_path: str | Path | None = None,
+    json_output_path: str | Path | None = None,
+    overwrite: bool = False,
+) -> HallSuiteConditionSnapshotReport:
+    manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    intake_path = _resolve_result_intake_json_path(result_intake_json or package_dir)
+    payload = _build_condition_snapshot_payload(manifest_path, intake_path)
+    report_text = format_dual_gate_lockin_hall_suite_condition_snapshot_report(payload)
+    report_path = Path(output_path) if output_path is not None else package_dir / "condition_snapshot_report.md"
+    json_path = Path(json_output_path) if json_output_path is not None else package_dir / "condition_snapshot.json"
+    for path in [report_path, json_path]:
+        if path.exists() and not overwrite:
+            raise FileExistsError(f"Condition snapshot output already exists: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(report_text, encoding="utf-8")
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return HallSuiteConditionSnapshotReport(
+        package_manifest_path=manifest_path,
+        result_intake_json_path=intake_path,
+        report_path=report_path,
+        json_path=json_path,
+        run_count=len(payload.get("runs") or []),
+    )
+
+
+def format_dual_gate_lockin_hall_suite_condition_snapshot_report(payload: dict[str, Any]) -> str:
+    lines = [
+        "# Hall Suite Run Condition Snapshot",
+        "",
+        f"- Package manifest: `{payload.get('package_manifest_path')}`",
+        f"- Result intake JSON: `{payload.get('result_intake_json_path')}`",
+        f"- Run count: {len(payload.get('runs') or [])}",
+        "",
+        "## Keithley Gate Settings",
+        "",
+        "| Run | Gate | Address | Terminal | V range (V) | I range (A) | NPLC | Compliance (A) | Source delay (s) | Readback matched |",
+        "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    runs = payload.get("runs") if isinstance(payload.get("runs"), list) else []
+    for run in runs:
+        for gate in ["gate1", "gate2"]:
+            gate_data = run.get(gate) if isinstance(run.get(gate), dict) else {}
+            lines.append(
+                "| "
+                f"{run.get('run_key')} | {gate} | `{gate_data.get('address')}` | "
+                f"{_fmt_optional(gate_data.get('terminal'))} | "
+                f"{_fmt_optional(gate_data.get('voltage_range_v'))} | "
+                f"{_fmt_optional(gate_data.get('current_range_a'))} | "
+                f"{_fmt_optional(gate_data.get('nplc'))} | "
+                f"{_fmt_optional(gate_data.get('current_compliance_a'))} | "
+                f"{_fmt_optional(gate_data.get('source_delay_s'))} | "
+                f"{_fmt_optional(gate_data.get('readback_matched'))} |"
+            )
+    lines.extend(
+        [
+            "",
+            "## SR860 Settings",
+            "",
+            "| Run | Address | Sensitivity index | Time constant index | Read settle (s) | Time constant (s) | Readback available | Readback matched |",
+            "| --- | --- | ---: | ---: | ---: | ---: | --- | --- |",
+        ]
+    )
+    for run in runs:
+        lockin = run.get("lockin") if isinstance(run.get("lockin"), dict) else {}
+        lines.append(
+            "| "
+            f"{run.get('run_key')} | `{lockin.get('address')}` | "
+            f"{_fmt_optional(lockin.get('sensitivity_index'))} | "
+            f"{_fmt_optional(lockin.get('time_constant_index'))} | "
+            f"{_fmt_optional(lockin.get('read_settle_s'))} | "
+            f"{_fmt_optional(lockin.get('time_constant_s'))} | "
+            f"{_fmt_optional(lockin.get('readback_available'))} | "
+            f"{_fmt_optional(lockin.get('readback_matched'))} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Reminder",
+            "",
+            "Use this snapshot as a lab-notebook table before Hall analysis. NPLC, ranges, compliance, source delay, and SR860 settings are measurement conditions.",
             "",
         ]
     )
@@ -2981,6 +3081,74 @@ def _build_condition_drift_payload(manifest_path: Path, intake_path: Path) -> di
         "accepted": not any(issue.severity == "error" for issue in issues),
         "runs": run_payloads,
         "issues": [issue.__dict__ for issue in issues],
+    }
+
+
+def _build_condition_snapshot_payload(manifest_path: Path, intake_path: Path) -> dict[str, Any]:
+    intake = _load_result_intake_json(intake_path)
+    runs = intake.get("runs")
+    if not isinstance(runs, dict):
+        raise ValueError("result_intake.json is missing runs")
+    rows: list[dict[str, Any]] = []
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        run_info = runs.get(key)
+        if not isinstance(run_info, dict) or not run_info.get("run_dir"):
+            continue
+        run_dir = Path(str(run_info["run_dir"]))
+        metadata = read_dual_gate_lockin_metadata(run_dir)
+        rows.append(_condition_snapshot_row(key, run_dir, metadata))
+    return {
+        "package_manifest_path": str(manifest_path),
+        "result_intake_json_path": str(intake_path),
+        "runs": rows,
+    }
+
+
+def _condition_snapshot_row(run_key: str, run_dir: Path, metadata: dict[str, Any]) -> dict[str, Any]:
+    recipe = metadata.get("recipe") if isinstance(metadata.get("recipe"), dict) else {}
+    lockin_recipe = recipe.get("lockin") if isinstance(recipe.get("lockin"), dict) else {}
+    return {
+        "run_key": run_key,
+        "run_dir": str(run_dir),
+        "measurement_name": metadata.get("measurement_name"),
+        "completed": metadata.get("completed"),
+        "points_written": metadata.get("points_written"),
+        "planned_points": metadata.get("planned_points"),
+        "voltage_probe_role": metadata.get("voltage_probe_role"),
+        "magnetic_field_t": metadata.get("magnetic_field_t"),
+        "gate1": _condition_snapshot_gate(metadata, recipe, "gate1"),
+        "gate2": _condition_snapshot_gate(metadata, recipe, "gate2"),
+        "lockin": {
+            "address": lockin_recipe.get("address"),
+            "sensitivity_index": lockin_recipe.get("sensitivity_index"),
+            "time_constant_index": lockin_recipe.get("time_constant_index"),
+            "read_settle_s": lockin_recipe.get("read_settle_s"),
+            "settle_time_constants": lockin_recipe.get("settle_time_constants"),
+            "time_constant_s": metadata.get("lockin_time_constant_s"),
+            "readback_available": metadata.get("lockin_settings_readback_available"),
+            "readback_matched": metadata.get("lockin_settings_readback_matched"),
+        },
+    }
+
+
+def _condition_snapshot_gate(metadata: dict[str, Any], recipe: dict[str, Any], gate: str) -> dict[str, Any]:
+    instrument = recipe.get(f"{gate}_instrument") if isinstance(recipe.get(f"{gate}_instrument"), dict) else {}
+    sweep = recipe.get(f"{gate}_sweep") if isinstance(recipe.get(f"{gate}_sweep"), dict) else {}
+    configured = metadata.get(f"configured_{gate}_smu") if isinstance(metadata.get(f"configured_{gate}_smu"), dict) else {}
+    readback_check = (
+        metadata.get(f"configured_{gate}_smu_readback_check")
+        if isinstance(metadata.get(f"configured_{gate}_smu_readback_check"), dict)
+        else {}
+    )
+    return {
+        "address": instrument.get("address"),
+        "terminal": configured.get("terminal", instrument.get("terminal")),
+        "voltage_range_v": configured.get("voltage_range_v", instrument.get("voltage_range_v")),
+        "current_range_a": configured.get("current_range_a", instrument.get("current_range_a")),
+        "nplc": configured.get("nplc", instrument.get("nplc")),
+        "current_compliance_a": configured.get("current_compliance_a", sweep.get("current_compliance_a")),
+        "source_delay_s": configured.get("source_delay_s", instrument.get("source_delay_s")),
+        "readback_matched": readback_check.get("matched"),
     }
 
 

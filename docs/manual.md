@@ -611,14 +611,18 @@ Before analysis, compare the packaged measurement conditions against the
 returned run metadata:
 
 ```powershell
+ptm dual-gate-lockin-hall-suite-condition-snapshot data\hall_packages\sampleA_cd1_lab1
 ptm dual-gate-lockin-hall-suite-condition-drift data\hall_packages\sampleA_cd1_lab1
 ```
 
-This writes `condition_drift_report.md` and `condition_drift.json`. It checks
-the returned run recipe snapshots and configured SMU/lock-in metadata against
-the packaged Keithley NPLC, voltage/current ranges, compliance, source delay,
-and SR860 settings. `dual-gate-lockin-hall-suite-analyze` also runs this guard
-internally and refuses analysis if drift is detected.
+The snapshot command writes `condition_snapshot_report.md` and
+`condition_snapshot.json`, a lab-notebook table comparing Vxx/+B/-B/0B
+Keithley and SR860 settings side by side. The drift command writes
+`condition_drift_report.md` and `condition_drift.json`. It checks the returned
+run recipe snapshots and configured SMU/lock-in metadata against the packaged
+Keithley NPLC, voltage/current ranges, compliance, source delay, and SR860
+settings. `dual-gate-lockin-hall-suite-analyze` also runs this guard internally
+and refuses analysis if drift is detected.
 
 After running the drift audit, rerun lifecycle status. The lifecycle state
 should move from `condition_drift_pending` to `ready_for_analysis` once the

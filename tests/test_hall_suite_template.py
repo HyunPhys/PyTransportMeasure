@@ -640,6 +640,28 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert "Accepted for Hall analysis: True" in report.read_text(encoding="utf-8")
     assert payload["accepted"] is True
     assert payload["runs"]["longitudinal"]["points_written"] == 4
+    snapshot_json = tmp_path / "condition_snapshot.json"
+    snapshot_md = tmp_path / "condition_snapshot.md"
+    snapshot_code = main(
+        [
+            "dual-gate-lockin-hall-suite-condition-snapshot",
+            str(package_dir),
+            "--json-output",
+            str(snapshot_json),
+            "--output",
+            str(snapshot_md),
+        ]
+    )
+    snapshot = json.loads(snapshot_json.read_text(encoding="utf-8"))
+    snapshot_text = snapshot_md.read_text(encoding="utf-8")
+    assert snapshot_code == 0
+    assert [run["run_key"] for run in snapshot["runs"]] == ["longitudinal", "plus", "minus", "zero"]
+    assert snapshot["runs"][0]["gate1"]["nplc"] == 1.0
+    assert snapshot["runs"][0]["gate2"]["current_compliance_a"] == 1e-8
+    assert snapshot["runs"][0]["lockin"]["time_constant_index"] == 10
+    assert "Hall Suite Run Condition Snapshot" in snapshot_text
+    assert "| longitudinal | gate1 |" in snapshot_text
+    assert "| plus |" in snapshot_text
     drift_json = tmp_path / "condition_drift.json"
     drift_code = main(
         [

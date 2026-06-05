@@ -604,6 +604,12 @@ remain point-guarded.
   ```
 - [ ] Confirm `ready_for_analysis` was not granted unless measurement-condition
   audits, Keithley parameter audits, and SR860 setting audits are still PASS.
+- [ ] Write the returned-run condition snapshot table for the lab notebook.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-condition-snapshot data\hall_packages\<sample_lab_package>
+  ```
+- [ ] Confirm `condition_snapshot_report.md` shows Vxx/+B/-B/0B Keithley NPLC,
+  range, compliance, source-delay, and SR860 settings side by side.
 - [ ] Run the returned-run acquisition-condition drift guard before analysis.
   ```powershell
   ptm dual-gate-lockin-hall-suite-condition-drift data\hall_packages\<sample_lab_package>

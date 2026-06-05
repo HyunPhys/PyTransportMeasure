@@ -576,10 +576,14 @@ root.
     result intake
   - make package lifecycle visibly block analysis and next-scan decisions when
     returned metadata drifts from packaged measurement conditions
-- [ ] Phase 25cg: Hall run metadata condition snapshot report
+- [x] Phase 25cg: Hall run metadata condition snapshot report
   - write a compact per-run measurement-condition table from returned metadata
   - compare Vxx/+B/-B/0B Keithley and SR860 settings side by side
   - make lab-notebook review easier before deeper Hall analysis
+- [ ] Phase 25ch: Hall condition snapshot lifecycle integration
+  - surface condition snapshot existence in lifecycle status
+  - make lab handoff/return artifacts point to snapshot, drift, and intake
+    reports together
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
