@@ -17,6 +17,16 @@ class InterruptingSMU(FakeSMU):
         return super().measure_current()
 
 
+class NplcMismatchSMU(FakeSMU):
+    def output_on(self) -> None:
+        raise AssertionError("output_on should not be called after readback mismatch")
+
+    def read_voltage_source_config(self):
+        readback = super().read_voltage_source_config()
+        readback["current_nplc"] = "0.01"
+        return readback
+
+
 def make_recipe(tmp_path, compliance=1e-6):
     return DrainIVRecipe.model_validate(
         {
@@ -130,3 +140,29 @@ def test_stop_request_saves_partial_and_turns_output_off(tmp_path):
     saved = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
     assert saved["interrupted"] is True
     assert saved["points_written"] == 2
+
+
+def test_smu_readback_mismatch_stops_before_output_on(tmp_path):
+    data = {
+        "measurement_name": "readback_mismatch",
+        "instrument": {"address": "FAKE", "nplc": 1.0},
+        "sweep": {
+            "start_v": 0,
+            "stop_v": 0.01,
+            "points": 2,
+            "delay_s": 0,
+            "current_compliance_a": 1e-6,
+        },
+        "output": {"directory": str(tmp_path)},
+    }
+    recipe = DrainIVRecipe.model_validate(data)
+    smu = NplcMismatchSMU(noise_std_a=0)
+
+    metadata = run_drain_iv(recipe, make_safety(), smu)
+
+    assert metadata["completed"] is False
+    assert metadata["error_type"] == "SafetyLimitError"
+    assert metadata["triggered_limit"] == "instrument_smu_config_readback"
+    assert smu.is_output_on is False
+    saved = json.loads((next(tmp_path.iterdir()) / "metadata.json").read_text(encoding="utf-8"))
+    assert saved["configured_smu_readback_check"]["matched"] is False

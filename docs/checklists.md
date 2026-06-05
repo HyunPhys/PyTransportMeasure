@@ -515,6 +515,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm the matching `configured_*_smu_readback` exists. If any value is
   `ERROR ...`, keep the run artifacts but review the corresponding Keithley
   query before trusting broader scans.
+- [ ] Confirm `configured_*_smu_readback_check.matched` is `true` for every
+  active Keithley block. If the run stopped with
+  `*_smu_config_readback`, output should not have enabled.
 
 ## Pulse Measurement Dry-Run Checklist
 

@@ -18,7 +18,13 @@ from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
 from .recipes import PulseRecipe, SafetyPreset
 from .safety import validate_point_current, validate_pulse_recipe_against_safety
-from .smu_config import build_voltage_source_config, read_voltage_source_config_if_available, voltage_source_config_snapshot
+from .smu_config import (
+    build_voltage_source_config,
+    compare_voltage_source_config_readback,
+    raise_for_voltage_source_config_readback_mismatch,
+    read_voltage_source_config_if_available,
+    voltage_source_config_snapshot,
+)
 
 
 PULSE_COLUMNS = [
@@ -162,11 +168,16 @@ def run_pulse_measurement(
     source_config = build_voltage_source_config(recipe.source_instrument, pulse.current_compliance_a)
     metadata["configured_source_smu"] = voltage_source_config_snapshot(source_config)
     metadata["configured_source_smu_readback"] = None
+    metadata["configured_source_smu_readback_check"] = None
     try:
         source_smu.connect()
         metadata["source_instrument_probe"] = source_smu.probe()
         source_smu.configure_voltage_source(source_config)
         metadata["configured_source_smu_readback"] = read_voltage_source_config_if_available(source_smu)
+        metadata["configured_source_smu_readback_check"] = compare_voltage_source_config_readback(
+            source_config, metadata["configured_source_smu_readback"]
+        )
+        raise_for_voltage_source_config_readback_mismatch("source", metadata["configured_source_smu_readback_check"])
         source_smu.set_voltage(float(pulse.base_v))
         source_smu.output_on()
         start = time.monotonic()

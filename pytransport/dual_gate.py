@@ -22,7 +22,13 @@ from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
 from .recipes import DualGateRecipe, SafetyPreset, gate_voltages_from_config, sweep_delays, sweep_voltages
 from .safety import validate_dual_gate_recipe_against_safety, validate_point_current
-from .smu_config import build_voltage_source_config, read_voltage_source_config_if_available, voltage_source_config_snapshot
+from .smu_config import (
+    build_voltage_source_config,
+    compare_voltage_source_config_readback,
+    raise_for_voltage_source_config_readback_mismatch,
+    read_voltage_source_config_if_available,
+    voltage_source_config_snapshot,
+)
 
 
 DUAL_GATE_COLUMNS = [
@@ -198,6 +204,9 @@ def run_dual_gate_sweep(
         "configured_drain_smu_readback": None,
         "configured_gate1_smu_readback": None,
         "configured_gate2_smu_readback": None,
+        "configured_drain_smu_readback_check": None,
+        "configured_gate1_smu_readback_check": None,
+        "configured_gate2_smu_readback_check": None,
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
@@ -217,6 +226,18 @@ def run_dual_gate_sweep(
         metadata["configured_drain_smu_readback"] = read_voltage_source_config_if_available(drain_smu)
         metadata["configured_gate1_smu_readback"] = read_voltage_source_config_if_available(gate1_smu)
         metadata["configured_gate2_smu_readback"] = read_voltage_source_config_if_available(gate2_smu)
+        metadata["configured_drain_smu_readback_check"] = compare_voltage_source_config_readback(
+            drain_config, metadata["configured_drain_smu_readback"]
+        )
+        metadata["configured_gate1_smu_readback_check"] = compare_voltage_source_config_readback(
+            gate1_config, metadata["configured_gate1_smu_readback"]
+        )
+        metadata["configured_gate2_smu_readback_check"] = compare_voltage_source_config_readback(
+            gate2_config, metadata["configured_gate2_smu_readback"]
+        )
+        raise_for_voltage_source_config_readback_mismatch("drain", metadata["configured_drain_smu_readback_check"])
+        raise_for_voltage_source_config_readback_mismatch("gate1", metadata["configured_gate1_smu_readback_check"])
+        raise_for_voltage_source_config_readback_mismatch("gate2", metadata["configured_gate2_smu_readback_check"])
         gate1_smu.output_on()
         gate2_smu.output_on()
         drain_smu.output_on()

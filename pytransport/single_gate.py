@@ -18,7 +18,13 @@ from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
 from .recipes import SafetyPreset, SingleGateRecipe, gate_voltages_from_config, sweep_delays, sweep_voltages
 from .safety import validate_point_current, validate_single_gate_recipe_against_safety
-from .smu_config import build_voltage_source_config, read_voltage_source_config_if_available, voltage_source_config_snapshot
+from .smu_config import (
+    build_voltage_source_config,
+    compare_voltage_source_config_readback,
+    raise_for_voltage_source_config_readback_mismatch,
+    read_voltage_source_config_if_available,
+    voltage_source_config_snapshot,
+)
 
 
 SINGLE_GATE_COLUMNS = [
@@ -167,6 +173,8 @@ def run_single_gate_sweep(
         "configured_gate_smu": voltage_source_config_snapshot(gate_config),
         "configured_drain_smu_readback": None,
         "configured_gate_smu_readback": None,
+        "configured_drain_smu_readback_check": None,
+        "configured_gate_smu_readback_check": None,
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
@@ -182,6 +190,14 @@ def run_single_gate_sweep(
         gate_smu.configure_voltage_source(gate_config)
         metadata["configured_drain_smu_readback"] = read_voltage_source_config_if_available(drain_smu)
         metadata["configured_gate_smu_readback"] = read_voltage_source_config_if_available(gate_smu)
+        metadata["configured_drain_smu_readback_check"] = compare_voltage_source_config_readback(
+            drain_config, metadata["configured_drain_smu_readback"]
+        )
+        metadata["configured_gate_smu_readback_check"] = compare_voltage_source_config_readback(
+            gate_config, metadata["configured_gate_smu_readback"]
+        )
+        raise_for_voltage_source_config_readback_mismatch("drain", metadata["configured_drain_smu_readback_check"])
+        raise_for_voltage_source_config_readback_mismatch("gate", metadata["configured_gate_smu_readback_check"])
         gate_smu.output_on()
         drain_smu.output_on()
 

@@ -941,6 +941,11 @@ is collected after source/measure configuration and before output is enabled.
 Use it to compare intended settings against the instrument response for NPLC,
 range/autorange, terminal, voltage readback, and source current limit.
 
+If a readback-capable SMU reports a contradiction, the runner saves
+`configured_*_smu_readback_check`, raises `SafetyLimitError`, and does not enable
+output. This gate protects broader scans from silently running with the wrong
+NPLC, range, terminal, or current limit.
+
 For the first AC/lock-in hardware smoke test, use:
 
 ```powershell

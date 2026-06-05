@@ -240,7 +240,12 @@ root.
   - query Keithley source/sense function, terminal, NPLC, ranges, voltage
     readback, and accepted current-limit value after configure and before output
   - save best-effort `configured_*_smu_readback` metadata across runners
-- [ ] Phase 25q: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25q: SMU readback match gate
+  - compare configured SMU intent against readback before enabling output
+  - block readback-capable SMUs on mismatched NPLC, ranges, terminal, voltage
+    readback, source/sense mode, or current limit
+  - save `configured_*_smu_readback_check` in completed and partial metadata
+- [ ] Phase 25r: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory
