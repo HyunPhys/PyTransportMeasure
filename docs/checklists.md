@@ -577,6 +577,18 @@ remain point-guarded.
 - [ ] Confirm the Keithley NPLC values used for the underlying source/gate
   SMUs were intentional; do not compare scans with changed NPLC unless the
   lab deliberately changed the integration-time/noise tradeoff.
+- [ ] Generate an advisory next-scan proposal only after the review is accepted.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-next-scan-proposal data\hall_packages\<sample_lab_package>\hall_analysis
+  ```
+- [ ] Confirm `hall_suite_next_scan_proposal.json` has
+  `hardware_recipe_written: false`, `accepted_for_recipe_generation: false`,
+  and `requires_lab_approval: true`.
+- [ ] Confirm the proposal preserves Keithley NPLC, voltage range, current
+  range, compliance, settle time, and SR860 settings unless the lab notebook
+  explicitly approves a change.
+- [ ] Approve the next gate window/spacing in the lab notebook before creating
+  adjusted hardware recipes or acquisition packages.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

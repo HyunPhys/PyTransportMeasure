@@ -553,6 +553,21 @@ Keithley NPLC used in the underlying recipes/runs; NPLC sets current
 integration time and should only change when the lab deliberately trades sweep
 speed for lower current noise.
 
+After the review is accepted, write an advisory next-scan proposal:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-next-scan-proposal data\hall_packages\sampleA_cd1_lab1\hall_analysis
+```
+
+This writes `hall_suite_next_scan_proposal.md` and
+`hall_suite_next_scan_proposal.json`. It does not write hardware recipes. The
+proposal reads the mobility grid and carrier-density sign information, then
+suggests either refining near the charge-neutrality region or broadening the
+gate window after a single-sign density scan. It also carries forward the
+packaged recipe settings so the lab can preserve Keithley NPLC, voltage range,
+current range, compliance, settle time, and SR860 settings unless a lab-notebook
+approval explicitly changes them.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

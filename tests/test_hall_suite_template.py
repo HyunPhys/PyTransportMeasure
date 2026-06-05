@@ -582,6 +582,17 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     review_payload = json.loads(review_json.read_text(encoding="utf-8"))
     assert any(issue["check"] == "mobility_density.sign_change" for issue in review_payload["issues"])
 
+    code = main(["dual-gate-lockin-hall-suite-next-scan-proposal", str(analysis_dir)])
+    assert code == 0
+    proposal_json = analysis_dir / "hall_suite_next_scan_proposal.json"
+    proposal_payload = json.loads(proposal_json.read_text(encoding="utf-8"))
+    proposal_text = (analysis_dir / "hall_suite_next_scan_proposal.md").read_text(encoding="utf-8")
+    assert proposal_payload["hardware_recipe_written"] is False
+    assert proposal_payload["accepted_for_recipe_generation"] is False
+    assert proposal_payload["requires_lab_approval"] is True
+    assert proposal_payload["strategy"] == "refine_charge_neutrality_region"
+    assert "NPLC" in proposal_text
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(
@@ -647,3 +658,7 @@ def test_cli_dual_gate_lockin_hall_suite_review_rejects_missing_analysis_artifac
     payload = json.loads((analysis_dir / "hall_suite_analysis_review.json").read_text(encoding="utf-8"))
     assert payload["accepted_for_next_scan_decision"] is False
     assert any(issue["severity"] == "error" for issue in payload["issues"])
+
+    code = main(["dual-gate-lockin-hall-suite-next-scan-proposal", str(analysis_dir)])
+    assert code == 2
+    assert not (analysis_dir / "hall_suite_next_scan_proposal.json").exists()

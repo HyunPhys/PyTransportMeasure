@@ -125,6 +125,14 @@ class HallSuiteAnalysisReview:
     issues: tuple[HallSuiteAnalysisReviewIssue, ...]
 
 
+@dataclass(frozen=True)
+class HallSuiteNextScanProposal:
+    review_json_path: Path
+    accepted_for_recipe_generation: bool
+    report_path: Path
+    json_path: Path
+
+
 def write_dual_gate_lockin_hall_suite_template(
     base_recipe_path: str | Path,
     output_dir: str | Path,
@@ -766,6 +774,128 @@ def format_dual_gate_lockin_hall_suite_analysis_review(payload: dict[str, Any]) 
             "- If carrier density changes sign, inspect whether the scan crossed the charge neutrality point or whether Hall polarity/contact labeling is wrong.",
             "- If field-even or zero-field offsets are large, review contact asymmetry, lock-in phase, magnetic-field settling, and wiring before expanding the gate window.",
             "- Keep Keithley NPLC, current range, voltage range, compliance, source delay, and SR860 settings fixed when comparing repeated scans unless the lab deliberately changes them.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def write_dual_gate_lockin_hall_suite_next_scan_proposal(
+    review_json_or_analysis_dir: str | Path,
+    *,
+    output: str | Path | None = None,
+    json_output: str | Path | None = None,
+    overwrite: bool = False,
+) -> HallSuiteNextScanProposal:
+    review_json_path = _resolve_analysis_review_json_path(review_json_or_analysis_dir)
+    review = _load_analysis_review_json(review_json_path)
+    if review.get("accepted_for_next_scan_decision") is not True:
+        raise ValueError("Hall suite analysis review is not accepted for next-scan decision")
+    summary = review.get("summary") if isinstance(review.get("summary"), dict) else {}
+    analysis_dir = Path(str(summary.get("analysis_dir") or review_json_path.parent))
+    proposal_path = Path(output) if output is not None else analysis_dir / "hall_suite_next_scan_proposal.md"
+    proposal_json_path = Path(json_output) if json_output is not None else analysis_dir / "hall_suite_next_scan_proposal.json"
+    if proposal_path.exists() and not overwrite:
+        raise FileExistsError(f"Hall suite next-scan proposal report already exists: {proposal_path}")
+    if proposal_json_path.exists() and not overwrite:
+        raise FileExistsError(f"Hall suite next-scan proposal JSON already exists: {proposal_json_path}")
+
+    files = summary.get("files") if isinstance(summary.get("files"), dict) else {}
+    mobility_csv = Path(str(files.get("mobility_csv") or analysis_dir / "mobility" / "hall_mobility.csv"))
+    rows = _read_required_csv(mobility_csv, HALL_MOBILITY_COLUMNS)
+    grid = _proposal_grid_summary(rows)
+    density_values = [_optional_float(row.get("hall_carrier_density_per_m2")) for row in rows]
+    finite_density = [value for value in density_values if value is not None]
+    review_issues = review.get("issues") if isinstance(review.get("issues"), list) else []
+    proposed = _build_next_scan_gate_proposal(rows, grid, finite_density)
+    settings = _proposal_preserved_settings(analysis_dir)
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "review_json": str(review_json_path),
+        "analysis_dir": str(analysis_dir),
+        "accepted_for_recipe_generation": False,
+        "hardware_recipe_written": False,
+        "requires_lab_approval": True,
+        "reason_recipe_not_written": "proposal is advisory; generate or edit recipes only after lab approval",
+        "strategy": proposed["strategy"],
+        "rationale": proposed["rationale"],
+        "current_gate_grid": grid,
+        "proposed_gate_grid": proposed["gate_grid"],
+        "density_summary": _proposal_density_summary(finite_density),
+        "review_warnings": [issue for issue in review_issues if isinstance(issue, dict) and issue.get("severity") == "warning"],
+        "preserve_measurement_settings": settings,
+        "next_commands": [
+            "ptm dual-gate-lockin-hall-suite-adjust-recipes <suite>\\<prefix>_vxx.yaml <suite>\\<prefix>_vxy_plus_b.yaml <suite>\\<prefix>_vxy_minus_b.yaml <approved_output_suite> --zero-field-recipe <suite>\\<prefix>_vxy_zero_b.yaml --measurement-prefix <approved_prefix> --adjustment-note \"approved next-scan proposal\"",
+            "ptm dual-gate-lockin-hall-suite-check <approved_output_suite>\\<prefix>_vxx.yaml <approved_output_suite>\\<prefix>_vxy_plus_b.yaml <approved_output_suite>\\<prefix>_vxy_minus_b.yaml --zero-field-recipe <approved_output_suite>\\<prefix>_vxy_zero_b.yaml",
+            "ptm dual-gate-lockin-hall-suite-package <approved recipes...> data\\hall_packages --chunk-size <N> --package-name <approved_package>",
+        ],
+    }
+    proposal_path.parent.mkdir(parents=True, exist_ok=True)
+    proposal_json_path.parent.mkdir(parents=True, exist_ok=True)
+    proposal_path.write_text(format_dual_gate_lockin_hall_suite_next_scan_proposal(payload), encoding="utf-8")
+    proposal_json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return HallSuiteNextScanProposal(review_json_path, False, proposal_path, proposal_json_path)
+
+
+def format_dual_gate_lockin_hall_suite_next_scan_proposal(payload: dict[str, Any]) -> str:
+    current = payload.get("current_gate_grid") if isinstance(payload.get("current_gate_grid"), dict) else {}
+    proposed = payload.get("proposed_gate_grid") if isinstance(payload.get("proposed_gate_grid"), dict) else {}
+    density = payload.get("density_summary") if isinstance(payload.get("density_summary"), dict) else {}
+    warnings = payload.get("review_warnings") if isinstance(payload.get("review_warnings"), list) else []
+    settings = payload.get("preserve_measurement_settings") if isinstance(payload.get("preserve_measurement_settings"), dict) else {}
+    lines = [
+        "# Dual-Gate Lock-In Hall Suite Next-Scan Proposal",
+        "",
+        f"- Review JSON: `{payload.get('review_json')}`",
+        f"- Strategy: `{payload.get('strategy')}`",
+        f"- Hardware recipe written: {payload.get('hardware_recipe_written')}",
+        f"- Accepted for recipe generation: {payload.get('accepted_for_recipe_generation')}",
+        f"- Requires lab approval: {payload.get('requires_lab_approval')}",
+        "",
+        "## Rationale",
+        "",
+        f"- {payload.get('rationale')}",
+        "",
+        "## Gate Grid",
+        "",
+        "| Axis | Current start (V) | Current stop (V) | Current points | Proposed start (V) | Proposed stop (V) | Proposed points |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+        _proposal_grid_row("gate1", current, proposed),
+        _proposal_grid_row("gate2", current, proposed),
+        "",
+        "## Density Summary",
+        "",
+        f"- Finite density points: {density.get('finite_count', 0)}",
+        f"- Min density (m^-2): {_fmt_optional(density.get('min'))}",
+        f"- Max density (m^-2): {_fmt_optional(density.get('max'))}",
+        f"- Contains positive density: {density.get('has_positive')}",
+        f"- Contains negative density: {density.get('has_negative')}",
+        "",
+        "## Review Warnings Carried Forward",
+        "",
+    ]
+    if warnings:
+        lines.extend(f"- [{issue.get('check')}] {issue.get('message')}" for issue in warnings if isinstance(issue, dict))
+    else:
+        lines.append("- No review warnings were carried forward.")
+    lines.extend(
+        [
+            "",
+            "## Measurement Settings To Preserve",
+            "",
+            *_proposal_settings_lines(settings),
+            "",
+            "## Lab Approval Gate",
+            "",
+            "- This command intentionally did not write hardware recipes.",
+            "- Approve the proposed gate window/spacing in the lab notebook before generating adjusted recipes.",
+            "- Preserve Keithley NPLC, voltage range, current range, compliance, source delay, and SR860 settings unless the approval note explicitly changes them.",
+            "",
+            "## Suggested Next Commands After Approval",
+            "",
+            "```powershell",
+            *[str(command) for command in payload.get("next_commands", [])],
+            "```",
             "",
         ]
     )
@@ -1518,6 +1648,260 @@ def _load_result_intake_json(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _resolve_analysis_review_json_path(review_json_or_analysis_dir: str | Path) -> Path:
+    path = Path(review_json_or_analysis_dir)
+    if path.is_dir():
+        path = path / "hall_suite_analysis_review.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Hall suite analysis review JSON does not exist: {path}")
+    return path
+
+
+def _load_analysis_review_json(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def _read_required_csv(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Required CSV does not exist: {path}")
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        missing = [column for column in expected_columns if column not in (reader.fieldnames or [])]
+        if missing:
+            raise ValueError(f"{path} is missing columns: {', '.join(missing)}")
+        rows = [dict(row) for row in reader]
+    if not rows:
+        raise ValueError(f"{path} contains no rows")
+    return rows
+
+
+def _proposal_grid_summary(rows: list[dict[str, str]]) -> dict[str, dict[str, Any]]:
+    return {
+        "gate1": _proposal_axis_summary(_unique_floats(row.get("gate1_voltage_v") for row in rows)),
+        "gate2": _proposal_axis_summary(_unique_floats(row.get("gate2_voltage_v") for row in rows)),
+    }
+
+
+def _proposal_axis_summary(values: list[float]) -> dict[str, Any]:
+    if not values:
+        return {"start_v": None, "stop_v": None, "points": 0, "step_v": None, "span_v": None}
+    diffs = [b - a for a, b in zip(values[:-1], values[1:]) if b != a]
+    step = min(abs(diff) for diff in diffs) if diffs else None
+    return {
+        "start_v": values[0],
+        "stop_v": values[-1],
+        "points": len(values),
+        "step_v": step,
+        "span_v": values[-1] - values[0],
+    }
+
+
+def _unique_floats(values: Any) -> list[float]:
+    parsed = {_optional_float(value) for value in values}
+    return sorted(value for value in parsed if value is not None)
+
+
+def _build_next_scan_gate_proposal(
+    rows: list[dict[str, str]],
+    grid: dict[str, dict[str, Any]],
+    finite_density: list[float],
+) -> dict[str, Any]:
+    signs = {1 if value > 0 else -1 if value < 0 else 0 for value in finite_density}
+    if not finite_density:
+        return {
+            "strategy": "repeat_or_debug_hall_signal",
+            "rationale": "No finite Hall carrier density values were available; repeat a conservative checkpoint or inspect wiring/lock-in phase before broadening.",
+            "gate_grid": _same_gate_grid(grid),
+        }
+    if 1 in signs and -1 in signs:
+        low_density_rows = _lowest_abs_density_rows(rows)
+        return {
+            "strategy": "refine_charge_neutrality_region",
+            "rationale": "Carrier density changes sign in the measured grid, so the next scan should refine around the lowest-density region while preserving measurement settings.",
+            "gate_grid": {
+                "gate1": _refined_axis_from_rows(low_density_rows, "gate1_voltage_v", grid.get("gate1", {})),
+                "gate2": _refined_axis_from_rows(low_density_rows, "gate2_voltage_v", grid.get("gate2", {})),
+            },
+        }
+    return {
+        "strategy": "broaden_gate_window_after_single_density_sign",
+        "rationale": "Carrier density kept one sign over the measured grid; the next candidate should modestly broaden both gate windows after lab approval.",
+        "gate_grid": {
+            "gate1": _broaden_axis(grid.get("gate1", {})),
+            "gate2": _broaden_axis(grid.get("gate2", {})),
+        },
+    }
+
+
+def _same_gate_grid(grid: dict[str, dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    return {
+        axis: {
+            "start_v": values.get("start_v"),
+            "stop_v": values.get("stop_v"),
+            "points": values.get("points"),
+            "change": "repeat",
+        }
+        for axis, values in grid.items()
+    }
+
+
+def _lowest_abs_density_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    scored = []
+    for row in rows:
+        density = _optional_float(row.get("hall_carrier_density_per_m2"))
+        if density is not None:
+            scored.append((abs(density), row))
+    if not scored:
+        return rows
+    scored.sort(key=lambda item: item[0])
+    keep = max(2, min(len(scored), max(1, len(scored) // 4)))
+    return [row for _, row in scored[:keep]]
+
+
+def _refined_axis_from_rows(rows: list[dict[str, str]], column: str, current: dict[str, Any]) -> dict[str, Any]:
+    values = _unique_floats(row.get(column) for row in rows)
+    if not values:
+        return _broaden_axis(current)
+    step = _optional_float(current.get("step_v")) or 0.0
+    current_start = _optional_float(current.get("start_v"))
+    current_stop = _optional_float(current.get("stop_v"))
+    start = min(values) - step
+    stop = max(values) + step
+    if current_start is not None:
+        start = max(current_start, start)
+    if current_stop is not None:
+        stop = min(current_stop, stop)
+    current_points = int(current.get("points") or 0)
+    proposed_points = max(current_points, current_points * 2 - 1) if current_points else len(values)
+    return {"start_v": start, "stop_v": stop, "points": proposed_points, "change": "refine"}
+
+
+def _broaden_axis(current: dict[str, Any]) -> dict[str, Any]:
+    start = _optional_float(current.get("start_v"))
+    stop = _optional_float(current.get("stop_v"))
+    points = int(current.get("points") or 0)
+    if start is None or stop is None:
+        return {"start_v": start, "stop_v": stop, "points": points, "change": "manual_review_required"}
+    span = stop - start
+    padding = abs(span) * 0.25 if span else (_optional_float(current.get("step_v")) or 0.01)
+    return {"start_v": start - padding, "stop_v": stop + padding, "points": max(points + 2, points), "change": "broaden"}
+
+
+def _proposal_density_summary(values: list[float]) -> dict[str, Any]:
+    return {
+        "finite_count": len(values),
+        "min": min(values) if values else None,
+        "max": max(values) if values else None,
+        "has_positive": any(value > 0 for value in values),
+        "has_negative": any(value < 0 for value in values),
+    }
+
+
+def _proposal_preserved_settings(analysis_dir: Path) -> dict[str, Any]:
+    settings: dict[str, Any] = {
+        "source": "not available",
+        "recipes": {},
+    }
+    manifest_path = analysis_dir / "hall_suite_analysis_manifest.json"
+    if not manifest_path.exists():
+        return settings
+    manifest = _load_package_manifest(manifest_path)
+    intake_value = manifest.get("result_intake_json")
+    if not intake_value:
+        return settings
+    intake_path = Path(str(intake_value))
+    if not intake_path.is_absolute() and not intake_path.exists():
+        intake_path = analysis_dir / intake_path
+    if not intake_path.exists():
+        return settings
+    intake = _load_result_intake_json(intake_path)
+    package_manifest_value = intake.get("package_manifest_path")
+    if not package_manifest_value:
+        return settings
+    package_manifest_path = Path(str(package_manifest_value))
+    if not package_manifest_path.is_absolute() and not package_manifest_path.exists():
+        package_manifest_path = intake_path.parent / package_manifest_path
+    if not package_manifest_path.exists():
+        return settings
+    package_manifest = _load_package_manifest(package_manifest_path)
+    package_dir = package_manifest_path.parent
+    settings["source"] = str(package_manifest_path)
+    for key, recipe_path in _package_recipe_paths(package_manifest, package_dir).items():
+        recipe = DualGateLockInRecipe.model_validate(load_yaml(recipe_path))
+        settings["recipes"][key] = _proposal_recipe_settings(recipe)
+    return settings
+
+
+def _proposal_recipe_settings(recipe: DualGateLockInRecipe) -> dict[str, Any]:
+    return {
+        "measurement_name": recipe.measurement_name,
+        "gate1": _proposal_instrument_settings(recipe.gate1_instrument, recipe.gate1_sweep.current_compliance_a, recipe.gate1_sweep.settle_s),
+        "gate2": _proposal_instrument_settings(recipe.gate2_instrument, recipe.gate2_sweep.current_compliance_a, recipe.gate2_sweep.settle_s),
+        "lockin": {
+            "reference_frequency_hz": recipe.lockin.reference_frequency_hz,
+            "sine_output_amplitude_v": recipe.lockin.sine_output_amplitude_v,
+            "sensitivity_index": recipe.lockin.sensitivity_index,
+            "time_constant_index": recipe.lockin.time_constant_index,
+            "settle_time_constants": recipe.lockin.settle_time_constants,
+            "read_settle_s": recipe.lockin.read_settle_s,
+        },
+    }
+
+
+def _proposal_instrument_settings(instrument: Any, compliance_a: float, settle_s: float) -> dict[str, Any]:
+    return {
+        "address": instrument.address,
+        "terminal": instrument.terminal,
+        "voltage_range_v": instrument.voltage_range_v,
+        "current_range_a": instrument.current_range_a,
+        "nplc": instrument.nplc,
+        "source_delay_s": instrument.source_delay_s,
+        "current_compliance_a": compliance_a,
+        "settle_s": settle_s,
+    }
+
+
+def _proposal_grid_row(axis: str, current: dict[str, Any], proposed: dict[str, Any]) -> str:
+    current_axis = current.get(axis) if isinstance(current.get(axis), dict) else {}
+    proposed_axis = proposed.get(axis) if isinstance(proposed.get(axis), dict) else {}
+    return (
+        f"| {axis} | {_fmt_optional(current_axis.get('start_v'))} | {_fmt_optional(current_axis.get('stop_v'))} | "
+        f"{_fmt_optional(current_axis.get('points'))} | {_fmt_optional(proposed_axis.get('start_v'))} | "
+        f"{_fmt_optional(proposed_axis.get('stop_v'))} | {_fmt_optional(proposed_axis.get('points'))} |"
+    )
+
+
+def _proposal_settings_lines(settings: dict[str, Any]) -> list[str]:
+    recipes = settings.get("recipes") if isinstance(settings.get("recipes"), dict) else {}
+    if not recipes:
+        return ["- Packaged recipe settings were not available; manually preserve Keithley and SR860 settings."]
+    lines = [f"- Source manifest: `{settings.get('source')}`"]
+    for key, recipe_settings in recipes.items():
+        if not isinstance(recipe_settings, dict):
+            continue
+        lines.append(f"- `{key}` measurement: {recipe_settings.get('measurement_name')}")
+        for gate in ["gate1", "gate2"]:
+            gate_settings = recipe_settings.get(gate) if isinstance(recipe_settings.get(gate), dict) else {}
+            lines.append(
+                f"  - {gate}: NPLC={_fmt_optional(gate_settings.get('nplc'))}, "
+                f"Vrange={_fmt_optional(gate_settings.get('voltage_range_v'))}, "
+                f"Irange={_fmt_optional(gate_settings.get('current_range_a'))}, "
+                f"compliance={_fmt_optional(gate_settings.get('current_compliance_a'))}, "
+                f"settle={_fmt_optional(gate_settings.get('settle_s'))}"
+            )
+        lockin = recipe_settings.get("lockin") if isinstance(recipe_settings.get("lockin"), dict) else {}
+        lines.append(
+            f"  - SR860: f={_fmt_optional(lockin.get('reference_frequency_hz'))} Hz, "
+            f"amplitude={_fmt_optional(lockin.get('sine_output_amplitude_v'))} V, "
+            f"sensitivity_index={_fmt_optional(lockin.get('sensitivity_index'))}, "
+            f"tau_index={_fmt_optional(lockin.get('time_constant_index'))}"
+        )
+    return lines
 
 
 def _analysis_csv_path(analysis_dir: Path, manifest_value: Any, fallback_relative: str) -> Path | None:

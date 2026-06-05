@@ -465,12 +465,17 @@ root.
     orchestrated analysis folder
   - flag sign changes, missing gate points, and suspicious zero-field offsets
   - write one review report for deciding the next graphene gate scan
-- [ ] Phase 25bk: Hall-suite next-scan proposal
+- [x] Phase 25bk: Hall-suite next-scan proposal
   - use accepted analysis review artifacts to propose the next gate window and
     spacing for graphene Hall-bar scans
   - keep lab approval mandatory before writing any hardware recipe
   - preserve Keithley NPLC/range/compliance and SR860 settings unless the
     proposal explicitly calls out why they should change
+- [ ] Phase 25bl: Approved next-scan recipe generation
+  - turn an approved next-scan proposal into adjusted Hall-suite recipes
+  - require an approval note before writing hardware recipes
+  - keep NPLC/range/compliance/SR860 settings unchanged by default and record
+    any deliberate measurement-setting changes
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

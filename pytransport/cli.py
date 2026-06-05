@@ -74,6 +74,7 @@ from .dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_adjusted_recipes,
     write_dual_gate_lockin_hall_suite_analysis,
     write_dual_gate_lockin_hall_suite_analysis_review,
+    write_dual_gate_lockin_hall_suite_next_scan_proposal,
     write_dual_gate_lockin_hall_suite_result_intake,
     write_dual_gate_lockin_hall_suite_template,
 )
@@ -673,6 +674,15 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_review.add_argument("--output", type=Path)
     dual_gate_lockin_hall_suite_review.add_argument("--json-output", type=Path)
     dual_gate_lockin_hall_suite_review.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_next_scan_proposal = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-next-scan-proposal",
+        help="Write an advisory next gate-scan proposal from an accepted Hall suite analysis review.",
+    )
+    dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("review_json_or_analysis_dir", type=Path)
+    dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("--output", type=Path)
+    dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("--json-output", type=Path)
+    dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2076,6 +2086,24 @@ def command_dual_gate_lockin_hall_suite_review(args: argparse.Namespace) -> int:
     return 0 if result.accepted_for_next_scan_decision else 2
 
 
+def command_dual_gate_lockin_hall_suite_next_scan_proposal(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_next_scan_proposal(
+            args.review_json_or_analysis_dir,
+            output=args.output,
+            json_output=args.json_output,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite next-scan proposal failed: {exc}", file=sys.stderr)
+        return 2
+    print("Hall suite next-scan proposal written")
+    print(f"Report: {result.report_path}")
+    print(f"JSON: {result.json_path}")
+    print(f"Accepted for recipe generation: {result.accepted_for_recipe_generation}")
+    return 0
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3375,6 +3403,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_analyze(args)
     if args.command == "dual-gate-lockin-hall-suite-review":
         return command_dual_gate_lockin_hall_suite_review(args)
+    if args.command == "dual-gate-lockin-hall-suite-next-scan-proposal":
+        return command_dual_gate_lockin_hall_suite_next_scan_proposal(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":
