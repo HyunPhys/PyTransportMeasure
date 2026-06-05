@@ -110,8 +110,10 @@ from .dual_gate_lockin_review import (
 )
 from .feedback_bundle import create_feedback_bundle
 from .four_terminal_dc import (
+    format_four_terminal_dc_recipe_validation,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    validate_four_terminal_dc_recipe_file,
     write_four_terminal_dc_design_gate_json,
 )
 from .hall_analysis import (
@@ -282,6 +284,13 @@ def build_parser() -> argparse.ArgumentParser:
     four_terminal_dc_design_gate.add_argument("recipe", type=Path, nargs="?")
     four_terminal_dc_design_gate.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     four_terminal_dc_design_gate.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
+
+    four_terminal_dc_validate = subparsers.add_parser(
+        "four-terminal-dc-validate",
+        help="Validate a non-executing four-terminal DC schema-draft recipe.",
+    )
+    four_terminal_dc_validate.add_argument("recipe", type=Path)
+    four_terminal_dc_validate.add_argument("--json", action="store_true", help="Print normalized recipe JSON.")
 
     run = subparsers.add_parser("run", help="Run a Drain I-V recipe.")
     run.add_argument("recipe", type=Path)
@@ -1286,6 +1295,19 @@ def command_four_terminal_dc_design_gate(args: argparse.Namespace) -> int:
         print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
     elif not args.json_output:
         print(format_four_terminal_dc_design_gate(report))
+    return 0
+
+
+def command_four_terminal_dc_validate(args: argparse.Namespace) -> int:
+    try:
+        recipe = validate_four_terminal_dc_recipe_file(args.recipe)
+    except Exception as exc:
+        print(f"Four-terminal DC recipe validation failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(json.dumps(recipe.model_dump(mode="json"), indent=2, sort_keys=True))
+    else:
+        print(format_four_terminal_dc_recipe_validation(recipe, args.recipe))
     return 0
 
 
@@ -3827,6 +3849,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_measurement_modes(args)
     if args.command == "four-terminal-dc-design-gate":
         return command_four_terminal_dc_design_gate(args)
+    if args.command == "four-terminal-dc-validate":
+        return command_four_terminal_dc_validate(args)
     if args.command == "run":
         return command_run(args)
     if args.command == "single-gate-plan":

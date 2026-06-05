@@ -602,11 +602,16 @@ root.
     four-terminal DC output
   - design recipe schema, contact topology guard, preflight, and dry-run runner
     for DC four-probe measurement
-- [ ] Phase 25cm: Four-terminal DC recipe schema draft
+- [x] Phase 25cm: Four-terminal DC recipe schema draft
   - add a non-executing recipe model for Keithley 2450 remote-sense Drain I-V
     with explicit force/sense contacts and `dc_sense_mode`
   - keep hardware execution blocked until driver SCPI tests and preflight
     readback are implemented
+- [ ] Phase 25cn: Four-terminal DC Keithley driver SCPI tests
+  - add a driver-level remote-sense configuration primitive for current
+    measurement without wiring it into active runners
+  - verify exact `:SENS:CURR:RSEN ON/OFF` command and readback behavior with
+    fake VISA before any hardware run exists
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

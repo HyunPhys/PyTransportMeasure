@@ -75,7 +75,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         measurement_type="dc_four_terminal",
         geometry="four_terminal, 4-terminal",
         primary_instruments=("Keithley 2450 source", "Keithley 2450 voltage-sense or sense terminals"),
-        recipe_examples=(),
+        recipe_examples=("configs/recipes/four_terminal_dc_schema_draft.yaml",),
         plan_commands=(),
         preflight_commands=(),
         run_commands=(),
@@ -90,7 +90,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "verify 2450 remote-sense SCPI from manual before implementation",
         ),
         current_limitations=("No active runner yet; intentionally left as TODO for future 4-probe DC phase.",),
-        next_step="Run ptm four-terminal-dc-design-gate before adding any active 4-wire DC output path.",
+        next_step="Validate configs/recipes/four_terminal_dc_schema_draft.yaml, then add driver SCPI tests before any active output path.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

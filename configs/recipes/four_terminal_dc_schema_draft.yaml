@@ -1,0 +1,40 @@
+measurement_name: four_terminal_dc_schema_draft
+experiment:
+  sample_id: sample_placeholder
+  device_id: device_placeholder
+  contact_geometry: Four-terminal Kelvin / Hall-bar contacts
+  contact_notes: Schema draft only; do not use for active hardware output.
+  tags:
+    - four-terminal-dc
+    - schema-draft
+measurement_geometry:
+  terminal_count: 4
+  method: four_terminal
+  notes: Keithley 2450 remote-sense Drain I-V schema draft.
+dc_sense_mode: remote_4wire
+instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  terminal: FRONT
+  voltage_range_v: 0.1
+  current_range_a: 1.0e-7
+  nplc: 1.0
+  source_delay_s: 0.05
+contacts:
+  source_contact: S
+  drain_contact: D
+  sense_hi_contact: V+
+  sense_lo_contact: V-
+  terminal_plane: FRONT
+  notes: Force and sense contact labels must be edited for the actual device.
+sweep:
+  mode: linear_one_way
+  start_v: -0.01
+  stop_v: 0.01
+  points: 3
+  delay_s: 0.1
+  current_compliance_a: 1.0e-7
+safety_preset: nano_device_safe
+output:
+  directory: data/raw
+implementation_status: schema_draft_non_executable

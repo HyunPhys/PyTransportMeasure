@@ -98,12 +98,15 @@ editing driver code:
 ```powershell
 ptm four-terminal-dc-design-gate
 ptm four-terminal-dc-design-gate configs\recipes\<candidate_four_terminal_dc>.yaml --json-output docs\four_terminal_dc_design_gate.json
+ptm four-terminal-dc-validate configs\recipes\four_terminal_dc_schema_draft.yaml
 ```
 
 The design gate never enables hardware output. It records the required
 method-specific recipe fields, contact guards, Keithley remote-sense SCPI
 commands such as `:SENS:CURR:RSEN ON`, and readback queries that must exist
 before a 4-wire DC runner can be implemented.
+The schema draft recipe is non-executable and carries
+`implementation_status: schema_draft_non_executable`.
 
 ## Installation
 

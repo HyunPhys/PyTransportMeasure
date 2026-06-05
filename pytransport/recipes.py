@@ -175,6 +175,29 @@ class MeasurementGeometry(BaseModel):
         return self
 
 
+class FourTerminalDCContacts(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_contact: str = Field(min_length=1)
+    drain_contact: str = Field(min_length=1)
+    sense_hi_contact: str = Field(min_length=1)
+    sense_lo_contact: str = Field(min_length=1)
+    terminal_plane: Literal["FRONT", "REAR"]
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def contacts_must_be_distinct_and_single_plane(self) -> "FourTerminalDCContacts":
+        contacts = [
+            self.source_contact,
+            self.drain_contact,
+            self.sense_hi_contact,
+            self.sense_lo_contact,
+        ]
+        if len(set(contacts)) != len(contacts):
+            raise ValueError("four-terminal DC force and sense contacts must be distinct")
+        return self
+
+
 class HallBarLockInTopology(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -267,6 +290,48 @@ class DrainIVRecipe(BaseModel):
     def voltage_range_must_cover_sweep(self) -> "DrainIVRecipe":
         if self.instrument.voltage_range_v is None:
             return self
+        voltages = sweep_voltages(self.sweep)
+        max_sweep_voltage = max(abs(voltage) for voltage in voltages)
+        if self.instrument.voltage_range_v < max_sweep_voltage:
+            raise ValueError("instrument.voltage_range_v must cover sweep start_v/stop_v")
+        return self
+
+
+class FourTerminalDCRecipe(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    measurement_name: str = Field(min_length=1)
+    experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry
+    dc_sense_mode: Literal["remote_4wire"] = "remote_4wire"
+    instrument: InstrumentConfig
+    contacts: FourTerminalDCContacts
+    sweep: SweepConfig
+    safety_preset: str = "nano_device_safe"
+    output: OutputConfig = OutputConfig()
+    implementation_status: Literal["schema_draft_non_executable"] = "schema_draft_non_executable"
+    checks: QualityChecks | None = None
+
+    @field_validator("measurement_name")
+    @classmethod
+    def measurement_name_is_file_friendly(cls, value: str) -> str:
+        forbidden = '<>:"/\\|?*'
+        if any(char in value for char in forbidden):
+            raise ValueError(f"measurement_name cannot contain any of {forbidden}")
+        return value
+
+    @model_validator(mode="after")
+    def schema_draft_must_be_explicit_and_non_executable(self) -> "FourTerminalDCRecipe":
+        if self.measurement_geometry.method != "four_terminal" or self.measurement_geometry.terminal_count != 4:
+            raise ValueError("four-terminal DC recipes require measurement_geometry four_terminal, terminal_count=4")
+        if self.instrument.nplc is None:
+            raise ValueError("four-terminal DC recipes require explicit instrument.nplc")
+        if self.instrument.voltage_range_v is None:
+            raise ValueError("four-terminal DC recipes require explicit instrument.voltage_range_v")
+        if self.instrument.current_range_a is None:
+            raise ValueError("four-terminal DC recipes require explicit instrument.current_range_a")
+        if self.instrument.terminal is not None and self.instrument.terminal != self.contacts.terminal_plane:
+            raise ValueError("instrument.terminal must match contacts.terminal_plane")
         voltages = sweep_voltages(self.sweep)
         max_sweep_voltage = max(abs(voltage) for voltage in voltages)
         if self.instrument.voltage_range_v < max_sweep_voltage:
@@ -542,6 +607,10 @@ def load_yaml(path: Path) -> dict:
 
 def load_recipe(path: str | Path) -> DrainIVRecipe:
     return DrainIVRecipe.model_validate(load_yaml(Path(path)))
+
+
+def load_four_terminal_dc_recipe(path: str | Path) -> FourTerminalDCRecipe:
+    return FourTerminalDCRecipe.model_validate(load_yaml(Path(path)))
 
 
 def load_single_gate_recipe(path: str | Path) -> SingleGateRecipe:

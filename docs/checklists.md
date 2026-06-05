@@ -17,6 +17,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   DC, two-terminal AC, four-terminal AC, and Hall-suite dual-gate readiness.
 - [x] Four-terminal DC design gate documents required Keithley remote-sense
   SCPI/contact guards while keeping active hardware output blocked.
+- [x] Four-terminal DC schema draft validates force/sense contacts and
+  `remote_4wire` intent while remaining non-executable.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.

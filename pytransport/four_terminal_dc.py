@@ -7,7 +7,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
-from .recipes import DrainIVRecipe, load_yaml
+from pydantic import ValidationError
+
+from .recipes import DrainIVRecipe, FourTerminalDCRecipe, load_four_terminal_dc_recipe, load_yaml
 
 
 @dataclass(frozen=True)
@@ -43,12 +45,12 @@ class FourTerminalDCDesignGate:
 PROPOSED_RECIPE_FIELDS = (
     "measurement_geometry.method: four_terminal",
     "measurement_geometry.terminal_count: 4",
-    "dc_sense_mode: local_2wire | remote_4wire",
-    "source_contact",
-    "drain_contact",
-    "sense_hi_contact",
-    "sense_lo_contact",
-    "sense_terminal_warning_acknowledged",
+    "dc_sense_mode: remote_4wire",
+    "contacts.source_contact",
+    "contacts.drain_contact",
+    "contacts.sense_hi_contact",
+    "contacts.sense_lo_contact",
+    "contacts.terminal_plane",
 )
 
 REQUIRED_DRIVER_COMMANDS = (
@@ -80,7 +82,7 @@ REQUIRED_CONTACT_GUARDS = (
 )
 
 IMPLEMENTATION_TODOS = (
-    "Add method-specific recipe schema instead of a generic global remote-sense flag.",
+    "Keep the FourTerminalDCRecipe schema non-executable until driver and preflight tests pass.",
     "Add fake driver metadata support without claiming improved physics.",
     "Add Keithley driver unit tests for exact remote-sense SCPI sequence.",
     "Add preflight readback for :SENS:CURR:RSEN? before enabling output.",
@@ -97,17 +99,34 @@ def inspect_four_terminal_dc_design_gate(recipe_path: str | Path | None = None) 
         ),
         FourTerminalDCDesignIssue(
             severity="blocker",
-            field="schema",
-            message="Method-specific dc_sense_mode/contact fields are not implemented yet.",
+            field="driver",
+            message="Keithley 2450 remote-sense SCPI path is not implemented in the active driver yet.",
+        ),
+        FourTerminalDCDesignIssue(
+            severity="blocker",
+            field="preflight",
+            message="No active preflight readback checks :SENS:CURR:RSEN? before output.",
         ),
     ]
     measurement_name = None
     measurement_geometry = None
     if recipe_path is not None:
         recipe_data = load_yaml(Path(recipe_path))
-        recipe = DrainIVRecipe.model_validate(recipe_data)
-        measurement_name = recipe.measurement_name
-        measurement_geometry = recipe.measurement_geometry.model_dump(mode="json")
+        try:
+            recipe = FourTerminalDCRecipe.model_validate(recipe_data)
+            measurement_name = recipe.measurement_name
+            measurement_geometry = recipe.measurement_geometry.model_dump(mode="json")
+        except ValidationError:
+            recipe = DrainIVRecipe.model_validate(recipe_data)
+            measurement_name = recipe.measurement_name
+            measurement_geometry = recipe.measurement_geometry.model_dump(mode="json")
+            issues.append(
+                FourTerminalDCDesignIssue(
+                    severity="warning",
+                    field="schema",
+                    message="Candidate recipe still uses DrainIVRecipe shape, not FourTerminalDCRecipe schema draft.",
+                )
+            )
         if recipe.measurement_geometry.method != "four_terminal":
             issues.append(
                 FourTerminalDCDesignIssue(
@@ -199,3 +218,28 @@ def write_four_terminal_dc_design_gate_json(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
     return path
+
+
+def validate_four_terminal_dc_recipe_file(recipe_path: str | Path) -> FourTerminalDCRecipe:
+    return load_four_terminal_dc_recipe(recipe_path)
+
+
+def format_four_terminal_dc_recipe_validation(recipe: FourTerminalDCRecipe, recipe_path: str | Path) -> str:
+    return "\n".join(
+        [
+            "Four-terminal DC recipe validation: PASS",
+            f"Recipe: {Path(recipe_path)}",
+            f"Measurement name: {recipe.measurement_name}",
+            f"Implementation status: {recipe.implementation_status}",
+            f"Sense mode: {recipe.dc_sense_mode}",
+            f"Measurement geometry: {recipe.measurement_geometry.method}, {recipe.measurement_geometry.terminal_count}-terminal",
+            f"Keithley address: {recipe.instrument.address}",
+            f"Keithley terminal: {recipe.instrument.terminal or 'not set'}",
+            f"Terminal plane: {recipe.contacts.terminal_plane}",
+            f"Voltage range: {recipe.instrument.voltage_range_v} V",
+            f"Current range: {recipe.instrument.current_range_a} A",
+            f"NPLC: {recipe.instrument.nplc}",
+            f"Contacts: force {recipe.contacts.source_contact}->{recipe.contacts.drain_contact}, sense {recipe.contacts.sense_hi_contact}->{recipe.contacts.sense_lo_contact}",
+            "Active hardware run allowed: False",
+        ]
+    )
