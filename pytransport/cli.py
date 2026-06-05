@@ -48,6 +48,10 @@ from .dual_gate_review import (
     write_dual_gate_stats_csv,
 )
 from .dual_gate_lockin import run_dual_gate_lockin_sweep
+from .dual_gate_lockin_smoke import (
+    format_dual_gate_lockin_smoke_plan,
+    run_dual_gate_lockin_readout_smoke,
+)
 from .dual_gate_lockin_review import (
     format_dual_gate_lockin_summary,
     summarize_dual_gate_lockin_run,
@@ -248,6 +252,21 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_preflight.add_argument("recipe", type=Path)
     dual_gate_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+
+    dual_gate_lockin_smoke = subparsers.add_parser(
+        "dual-gate-lockin-smoke",
+        help="Read SR860 lock-in channels for a dual-gate lock-in topology without enabling gate outputs.",
+    )
+    dual_gate_lockin_smoke.add_argument("recipe", type=Path)
+    dual_gate_lockin_smoke.add_argument("--dry-run", action="store_true")
+    dual_gate_lockin_smoke.add_argument("--samples", type=int, default=5)
+    dual_gate_lockin_smoke.add_argument("--interval-s", type=float, default=0.2)
+    dual_gate_lockin_smoke.add_argument("--fake-lockin-r-v", type=float, default=1e-6)
+    dual_gate_lockin_smoke.add_argument("--fake-lockin-phase-deg", type=float, default=0.0)
+    dual_gate_lockin_smoke.add_argument("--fake-noise-std", type=float, default=0.0)
+    dual_gate_lockin_smoke.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_smoke.add_argument("--progress", action="store_true")
+    dual_gate_lockin_smoke.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
 
     dual_gate_lockin = subparsers.add_parser("dual-gate-lockin", help="Run a dual-gate lock-in recipe. Current milestone is dry-run only.")
     dual_gate_lockin.add_argument("recipe", type=Path)
@@ -812,6 +831,49 @@ def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.recipe)
+    safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
+    validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
+    print(format_dual_gate_lockin_smoke_plan(recipe, safety, args.recipe, args.samples, args.interval_s))
+    print()
+    preflight_text = None
+    if args.dry_run:
+        lockin = FakeLockIn(
+            signal_r_v=args.fake_lockin_r_v,
+            phase_deg=args.fake_lockin_phase_deg,
+            noise_std_v=args.fake_noise_std,
+        )
+    else:
+        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        preflight_text = format_dual_gate_lockin_preflight_report(report)
+        print(preflight_text)
+        print()
+        if not report.ok:
+            print("Dual-gate lock-in readout smoke blocked because preflight did not pass.", file=sys.stderr)
+            return 2
+        lockin = SRS_SR860(recipe.lockin.address or "", recipe.lockin.timeout_ms)
+    progress_callback = print_dual_gate_lockin_smoke_progress if args.progress else None
+    metadata = run_dual_gate_lockin_readout_smoke(
+        recipe,
+        safety,
+        lockin,
+        samples=args.samples,
+        interval_s=args.interval_s,
+        recipe_path=args.recipe,
+        preflight_report=preflight_text,
+        progress_callback=progress_callback,
+    )
+    print(f"CSV: {metadata['csv_path']}")
+    print(f"Metadata: {metadata['metadata_path']}")
+    print(f"Metadata completed: {metadata['completed']}")
+    indexed_metadata = read_metadata_file(Path(metadata["metadata_path"]))
+    written_index_path = append_run_index(indexed_metadata, args.index_path)
+    print(f"Index: {written_index_path}")
+    return exit_code_for_metadata(metadata)
+
+
 def command_dual_gate_lockin(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type("dual_gate_lockin_sweep")
     recipe = method.load_recipe(args.recipe)
@@ -1242,6 +1304,21 @@ def print_dual_gate_lockin_progress(point, total_points: int) -> None:
         ),
         flush=True,
     )
+
+
+def print_dual_gate_lockin_smoke_progress(point, total_points: int) -> None:
+    print(
+        "Smoke "
+        f"{point.sample_index + 1}/{total_points}: "
+        f"R={format_optional_float(point.lockin_r_v)} V, "
+        f"theta={format_optional_float(point.lockin_theta_deg)} deg, "
+        f"X={format_optional_float(point.lockin_x_v)} V, "
+        f"Y={format_optional_float(point.lockin_y_v)} V"
+    )
+
+
+def format_optional_float(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.6g}"
 
 
 def print_ac_lockin_progress(point, total_points: int) -> None:
@@ -2052,6 +2129,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_plan(args)
     if args.command == "dual-gate-lockin-preflight":
         return command_dual_gate_lockin_preflight(args)
+    if args.command == "dual-gate-lockin-smoke":
+        return command_dual_gate_lockin_smoke(args)
     if args.command == "dual-gate-lockin":
         return command_dual_gate_lockin(args)
     if args.command == "ac-lockin-plan":

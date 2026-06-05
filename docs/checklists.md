@@ -333,6 +333,15 @@ preflight is available.
   lock-in probe identifies SR860, and `Dual-gate lock-in preflight OK: True`.
 - [ ] Confirm the preflight `Topology` section matches the actual device wiring
   before connecting a real graphene Hall bar.
+- [ ] Run the readout smoke after preflight. This reads SR860 only and does not
+  enable gate outputs.
+  ```powershell
+  ptm dual-gate-lockin-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --samples 5 --interval-s 0.2 --progress
+  ```
+- [ ] Confirm `lockin_smoke.csv` and `metadata.json` are written.
+- [ ] Confirm metadata says `gate_outputs_enabled: false`.
+- [ ] Confirm SR860 X/Y/R/theta values are reasonable for the current
+  front-panel settings and wiring.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

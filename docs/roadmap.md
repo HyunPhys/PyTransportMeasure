@@ -182,7 +182,11 @@ root.
   - validate two gate Keithley addresses and one SR860 address
   - require distinct resources and successful read-only probes
   - print SR860 excitation/readout assumptions before output can be enabled
-- [ ] Phase 25f: Dual-gate lock-in hardware topology smoke
+- [x] Phase 25g: Dual-gate lock-in readout smoke
+  - add SR860 readout smoke command after three-instrument preflight
+  - save lock-in X/Y/R/theta samples without enabling gate outputs
+  - keep active dual-gate lock-in sweep disabled
+- [ ] Phase 25h: Dual-gate lock-in active-gate smoke
   - use the required topology block for SR860 excitation path and Hall-bar source-drain wiring
   - verify gate leakage and lock-in readout on a safe test device
   - keep active gate sweep disabled until the smoke test passes

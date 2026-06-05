@@ -71,7 +71,7 @@ Important modules:
 | Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
-| Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; hardware intentionally blocked | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin --dry-run` |
+| Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; SR860 readout smoke available; active gate sweep blocked | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin-smoke`, `ptm dual-gate-lockin --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
@@ -364,6 +364,7 @@ path is still blocked, but the read-only preflight gate is available.
 ```powershell
 ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
 ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
+ptm dual-gate-lockin-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --samples 5 --interval-s 0.2 --progress
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
 ```
 
@@ -394,6 +395,11 @@ topology:
 Edit these labels to match the actual Hall bar device before lab hardware
 preflight. The plan and preflight reports print this topology before any
 hardware output can be considered.
+
+The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
+samples to `lockin_smoke.csv`. It does not configure Keithley source mode and
+does not enable gate output. Use it to confirm that the SR860 signal path and
+front-panel settings make sense before any future active gate sweep.
 
 Hardware output is intentionally blocked:
 

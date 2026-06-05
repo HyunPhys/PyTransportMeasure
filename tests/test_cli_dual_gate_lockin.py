@@ -143,3 +143,62 @@ def test_cli_dual_gate_lockin_preflight_command(tmp_path, monkeypatch):
     code = cli.main(["dual-gate-lockin-preflight", str(recipe)])
 
     assert code == 0
+
+
+def test_cli_dual_gate_lockin_smoke_dry_run_writes_readout_csv(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-smoke",
+            str(recipe),
+            "--dry-run",
+            "--samples",
+            "3",
+            "--interval-s",
+            "0",
+            "--fake-lockin-r-v",
+            "0.000002",
+            "--fake-lockin-phase-deg",
+            "30",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    run_dirs = list((tmp_path / "raw").glob("*dual_gate_lockin_cli_readout_smoke"))
+    assert len(run_dirs) == 1
+    metadata = json.loads((run_dirs[0] / "metadata.json").read_text(encoding="utf-8"))
+    rows = (run_dirs[0] / "lockin_smoke.csv").read_text(encoding="utf-8").strip().splitlines()
+    assert metadata["measurement_type"] == "dual_gate_lockin_readout_smoke"
+    assert metadata["gate_outputs_enabled"] is False
+    assert metadata["points_written"] == 3
+    assert len(rows) == 4
+
+
+def test_cli_dual_gate_lockin_smoke_blocks_when_preflight_fails(tmp_path, monkeypatch):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "run_dual_gate_lockin_preflight",
+        lambda recipe_path, safety_dir: DualGateLockInPreflightReport(
+            recipe_path=str(recipe_path),
+            validation_ok=True,
+            validation_error=None,
+            visa_resources=("GPIB0::2::INSTR",),
+            distinct_addresses=True,
+            topology_lines=("Layout: hall_bar",),
+            gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", False, None, None),
+            lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", False, None, None),
+        ),
+    )
+
+    code = cli.main(["dual-gate-lockin-smoke", str(recipe), "--samples", "1", "--interval-s", "0"])
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
