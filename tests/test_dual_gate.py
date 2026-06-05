@@ -132,6 +132,10 @@ def test_dual_gate_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert saved_metadata["output_state"]["drain"]["off_after_run"] is True
     assert saved_metadata["output_state"]["gate1"]["off_after_run"] is True
     assert saved_metadata["output_state"]["gate2"]["off_after_run"] is True
+    assert saved_metadata["output_state"]["drain"]["zero_before_off_succeeded"] is True
+    assert drain_smu.state.drain_voltage_v == pytest.approx(0.0)
+    assert gate1_smu.state.gate1_voltage_v == pytest.approx(0.0)
+    assert gate2_smu.state.gate2_voltage_v == pytest.approx(0.0)
 
     summary = summarize_dual_gate_run(run_dir)
     assert summary.points == 45

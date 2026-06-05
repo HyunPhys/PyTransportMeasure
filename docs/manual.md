@@ -952,6 +952,11 @@ whether output off was attempted, and whether cleanup reported `off_after_run`.
 For multi-SMU runs, inspect each role separately before repeating a partial or
 failed hardware scan.
 
+Cleanup also attempts `set_voltage(0.0)` before output off and records
+`zero_before_off_*` fields under each output role. A run is cleanest when every
+active role has both `zero_before_off_succeeded: true` and
+`off_after_run: true`.
+
 For the first AC/lock-in hardware smoke test, use:
 
 ```powershell

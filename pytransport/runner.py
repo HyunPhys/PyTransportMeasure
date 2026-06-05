@@ -11,7 +11,12 @@ from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import RunWriter
 from .model import MeasurementPoint
-from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
+from .output_state import (
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+    zero_before_off_with_state,
+)
 from .recipes import DrainIVRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_point_current, validate_recipe_against_safety
 from .smu_config import (
@@ -122,6 +127,7 @@ def run_drain_iv(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
+        zero_before_off_with_state("instrument", smu, metadata)
         output_off_with_state("instrument", smu, metadata)
         smu.close()
         metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")

@@ -28,6 +28,7 @@ from .output_state import (
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
+    zero_before_off_with_state,
 )
 from .recipes import DualGateLockInRecipe, SafetyPreset, gate_voltages_from_config
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
@@ -453,6 +454,8 @@ def run_dual_gate_lockin_sweep(
         metadata["recovery_recommendation"] = "manual_review_required_before_restart"
         return metadata
     finally:
+        zero_before_off_with_state("gate1", gate1_smu, metadata)
+        zero_before_off_with_state("gate2", gate2_smu, metadata)
         output_off_with_state("gate1", gate1_smu, metadata)
         output_off_with_state("gate2", gate2_smu, metadata)
         metadata["gate_outputs_enabled"] = any_output_enabled(metadata)

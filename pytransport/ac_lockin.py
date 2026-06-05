@@ -17,7 +17,12 @@ from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
-from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
+from .output_state import (
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+    zero_before_off_with_state,
+)
 from .recipes import AcLockInRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_ac_lockin_recipe_against_safety, validate_point_current
 from .smu_config import (
@@ -286,6 +291,7 @@ def run_ac_lockin_sweep(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
+        zero_before_off_with_state("source", source_smu, metadata)
         output_off_with_state("source", source_smu, metadata)
         try:
             source_smu.close()

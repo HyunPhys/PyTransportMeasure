@@ -521,6 +521,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm every active role in `output_state` has `enabled: false` and
   `off_after_run: true`. If `output_off_error` is present, treat the run as a
   hardware cleanup issue before repeating the scan.
+- [ ] Confirm every active role has `zero_before_off_succeeded: true` with
+  `zero_before_off_target_v: 0.0`. If not, review the saved error before
+  repeating a gate scan.
 
 ## Pulse Measurement Dry-Run Checklist
 

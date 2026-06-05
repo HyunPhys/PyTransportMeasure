@@ -20,7 +20,12 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
-from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
+from .output_state import (
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+    zero_before_off_with_state,
+)
 from .recipes import DualGateRecipe, SafetyPreset, gate_voltages_from_config, sweep_delays, sweep_voltages
 from .safety import validate_dual_gate_recipe_against_safety, validate_point_current
 from .smu_config import (
@@ -316,6 +321,9 @@ def run_dual_gate_sweep(
         metadata["error_message"] = str(exc)
         return metadata
     finally:
+        zero_before_off_with_state("drain", drain_smu, metadata)
+        zero_before_off_with_state("gate1", gate1_smu, metadata)
+        zero_before_off_with_state("gate2", gate2_smu, metadata)
         output_off_with_state("drain", drain_smu, metadata)
         output_off_with_state("gate1", gate1_smu, metadata)
         output_off_with_state("gate2", gate2_smu, metadata)

@@ -12,6 +12,10 @@ def initialize_output_state(metadata: dict[str, Any], roles: list[str]) -> None:
             "enabled": False,
             "output_on_error": None,
             "output_off_attempted": False,
+            "zero_before_off_attempted": False,
+            "zero_before_off_succeeded": False,
+            "zero_before_off_error": None,
+            "zero_before_off_target_v": None,
             "off_after_run": False,
             "output_off_error": None,
         }
@@ -28,6 +32,18 @@ def output_on_with_state(role: str, smu: Any, metadata: dict[str, Any]) -> None:
         state["output_on_error"] = f"{type(exc).__name__}: {exc}"
         raise
     state["enabled"] = True
+
+
+def zero_before_off_with_state(role: str, smu: Any, metadata: dict[str, Any], voltage_v: float = 0.0) -> None:
+    state = _role_state(metadata, role)
+    state["zero_before_off_attempted"] = True
+    state["zero_before_off_target_v"] = float(voltage_v)
+    try:
+        smu.set_voltage(float(voltage_v))
+    except Exception as exc:
+        state["zero_before_off_error"] = f"{type(exc).__name__}: {exc}"
+        return
+    state["zero_before_off_succeeded"] = True
 
 
 def output_off_with_state(role: str, smu: Any, metadata: dict[str, Any]) -> None:
@@ -61,6 +77,10 @@ def _role_state(metadata: dict[str, Any], role: str) -> dict[str, Any]:
             "enabled": False,
             "output_on_error": None,
             "output_off_attempted": False,
+            "zero_before_off_attempted": False,
+            "zero_before_off_succeeded": False,
+            "zero_before_off_error": None,
+            "zero_before_off_target_v": None,
             "off_after_run": False,
             "output_off_error": None,
         },

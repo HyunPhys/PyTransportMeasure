@@ -16,7 +16,12 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
-from .output_state import initialize_output_state, output_off_with_state, output_on_with_state
+from .output_state import (
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+    zero_before_off_with_state,
+)
 from .recipes import PulseRecipe, SafetyPreset
 from .safety import validate_point_current, validate_pulse_recipe_against_safety
 from .smu_config import (
@@ -230,6 +235,7 @@ def run_pulse_measurement(
         try:
             source_smu.set_voltage(float(recipe.pulse.base_v))
         finally:
+            zero_before_off_with_state("source", source_smu, metadata)
             output_off_with_state("source", source_smu, metadata)
             source_smu.close()
             metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
