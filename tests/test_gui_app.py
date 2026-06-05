@@ -7,7 +7,14 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
-from pytransport.gui_app import MainWindow, padded_range, run_status_text, same_path, update_plain_text_preserving_scroll
+from pytransport.gui_app import (
+    MainWindow,
+    padded_range,
+    run_status_text,
+    same_path,
+    scheme_status_text,
+    update_plain_text_preserving_scroll,
+)
 
 
 @pytest.fixture
@@ -252,6 +259,32 @@ def test_gui_analysis_filters_and_run_table_columns(app):
     window.close()
 
 
+def test_gui_saved_scheme_table_columns_and_selection(app):
+    window = MainWindow()
+    record = {
+        "started_at": "2026-06-05T12:00:00",
+        "scheme_name": "saved_scheme",
+        "completed": True,
+        "quality_status": "PASS",
+        "dry_run": True,
+        "step_count": 2,
+        "run_count": 3,
+        "scheme_dir": "data/schemes/saved_scheme",
+    }
+
+    window.add_scheme_record_to_table(record)
+
+    assert window.saved_scheme_table.columnCount() == 8
+    assert window.saved_scheme_table.isSortingEnabled()
+    assert window.saved_scheme_table.item(0, 2).text() == "Completed"
+    assert window.saved_scheme_table.item(0, 3).text() == "PASS"
+    assert window.saved_scheme_table.item(0, 7).text() == "data/schemes/saved_scheme"
+    window.saved_scheme_table.selectRow(0)
+    assert str(window.selected_scheme_dir()) == "data\\schemes\\saved_scheme" or str(window.selected_scheme_dir()) == "data/schemes/saved_scheme"
+    assert window.load_scheme_result_button.isEnabled()
+    window.close()
+
+
 def test_same_path_handles_equivalent_relative_paths():
     assert same_path(Path("data/raw"), Path("data") / "raw")
 
@@ -261,6 +294,12 @@ def test_run_status_text_prefers_interrupted_and_errors():
     assert run_status_text({"completed": False}) == "Incomplete"
     assert run_status_text({"error_type": "SafetyLimitError"}) == "Failed: SafetyLimitError"
     assert run_status_text({"interrupted": True, "error_type": "KeyboardInterrupt"}) == "Interrupted"
+
+
+def test_scheme_status_text_formats_completion():
+    assert scheme_status_text({"completed": True}) == "Completed"
+    assert scheme_status_text({"completed": False}) == "Incomplete"
+    assert scheme_status_text({}) == "Unknown"
 
 
 def test_qt_plot_widget_stores_saved_and_live_points(app):

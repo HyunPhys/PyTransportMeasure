@@ -241,10 +241,14 @@ This roadmap tracks the large development phases. Completed items are checked.
   - show saved scheme summary/report/artifacts in the Schemes workspace
   - export scheme report, runs CSV, points CSV, stats CSV, and overlay SVG
   - keep hardware scheme execution gated behind later smoke tests
-- [ ] Phase 24ac: GUI saved scheme browser
+- [x] Phase 24ac: GUI saved scheme browser
   - load existing scheme summaries from `data/schemes`
   - inspect older scheme reports and artifacts from the GUI
   - compare saved scheme runs without rebuilding the scheme YAML
+- [ ] Phase 24ad: GUI scheme comparison view
+  - compare selected saved schemes side by side
+  - surface per-step run statistics without opening CSV files
+  - add scheme overlay preview without SVG distortion
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation

@@ -47,7 +47,9 @@ from .scheme import (
 )
 from .scheme_review import (
     evaluate_scheme_quality,
+    format_scheme_report,
     format_scheme_quality,
+    summarize_scheme,
     update_scheme_summary_quality,
     write_scheme_overlay_svg,
     write_scheme_points_csv,
@@ -1463,6 +1465,65 @@ def list_gui_runs_from_directory(source_dir: str | Path | None) -> list[dict[str
     return records
 
 
+def list_gui_schemes(source_dir: str | Path = "data/schemes", limit: int = 100) -> list[dict[str, Any]]:
+    root = Path(source_dir).expanduser()
+    if not root.exists():
+        return []
+    summary_paths = []
+    if (root / "scheme_summary.json").exists():
+        summary_paths.append(root / "scheme_summary.json")
+    summary_paths.extend(sorted(root.glob("*/scheme_summary.json")))
+    records: list[dict[str, Any]] = []
+    for summary_path in summary_paths:
+        try:
+            data = json.loads(summary_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if not isinstance(data, dict):
+            continue
+        steps = data.get("steps") or []
+        quality = data.get("quality") or {}
+        records.append(
+            {
+                "started_at": data.get("started_at"),
+                "finished_at": data.get("finished_at"),
+                "scheme_name": data.get("scheme_name") or summary_path.parent.name,
+                "completed": data.get("completed"),
+                "dry_run": data.get("dry_run"),
+                "quality_status": quality.get("status") or "n/a",
+                "step_count": len(steps),
+                "run_count": count_scheme_run_records(steps),
+                "scheme_dir": str(summary_path.parent),
+                "summary_path": str(summary_path),
+                "report_path": str(summary_path.parent / "scheme_report.md"),
+                "plot_path": str(summary_path.parent / "scheme_overlay.svg"),
+            }
+        )
+    records.sort(key=lambda record: record.get("started_at") or "")
+    return list(reversed(records[-limit:]))
+
+
+def count_scheme_run_records(steps: list[dict[str, Any]]) -> int:
+    count = 0
+    for step in steps:
+        if step.get("type") == "batch":
+            count += count_batch_summary_runs(step.get("batch_summary_path"))
+        elif step.get("run_dir"):
+            count += 1
+    return count
+
+
+def count_batch_summary_runs(path: str | None) -> int:
+    if not path:
+        return 1
+    try:
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return 1
+    runs = data.get("runs") if isinstance(data, dict) else None
+    return len(runs) if isinstance(runs, list) else 1
+
+
 def blank_to_none(value: str | None) -> str | None:
     if value is None:
         return None
@@ -1486,6 +1547,50 @@ def load_gui_saved_run(run_dir: str | Path) -> GuiRunResult:
         summary_text=summary_text,
         quality_text=quality_text,
         artifact_paths=artifact_paths_from_metadata(metadata),
+    )
+
+
+def load_gui_saved_scheme(path: str | Path) -> GuiSchemeRunResult:
+    review = summarize_scheme(path)
+    report_path = review.scheme_dir / "scheme_report.md"
+    report_text = report_path.read_text(encoding="utf-8") if report_path.exists() else format_scheme_report(review)
+    artifacts = {
+        "summary_path": str(review.summary_path),
+    }
+    if report_path.exists():
+        artifacts["report_path"] = str(report_path)
+    plot_path = review.scheme_dir / "scheme_overlay.svg"
+    runs_path = review.scheme_dir / "scheme_runs.csv"
+    points_path = review.scheme_dir / "scheme_points.csv"
+    stats_path = review.scheme_dir / "scheme_stats.csv"
+    for key, candidate in [
+        ("scheme_plot_path", plot_path),
+        ("scheme_runs_path", runs_path),
+        ("scheme_points_path", points_path),
+        ("scheme_stats_path", stats_path),
+    ]:
+        if candidate.exists():
+            artifacts[key] = str(candidate)
+    summary_lines = [
+        f"Saved scheme: {review.scheme_name}",
+        f"Summary: {review.summary_path}",
+        f"Directory: {review.scheme_dir}",
+        f"Started: {review.started_at or 'n/a'}",
+        f"Finished: {review.finished_at or 'n/a'}",
+        f"Completed: {review.completed}",
+        f"Dry run: {review.dry_run}",
+        f"Runs: {len(review.runs)}",
+    ]
+    if review.quality:
+        summary_lines.append(format_scheme_quality(review.quality))
+    else:
+        summary_lines.append("Scheme quality: n/a")
+    return GuiSchemeRunResult(
+        summary_path=review.summary_path,
+        scheme_dir=review.scheme_dir,
+        summary_text="\n".join(summary_lines),
+        report_text=report_text,
+        artifact_paths=artifacts,
     )
 
 

@@ -24,7 +24,9 @@ from .gui_services import (
     format_scheme_plan_text,
     format_recipe_overview_text,
     list_gui_runs,
+    list_gui_schemes,
     load_gui_saved_run,
+    load_gui_saved_scheme,
     load_recipe_from_text,
     load_recipe_text,
     primary_plot_path,
@@ -525,6 +527,16 @@ class MainWindow(QMainWindow):
         self.open_scheme_report_button = QPushButton("Scheme Report")
         self.open_scheme_report_button.clicked.connect(self.open_scheme_report)
         self.open_scheme_report_button.setEnabled(False)
+        self.refresh_schemes_button = QPushButton("Refresh Saved")
+        self.refresh_schemes_button.clicked.connect(self.refresh_saved_schemes)
+        self.load_scheme_result_button = QPushButton("Load Selected")
+        self.load_scheme_result_button.clicked.connect(self.load_selected_scheme_result)
+        self.load_scheme_result_button.setEnabled(False)
+        self.scheme_source_dir = QLineEdit("data/schemes")
+        self.scheme_source_dir.setPlaceholderText("scheme source folder")
+        self.scheme_source_dir.setMinimumWidth(220)
+        self.browse_scheme_source_button = QPushButton("Source Folder")
+        self.browse_scheme_source_button.clicked.connect(self.browse_scheme_source_folder)
 
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -584,6 +596,22 @@ class MainWindow(QMainWindow):
             ]
         )
         self.scheme_step_table.horizontalHeader().setStretchLastSection(True)
+        self.saved_scheme_table = QTableWidget(0, 8)
+        self.saved_scheme_table.setHorizontalHeaderLabels(
+            [
+                "Started",
+                "Name",
+                "Status",
+                "QC",
+                "Dry",
+                "Steps",
+                "Runs",
+                "Scheme folder",
+            ]
+        )
+        self.saved_scheme_table.horizontalHeader().setStretchLastSection(True)
+        self.saved_scheme_table.setSortingEnabled(True)
+        self.saved_scheme_table.itemSelectionChanged.connect(self.update_selected_scheme_controls)
         self.saved_plot_canvas = IvPlotCanvas()
         self.live_plot_canvas = IvPlotCanvas()
         self.plot_status = QLabel("No plot loaded")
@@ -796,9 +824,16 @@ class MainWindow(QMainWindow):
         action_row.addWidget(self.run_scheme_button)
         action_row.addWidget(self.open_scheme_folder_button)
         action_row.addWidget(self.open_scheme_report_button)
+        source_row = QHBoxLayout()
+        source_row.addWidget(QLabel("Saved source"))
+        source_row.addWidget(self.scheme_source_dir, stretch=1)
+        source_row.addWidget(self.browse_scheme_source_button)
+        source_row.addWidget(self.refresh_schemes_button)
+        source_row.addWidget(self.load_scheme_result_button)
 
         controls_layout.addLayout(top_row)
         controls_layout.addLayout(action_row)
+        controls_layout.addLayout(source_row)
         layout.addWidget(controls)
         layout.addWidget(self.scheme_step_table, stretch=1)
 
@@ -808,6 +843,7 @@ class MainWindow(QMainWindow):
         scheme_tabs.addTab(self.scheme_validation_text, "Validation")
         scheme_tabs.addTab(self.scheme_result_text, "Result")
         scheme_tabs.addTab(self.scheme_report_text, "Report")
+        scheme_tabs.addTab(self.saved_scheme_table, "Saved")
         layout.addWidget(scheme_tabs, stretch=1)
         return container
 
@@ -1148,11 +1184,8 @@ class MainWindow(QMainWindow):
         self.log_session(f"Scheme progress: {line}")
 
     def handle_scheme_result(self, result: GuiSchemeRunResult) -> None:
-        self.last_scheme_result = result
-        self.scheme_result_text.setPlainText(result.summary_text)
-        self.scheme_report_text.setPlainText(result.report_text)
-        self.open_scheme_folder_button.setEnabled(True)
-        self.open_scheme_report_button.setEnabled(bool(result.artifact_paths.get("report_path")))
+        self.display_scheme_result(result)
+        self.refresh_saved_schemes()
         self.status_label.setText("Scheme dry-run complete")
         self.log_session(f"Scheme dry-run complete: {result.summary_path}")
 
@@ -1172,6 +1205,82 @@ class MainWindow(QMainWindow):
         path = self.last_scheme_result.artifact_paths.get("report_path")
         if path:
             QDesktopServices.openUrl(Path(path).resolve().as_uri())
+
+    def refresh_saved_schemes(self) -> None:
+        try:
+            records = list_gui_schemes(self.scheme_source_dir.text())
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.saved_scheme_table.setSortingEnabled(False)
+        self.saved_scheme_table.setRowCount(0)
+        for record in records:
+            self.add_scheme_record_to_table(record)
+        self.saved_scheme_table.setSortingEnabled(True)
+        self.update_selected_scheme_controls()
+        self.status_label.setText(f"Loaded {len(records)} saved schemes")
+        self.log_session(f"Saved schemes refreshed: {len(records)} records")
+
+    def add_scheme_record_to_table(self, record: dict[str, Any]) -> None:
+        row = self.saved_scheme_table.rowCount()
+        self.saved_scheme_table.insertRow(row)
+        values = [
+            record.get("started_at"),
+            record.get("scheme_name"),
+            scheme_status_text(record),
+            record.get("quality_status"),
+            record.get("dry_run"),
+            record.get("step_count"),
+            record.get("run_count"),
+            record.get("scheme_dir"),
+        ]
+        for column, value in enumerate(values):
+            text = "" if value is None else str(value)
+            item = SortableTableWidgetItem(text, scheme_table_sort_key(column, value))
+            self.saved_scheme_table.setItem(row, column, item)
+
+    def selected_scheme_dir(self) -> Path | None:
+        selected = self.saved_scheme_table.selectedItems()
+        if not selected:
+            return None
+        row = selected[0].row()
+        item = self.saved_scheme_table.item(row, 7)
+        if item is None or not item.text():
+            return None
+        return Path(item.text())
+
+    def update_selected_scheme_controls(self) -> None:
+        self.load_scheme_result_button.setEnabled(self.selected_scheme_dir() is not None)
+
+    def load_selected_scheme_result(self) -> None:
+        scheme_dir = self.selected_scheme_dir()
+        if scheme_dir is None:
+            return
+        try:
+            result = load_gui_saved_scheme(scheme_dir)
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.display_scheme_result(result)
+        self.status_label.setText(f"Loaded scheme: {result.scheme_dir}")
+        self.log_session(f"Saved scheme loaded: {result.scheme_dir}")
+
+    def display_scheme_result(self, result: GuiSchemeRunResult) -> None:
+        self.last_scheme_result = result
+        self.scheme_result_text.setPlainText(result.summary_text)
+        self.scheme_report_text.setPlainText(result.report_text)
+        self.open_scheme_folder_button.setEnabled(True)
+        self.open_scheme_report_button.setEnabled(bool(result.artifact_paths.get("report_path")))
+
+    def browse_scheme_source_folder(self) -> None:
+        selected = QFileDialog.getExistingDirectory(
+            self,
+            "Select Scheme Source Folder",
+            str(Path(self.scheme_source_dir.text() or "data/schemes").resolve()),
+        )
+        if selected:
+            self.scheme_source_dir.setText(selected)
+            self.refresh_saved_schemes()
 
     def browse_recipe(self) -> None:
         selected, _ = QFileDialog.getOpenFileName(self, "Open Recipe", str(Path("configs/recipes").resolve()), "YAML (*.yaml *.yml)")
@@ -1987,10 +2096,29 @@ def run_status_text(record: dict[str, Any]) -> str:
     return "Unknown"
 
 
+def scheme_status_text(record: dict[str, Any]) -> str:
+    if record.get("completed") is True:
+        return "Completed"
+    if record.get("completed") is False:
+        return "Incomplete"
+    return "Unknown"
+
+
 def run_table_sort_key(column: int, value: Any) -> Any:
     if value is None:
         return ""
     if column == 4:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return -1
+    return str(value).lower()
+
+
+def scheme_table_sort_key(column: int, value: Any) -> Any:
+    if value is None:
+        return ""
+    if column in {5, 6}:
         try:
             return int(value)
         except (TypeError, ValueError):

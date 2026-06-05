@@ -59,6 +59,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   copying the base recipe file.
 - [x] GUI Schemes workspace can dry-run supported schemes and show the saved
   scheme result/report.
+- [x] GUI Schemes workspace can browse and reload saved scheme summaries from a
+  selected source folder.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -417,6 +419,12 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the saved scheme folder contains `scheme_summary.json`,
   `scheme_report.md`, `scheme_runs.csv`, `scheme_points.csv`,
   `scheme_stats.csv`, and, when plottable, `scheme_overlay.svg`.
+- [ ] Click `Refresh Saved`.
+- [ ] Confirm the saved scheme appears in `Saved`.
+- [ ] Select the row and confirm `Load Selected` becomes enabled.
+- [ ] Click `Load Selected`.
+- [ ] Confirm `Result` and `Report` update to the selected saved scheme.
+- [ ] Use `Source Folder` to select another scheme parent folder and refresh.
 - [ ] Change a row to `batch` and set the path to
   `../batches/drain_iv_1k_repeat_linear.yaml`.
 - [ ] Click `Form -> Scheme YAML`, then `Scheme YAML -> Form`, and confirm the

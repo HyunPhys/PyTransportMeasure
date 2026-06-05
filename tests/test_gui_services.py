@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -18,7 +19,9 @@ from pytransport.gui_services import (
     format_recipe_overview_text,
     refresh_gui_instruments,
     list_gui_runs,
+    list_gui_schemes,
     load_gui_saved_run,
+    load_gui_saved_scheme,
     load_recipe_from_text,
     primary_plot_path,
     primary_report_path,
@@ -144,6 +147,77 @@ def test_gui_scheme_dry_run_text_writes_scheme_artifacts(tmp_path):
     assert "Scheme dry-run: gui_scheme_dry_run" in result.summary_text
     assert "Scheme quality: PASS" in result.summary_text
     assert "# gui_scheme_dry_run" in result.report_text
+
+
+def test_gui_saved_scheme_browser_lists_and_loads_summary(tmp_path):
+    scheme_dir = tmp_path / "schemes" / "20260605_saved_scheme"
+    batch_dir = scheme_dir / "batches" / "batch-a"
+    run_dir = tmp_path / "raw" / "run-a"
+    scheme_dir.mkdir(parents=True)
+    batch_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    (run_dir / "points.csv").write_text("index,voltage_v,current_a,elapsed_s\n0,0,0,0\n", encoding="utf-8")
+    (scheme_dir / "scheme_report.md").write_text("# saved_scheme\n", encoding="utf-8")
+    batch_summary_path = batch_dir / "batch_summary.json"
+    batch_summary_path.write_text(json.dumps({"runs": [{"label": "a"}, {"label": "b"}]}), encoding="utf-8")
+    summary = {
+        "scheme_name": "saved_scheme",
+        "scheme_path": "configs/schemes/saved_scheme.yaml",
+        "started_at": "2026-06-05T12:00:00",
+        "finished_at": "2026-06-05T12:01:00",
+        "dry_run": True,
+        "completed": True,
+        "quality": {"status": "PASS", "results": []},
+        "steps": [
+            {
+                "type": "drain_iv",
+                "label": "first",
+                "completed": True,
+                "run_dir": str(run_dir),
+                "quality": {"status": "PASS", "results": []},
+            },
+            {
+                "type": "batch",
+                "label": "repeat",
+                "completed": True,
+                "batch_summary_path": str(batch_summary_path),
+            }
+        ],
+    }
+    (scheme_dir / "scheme_summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    records = list_gui_schemes(tmp_path / "schemes")
+    result = load_gui_saved_scheme(scheme_dir)
+
+    assert records[0]["scheme_name"] == "saved_scheme"
+    assert records[0]["quality_status"] == "PASS"
+    assert records[0]["step_count"] == 2
+    assert records[0]["run_count"] == 3
+    assert result.scheme_dir == scheme_dir
+    assert "Saved scheme: saved_scheme" in result.summary_text
+    assert "# saved_scheme" in result.report_text
+    assert "report_path" in result.artifact_paths
+
+
+def test_gui_saved_scheme_load_generates_report_text_without_report_file(tmp_path):
+    scheme_dir = tmp_path / "schemes" / "20260605_saved_scheme_no_report"
+    scheme_dir.mkdir(parents=True)
+    summary = {
+        "scheme_name": "saved_scheme_no_report",
+        "scheme_path": "configs/schemes/saved_scheme_no_report.yaml",
+        "started_at": "2026-06-05T12:00:00",
+        "finished_at": "2026-06-05T12:01:00",
+        "dry_run": True,
+        "completed": True,
+        "quality": {"status": "PASS", "results": []},
+        "steps": [],
+    }
+    (scheme_dir / "scheme_summary.json").write_text(json.dumps(summary), encoding="utf-8")
+
+    result = load_gui_saved_scheme(scheme_dir)
+
+    assert "# saved_scheme_no_report" in result.report_text
+    assert "report_path" not in result.artifact_paths
 
 
 def test_gui_instrument_refresh_formats_resources():

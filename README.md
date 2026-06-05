@@ -26,7 +26,8 @@ Current verified setup and supported workflows:
   workspace-separated instruments/analysis views, instrument refresh and
   communication tests, YAML/Form sync status, and live I-V plotting
   plus a method-aware Recipe Overview tab, schema-driven Recipe Form, and GUI
-  Scheme Builder with Drain I-V step overrides and scheme dry-runs
+  Scheme Builder with Drain I-V step overrides, scheme dry-runs, and saved
+  scheme browsing
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -107,6 +108,7 @@ ptm-gui
 - GUI Scheme Builder: [docs/phase49_gui_scheme_builder.md](docs/phase49_gui_scheme_builder.md)
 - GUI Scheme Drain I-V overrides: [docs/phase50_gui_scheme_drain_iv_overrides.md](docs/phase50_gui_scheme_drain_iv_overrides.md)
 - GUI Scheme dry-run: [docs/phase51_gui_scheme_dry_run.md](docs/phase51_gui_scheme_dry_run.md)
+- GUI saved scheme browser: [docs/phase52_gui_saved_scheme_browser.md](docs/phase52_gui_saved_scheme_browser.md)
 
 ## Hardware Smoke Test
 
@@ -326,7 +328,9 @@ batch steps. See `configs/schemes/single_gate_dry_run_scheme.yaml` and
 The GUI `Schemes` workspace can build, validate, plan, dry-run, and review
 scheme YAML. `Dry Run Scheme` uses the same fake-instrument core as CLI
 dry-runs, then shows the saved scheme summary and Markdown report in the GUI.
-Hardware scheme execution remains CLI/future-smoke-test gated.
+The same workspace can refresh saved scheme folders from `data/schemes` or a
+selected source folder and reload older scheme reports. Hardware scheme
+execution remains CLI/future-smoke-test gated.
 
 4-probe hardware, active SR860 hardware acquisition, pulse hardware, and GUI
 hardware support beyond guarded Drain I-V are intentionally kept as future

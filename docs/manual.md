@@ -491,6 +491,17 @@ Scheme Builder workflow:
 11. Use `Scheme Folder` or `Scheme Report` to open saved artifacts.
 12. Click `Save Scheme As` only after validation passes.
 
+Saved Scheme Browser workflow:
+
+1. Open `Schemes`.
+2. Set `Saved source` to `data/schemes` or another parent folder.
+3. Click `Refresh Saved`.
+4. Select a row in `Saved`.
+5. Click `Load Selected`.
+6. Inspect `Result` and `Report`.
+7. Use `Scheme Folder` to open the selected saved scheme directory.
+8. Use `Scheme Report` when the saved scheme has a `scheme_report.md` file.
+
 Drain I-V overrides let one base recipe be reused for several sweep conditions
 without copying the recipe file. For example, a row can set `Suffix` to
 `_small`, `Start V` to `-0.05`, `Stop V` to `0.05`, and `Points` to `5`.
@@ -499,7 +510,9 @@ The GUI Scheme Builder currently creates, validates, previews, dry-runs, and
 reviews scheme YAML. `Dry Run Scheme` uses the fake settings under `Dry-run
 Model`, writes a draft scheme under `data/gui_drafts/schemes`, and stores
 scheme artifacts under `data/schemes`. Dry-run intervals are skipped so the GUI
-can validate the workflow quickly.
+can validate the workflow quickly. The `Saved` table reloads previous
+`scheme_summary.json` files from the selected source folder, including nested
+batch run counts when a linked batch summary is available.
 
 Hardware scheme execution remains a CLI workflow until separate lab smoke tests
 gate it:
