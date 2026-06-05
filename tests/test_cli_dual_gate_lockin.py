@@ -764,6 +764,68 @@ def test_cli_dual_gate_lockin_chunk_plan_fails_when_chunk_exceeds_guard(tmp_path
     assert code == 2
 
 
+def test_cli_dual_gate_lockin_stitch_chunks(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    index_path = tmp_path / "index.jsonl"
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--stop-after-new-points",
+            "2",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(index_path),
+        ]
+    )
+    assert code == 0
+    chunk1 = sorted((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[-1]
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--resume-from-run",
+            str(chunk1),
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(index_path),
+        ]
+    )
+    assert code == 0
+    chunk2 = sorted((tmp_path / "raw").glob("*dual_gate_lockin_cli*"))[-1]
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-stitch-chunks",
+            str(chunk1),
+            str(chunk2),
+            "--output-dir",
+            str(tmp_path / "stitched"),
+            "--measurement-name",
+            "cli_stitched",
+            "--gate-stats",
+            "--plot",
+            "--report",
+            "--index-path",
+            str(index_path),
+        ]
+    )
+
+    assert code == 0
+    stitched = list((tmp_path / "stitched").glob("*cli_stitched"))[0]
+    metadata = json.loads((stitched / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["completed"] is True
+    assert metadata["stitched_from_chunks"] is True
+    assert metadata["points_written"] == 4
+    assert (stitched / "dual_gate_lockin_stats.csv").exists()
+    assert (stitched / "dual_gate_lockin_heatmap.svg").exists()
+    assert (stitched / "dual_gate_lockin_report.md").exists()
+
+
 def test_cli_dual_gate_lockin_smoke_dry_run_writes_readout_csv(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 

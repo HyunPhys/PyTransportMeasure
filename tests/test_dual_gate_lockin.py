@@ -15,6 +15,7 @@ from pytransport.dual_gate_lockin import (
     format_dual_gate_lockin_plan,
     planned_dual_gate_lockin_grid,
     run_dual_gate_lockin_sweep,
+    stitch_dual_gate_lockin_chunks,
 )
 from pytransport.dual_gate_lockin_smoke import run_dual_gate_lockin_active_gate_smoke
 from pytransport.dual_gate_lockin_review import (
@@ -562,6 +563,58 @@ def test_dual_gate_lockin_checkpoint_stop_after_new_points(tmp_path):
     assert gate2_smu.is_output_on is False
     rows = list(csv.DictReader((Path(metadata["run_dir"]) / "points.csv").open(newline="", encoding="utf-8")))
     assert [row["index"] for row in rows] == ["0", "1", "2"]
+
+
+def test_dual_gate_lockin_stitches_checkpoint_chunks(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    chunk1 = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        stop_after_new_points=3,
+    )
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    chunk2 = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        resume_from_run=chunk1["run_dir"],
+        stop_after_new_points=3,
+    )
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    chunk3 = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        resume_from_run=chunk2["run_dir"],
+    )
+
+    result = stitch_dual_gate_lockin_chunks(
+        [chunk1["run_dir"], chunk2["run_dir"], chunk3["run_dir"]],
+        output_dir=tmp_path / "stitched",
+        measurement_name="stitched_map",
+    )
+
+    assert result.completed is True
+    assert result.points_written == 9
+    rows = list(csv.DictReader(result.csv_path.open(newline="", encoding="utf-8")))
+    assert [row["index"] for row in rows] == [str(index) for index in range(9)]
+    metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
+    assert metadata["measurement_name"] == "stitched_map"
+    assert metadata["stitched_from_chunks"] is True
+    assert metadata["completed"] is True
+    assert metadata["source_chunk_segments"][0]["new_rows"] == 3
+    assert metadata["source_chunk_segments"][1]["copied_prefix_rows"] == 3
+    assert metadata["source_chunk_segments"][2]["start_index"] == 6
+    assert summarize_dual_gate_lockin_run(result.run_dir).points == 9
 
 
 def test_dual_gate_lockin_resume_check_reports_next_point(tmp_path):

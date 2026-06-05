@@ -10,6 +10,7 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import shutil
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -207,6 +208,16 @@ class DualGateLockInChunk:
     end_gate2_voltage_v: float
 
 
+@dataclass(frozen=True)
+class DualGateLockInStitchResult:
+    run_dir: Path
+    csv_path: Path
+    metadata_path: Path
+    points_written: int
+    planned_points: int | None
+    completed: bool
+
+
 def dual_gate_lockin_chunks(recipe: DualGateLockInRecipe, chunk_size: int) -> tuple[DualGateLockInChunk, ...]:
     if chunk_size <= 0:
         raise ValueError("chunk_size must be positive")
@@ -287,6 +298,148 @@ def format_dual_gate_lockin_chunk_plan(
             ]
         )
     return "\n".join(lines)
+
+
+def stitch_dual_gate_lockin_chunks(
+    run_dirs: list[str | Path],
+    *,
+    output_dir: str | Path | None = None,
+    measurement_name: str | None = None,
+) -> DualGateLockInStitchResult:
+    if not run_dirs:
+        raise ValueError("At least one chunk run directory is required")
+    source_dirs = [Path(run_dir) for run_dir in run_dirs]
+    source_metadata = [_read_json_object(run_dir / "metadata.json") for run_dir in source_dirs]
+    first_metadata = source_metadata[0]
+    if first_metadata.get("measurement_type") != "dual_gate_lockin_sweep":
+        raise ValueError("First source run is not a dual_gate_lockin_sweep")
+    grid_signature = first_metadata.get("planned_gate_grid_signature")
+    if not grid_signature:
+        raise ValueError("First source run is missing planned_gate_grid_signature")
+    planned_points = _optional_int(first_metadata.get("planned_points"))
+    stitched_rows: list[dict[str, str]] = []
+    source_segments: list[dict[str, Any]] = []
+    for run_dir, metadata in zip(source_dirs, source_metadata):
+        if metadata.get("measurement_type") != "dual_gate_lockin_sweep":
+            raise ValueError(f"{run_dir} is not a dual_gate_lockin_sweep")
+        if metadata.get("planned_gate_grid_signature") != grid_signature:
+            raise ValueError(f"{run_dir} grid signature does not match the first chunk")
+        if _optional_int(metadata.get("planned_points")) != planned_points:
+            raise ValueError(f"{run_dir} planned point count does not match the first chunk")
+        rows = _read_dual_gate_lockin_raw_rows(run_dir / "points.csv")
+        copied = _optional_int(metadata.get("points_copied_from_resume")) or 0
+        if copied > len(rows):
+            raise ValueError(f"{run_dir} points_copied_from_resume exceeds row count")
+        new_rows = rows[copied:]
+        if not new_rows:
+            raise ValueError(f"{run_dir} does not contain newly measured rows")
+        expected_start = len(stitched_rows)
+        actual_start = int(new_rows[0]["index"])
+        if actual_start != expected_start:
+            raise ValueError(f"{run_dir} starts at index {actual_start}, expected {expected_start}")
+        for offset, row in enumerate(new_rows):
+            expected_index = expected_start + offset
+            if int(row["index"]) != expected_index:
+                raise ValueError(f"{run_dir} has non-contiguous point index {row['index']}, expected {expected_index}")
+        stitched_rows.extend(new_rows)
+        source_segments.append(
+            {
+                "run_dir": str(run_dir),
+                "copied_prefix_rows": copied,
+                "new_rows": len(new_rows),
+                "start_index": actual_start,
+                "end_index": int(new_rows[-1]["index"]),
+                "completed": metadata.get("completed"),
+                "abort_class": metadata.get("abort_class"),
+            }
+        )
+    if planned_points is not None and len(stitched_rows) > planned_points:
+        raise ValueError("Stitched row count exceeds planned point count")
+
+    completed = planned_points is not None and len(stitched_rows) == planned_points
+    out_root = Path(output_dir) if output_dir is not None else source_dirs[0].parent
+    stitched_name = measurement_name or f"{first_metadata.get('measurement_name', 'dual_gate_lockin')}_stitched"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_dir = unique_run_dir(out_root, f"{timestamp}_{safe_name(stitched_name)}")
+    run_dir.mkdir(parents=True, exist_ok=False)
+    csv_path = run_dir / "points.csv"
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=DUAL_GATE_LOCKIN_COLUMNS)
+        writer.writeheader()
+        for row in stitched_rows:
+            writer.writerow({column: row.get(column, "") for column in DUAL_GATE_LOCKIN_COLUMNS})
+    metadata = dict(first_metadata)
+    metadata.update(
+        {
+            "measurement_name": stitched_name,
+            "measurement_type": "dual_gate_lockin_sweep",
+            "stitched_from_chunks": True,
+            "source_chunk_run_dirs": [str(path) for path in source_dirs],
+            "source_chunk_segments": source_segments,
+            "completed": completed,
+            "abort_class": "completed" if completed else "stitched_partial",
+            "error_type": None,
+            "error_message": None,
+            "triggered_limit": None,
+            "points_written": len(stitched_rows),
+            "points_copied_from_resume": 0,
+            "points_measured_this_run": len(stitched_rows),
+            "remaining_points": 0 if planned_points is None else max(0, planned_points - len(stitched_rows)),
+            "last_completed_index": int(stitched_rows[-1]["index"]) if stitched_rows else None,
+            "next_point_index": None if completed else len(stitched_rows),
+            "recovery_recommendation": (
+                "stitched_run_completed_no_recovery_needed"
+                if completed
+                else "stitched_partial_resume_from_last_source_chunk"
+            ),
+            "run_dir": str(run_dir),
+            "csv_path": str(csv_path),
+            "metadata_path": str(run_dir / "metadata.json"),
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+        }
+    )
+    metadata_path = run_dir / "metadata.json"
+    with metadata_path.open("w", encoding="utf-8") as handle:
+        json.dump(metadata, handle, indent=2, sort_keys=True, default=str)
+    for filename in ["recipe_snapshot.yaml", "safety_snapshot.yaml"]:
+        source = source_dirs[0] / filename
+        if source.exists():
+            shutil.copyfile(source, run_dir / filename)
+    return DualGateLockInStitchResult(
+        run_dir=run_dir,
+        csv_path=csv_path,
+        metadata_path=metadata_path,
+        points_written=len(stitched_rows),
+        planned_points=planned_points,
+        completed=completed,
+    )
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        raise ValueError(f"Missing metadata JSON: {path}")
+    with path.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def _read_dual_gate_lockin_raw_rows(path: Path) -> list[dict[str, str]]:
+    if not path.exists():
+        raise ValueError(f"Missing points CSV: {path}")
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        missing = set(DUAL_GATE_LOCKIN_COLUMNS[:14]) - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"{path} is missing required dual-gate lock-in columns: {sorted(missing)}")
+        return list(reader)
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None or value == "":
+        return None
+    return int(value)
 
 
 def check_dual_gate_lockin_resume(

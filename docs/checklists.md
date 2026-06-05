@@ -524,6 +524,12 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-chunk-plan configs\recipes\<dual_gate_lockin_recipe>.yaml --chunk-size <N> --max-hardware-points <N>
   ```
+- [ ] After all chunks are measured, stitch them into one analysis-ready run.
+  ```powershell
+  ptm dual-gate-lockin-stitch-chunks data\raw\<chunk_01_run> data\raw\<chunk_02_run> data\raw\<chunk_03_run> --measurement-name <stitched_name> --gate-stats --plot --report
+  ```
+- [ ] Confirm stitched metadata has `stitched_from_chunks: true`,
+  `completed: true`, and contiguous point indices from 0 to `planned_points - 1`.
 - [ ] Confirm the resumed metadata records `resume_from_run`,
   `points_copied_from_resume`, `points_measured_this_run`, and
   `resume_next_point_index`.

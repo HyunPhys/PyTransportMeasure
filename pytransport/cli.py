@@ -54,6 +54,7 @@ from .dual_gate_lockin import (
     format_dual_gate_lockin_chunk_plan,
     format_dual_gate_lockin_resume_check,
     run_dual_gate_lockin_sweep,
+    stitch_dual_gate_lockin_chunks,
 )
 from .dual_gate_lockin_scaleup import (
     default_dual_gate_lockin_scale_up_review_path,
@@ -307,6 +308,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_resume_check.add_argument("recipe", type=Path)
     dual_gate_lockin_resume_check.add_argument("run_dir", type=Path)
+
+    dual_gate_lockin_stitch_chunks = subparsers.add_parser(
+        "dual-gate-lockin-stitch-chunks",
+        help="Stitch checkpoint chunk runs into one dual-gate lock-in run artifact without hardware.",
+    )
+    dual_gate_lockin_stitch_chunks.add_argument("run_dirs", type=Path, nargs="+")
+    dual_gate_lockin_stitch_chunks.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_stitch_chunks.add_argument("--measurement-name")
+    dual_gate_lockin_stitch_chunks.add_argument("--plot", action="store_true")
+    dual_gate_lockin_stitch_chunks.add_argument("--report", action="store_true")
+    dual_gate_lockin_stitch_chunks.add_argument("--gate-stats", action="store_true")
+    dual_gate_lockin_stitch_chunks.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
 
     dual_gate_lockin_smoke = subparsers.add_parser(
         "dual-gate-lockin-smoke",
@@ -1084,6 +1097,38 @@ def command_dual_gate_lockin_resume_check(args: argparse.Namespace) -> int:
     report = check_dual_gate_lockin_resume(recipe, args.recipe, args.run_dir)
     print(format_dual_gate_lockin_resume_check(report))
     return 0 if report.ok else 2
+
+
+def command_dual_gate_lockin_stitch_chunks(args: argparse.Namespace) -> int:
+    try:
+        result = stitch_dual_gate_lockin_chunks(
+            args.run_dirs,
+            output_dir=args.output_dir,
+            measurement_name=args.measurement_name,
+        )
+    except ValueError as exc:
+        print(f"Dual-gate lock-in stitch failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Stitched run: {result.run_dir}")
+    print(f"CSV: {result.csv_path}")
+    print(f"Metadata: {result.metadata_path}")
+    print(f"Completed: {result.completed}")
+    if args.gate_stats and result.points_written > 0:
+        stats_path = write_dual_gate_lockin_stats_csv(result.run_dir)
+        update_metadata_file(result.metadata_path, {"dual_gate_lockin_stats_path": str(stats_path)})
+        print(f"Dual-gate lock-in stats: {stats_path}")
+    if args.plot and result.points_written > 0:
+        plot_path = write_dual_gate_lockin_heatmap_svg(result.run_dir)
+        update_metadata_file(result.metadata_path, {"dual_gate_lockin_heatmap_path": str(plot_path)})
+        print(f"Dual-gate lock-in heatmap: {plot_path}")
+    if args.report and result.points_written > 0:
+        report_path = write_dual_gate_lockin_report(result.run_dir)
+        update_metadata_file(result.metadata_path, {"dual_gate_lockin_report_path": str(report_path)})
+        print(f"Dual-gate lock-in report: {report_path}")
+    indexed_metadata = read_metadata_file(result.metadata_path)
+    written_index_path = append_run_index(indexed_metadata, args.index_path)
+    print(f"Index: {written_index_path}")
+    return 0 if result.completed else 1
 
 
 def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
@@ -2817,6 +2862,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_preflight(args)
     if args.command == "dual-gate-lockin-resume-check":
         return command_dual_gate_lockin_resume_check(args)
+    if args.command == "dual-gate-lockin-stitch-chunks":
+        return command_dual_gate_lockin_stitch_chunks(args)
     if args.command == "dual-gate-lockin-smoke":
         return command_dual_gate_lockin_smoke(args)
     if args.command == "dual-gate-lockin-active-smoke":

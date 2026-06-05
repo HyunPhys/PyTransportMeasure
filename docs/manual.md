@@ -504,6 +504,16 @@ The run remains incomplete with `abort_class: checkpoint`, turns outputs off,
 and can be continued later through `dual-gate-lockin-resume-check` and
 `--resume-from-run`.
 
+After all chunks are measured, stitch them into one analysis-ready run:
+
+```powershell
+ptm dual-gate-lockin-stitch-chunks data\raw\<chunk_01_run> data\raw\<chunk_02_run> data\raw\<chunk_03_run> --measurement-name <stitched_name> --gate-stats --plot --report
+```
+
+The stitch command is hardware-free. It uses only the newly measured rows from
+each checkpoint run, validates contiguous point indices, writes a new run folder,
+and keeps the standard dual-gate lock-in `points.csv`/`metadata.json` shape.
+
 For hardware, keep the usual active-sweep guards:
 
 ```powershell

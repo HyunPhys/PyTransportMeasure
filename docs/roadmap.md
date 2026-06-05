@@ -407,7 +407,12 @@ root.
   - add `ptm dual-gate-lockin-chunk-plan`
   - split a planned gate grid into bounded checkpoint chunks
   - print resume-check and hardware command sequence templates for each chunk
-- [ ] Phase 25az: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25az: Dual-gate lock-in chunk stitching
+  - add `ptm dual-gate-lockin-stitch-chunks`
+  - merge newly measured rows from checkpoint chunk runs into one standard
+    dual-gate lock-in run artifact
+  - support stats, plot, report, and run-index artifacts on the stitched run
+- [ ] Phase 25ba: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory
