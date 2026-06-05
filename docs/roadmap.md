@@ -212,7 +212,13 @@ root.
     and reports
   - keep the derivation explicit as an analysis value rather than a hidden
     hardware-control behavior
-- [ ] Phase 25l: Dual-gate lock-in broader scan gate
+- [x] Phase 25l: Dual-gate lock-in scan readiness gate
+  - print total gate-grid point count, gate voltage steps, programmed settle
+    time, default point guard status, and nominal AC current in plan/preflight
+  - make broad recipes visibly fail the default hardware point guard before
+    output can be enabled
+  - keep the actual allowed broader scan size tied to lab feedback
+- [ ] Phase 25m: Dual-gate lock-in broader hardware threshold
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

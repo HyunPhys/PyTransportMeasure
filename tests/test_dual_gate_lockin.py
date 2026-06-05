@@ -122,6 +122,9 @@ def test_dual_gate_lockin_recipe_sample_and_plan():
     assert "Source/drain contacts: S -> D" in plan
     assert "Nominal source-drain AC current: 1e-08 A" in plan
     assert "Total points: 25" in plan
+    assert "Scan readiness:" in plan
+    assert "Gate grid: 5 x 5 = 25 points" in plan
+    assert "Within default point guard: False" in plan
 
 
 def test_dual_gate_lockin_limited_active_recipe_is_tiny_and_guarded():
@@ -134,6 +137,8 @@ def test_dual_gate_lockin_limited_active_recipe_is_tiny_and_guarded():
     assert recipe.gate1_sweep.current_compliance_a <= 1e-8
     assert recipe.gate2_sweep.current_compliance_a <= 1e-8
     assert "Total points: 4" in plan
+    assert "Gate grid: 2 x 2 = 4 points" in plan
+    assert "Within default point guard: True" in plan
 
 
 def test_dual_gate_lockin_recipe_rejects_incomplete_active_excitation(tmp_path):

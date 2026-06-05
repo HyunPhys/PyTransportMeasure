@@ -429,6 +429,15 @@ The limited active sweep command enables the full gate1 x gate2 runner only when
 for the first guarded 2x2 sweep. The broader dry-run recipe is intentionally
 blocked by the default point guard in hardware mode.
 
+The plan and preflight reports include a `Scan readiness` block. Check this
+before raising `--max-hardware-points`:
+
+- gate grid and total point count,
+- gate1/gate2 voltage step,
+- minimum programmed settle time,
+- default hardware point guard status,
+- nominal source-drain AC current.
+
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,
 `last_completed_index`, last completed gate voltages, `next_point_index`,

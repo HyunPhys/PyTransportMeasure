@@ -135,6 +135,7 @@ def format_dual_gate_lockin_plan(
         f"Gate1 compliance: {recipe.gate1_sweep.current_compliance_a:.6g} A",
         f"Gate2 compliance: {recipe.gate2_sweep.current_compliance_a:.6g} A",
         f"Safety current limit: {safety.max_abs_current_a:.6g} A",
+        *format_dual_gate_lockin_scan_readiness(recipe),
     ]
     preview = max(0, preview_points)
     if preview:
@@ -151,6 +152,46 @@ def format_dual_gate_lockin_plan(
             for offset, (gate1_v, gate2_v) in enumerate(tail):
                 lines.append(f"  #{start_index + offset}: Vg1={gate1_v:.6g} V, Vg2={gate2_v:.6g} V")
     return "\n".join(lines)
+
+
+def format_dual_gate_lockin_scan_readiness(
+    recipe: DualGateLockInRecipe,
+    max_hardware_points: int = 9,
+) -> list[str]:
+    gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
+    gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
+    total_points = len(gate1_voltages) * len(gate2_voltages)
+    gate1_step = voltage_step(gate1_voltages)
+    gate2_step = voltage_step(gate2_voltages)
+    minimum_settle_s = len(gate1_voltages) * recipe.gate1_sweep.settle_s + total_points * recipe.gate2_sweep.settle_s
+    topology = recipe.topology.model_dump(mode="json")
+    nominal_current = nominal_source_drain_current_a(topology)
+    lines = [
+        "Scan readiness:",
+        f"  Gate grid: {len(gate1_voltages)} x {len(gate2_voltages)} = {total_points} points",
+        f"  Gate1 step: {format_step(gate1_step)}",
+        f"  Gate2 step: {format_step(gate2_step)}",
+        f"  Minimum programmed settle time: {minimum_settle_s:.6g} s",
+        f"  Default hardware point guard: {max_hardware_points} points",
+        f"  Within default point guard: {total_points <= max_hardware_points}",
+    ]
+    if nominal_current is not None:
+        lines.append(f"  Nominal source-drain AC current: {nominal_current:.6g} A")
+    else:
+        lines.append("  Nominal source-drain AC current: n/a")
+    return lines
+
+
+def voltage_step(voltages: list[float]) -> float | None:
+    if len(voltages) < 2:
+        return None
+    return float(voltages[1]) - float(voltages[0])
+
+
+def format_step(step: float | None) -> str:
+    if step is None:
+        return "n/a"
+    return f"{step:.6g} V"
 
 
 def format_geometry(geometry: dict) -> str:

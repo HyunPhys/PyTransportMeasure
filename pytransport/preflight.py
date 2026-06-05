@@ -9,6 +9,7 @@ from typing import Any, Callable
 
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import probe_srs_sr860
+from .dual_gate_lockin import format_dual_gate_lockin_scan_readiness
 from .recipes import (
     AcLockInRecipe,
     DrainIVRecipe,
@@ -111,6 +112,7 @@ class DualGateLockInPreflightReport:
     gate1: InstrumentPreflight
     gate2: InstrumentPreflight
     lockin: InstrumentPreflight
+    scan_readiness_lines: tuple[str, ...] = ()
     lockin_settings: tuple[LockInSettingCheck, ...] = ()
 
     @property
@@ -349,6 +351,7 @@ def run_dual_gate_lockin_preflight_for_recipe(
         gate1=gate1,
         gate2=gate2,
         lockin=lockin,
+        scan_readiness_lines=tuple(format_dual_gate_lockin_scan_readiness(recipe)),
         lockin_settings=compare_lockin_settings(recipe.lockin.model_dump(mode="json"), lockin.probe),
     )
 
@@ -631,6 +634,9 @@ def format_dual_gate_lockin_preflight_report(report: DualGateLockInPreflightRepo
     if report.topology_lines:
         lines.extend(["", "Topology:"])
         lines.extend(f"- {line}" for line in report.topology_lines)
+    if report.scan_readiness_lines:
+        lines.extend(["", "Scan readiness:"])
+        lines.extend(f"- {line.strip()}" for line in report.scan_readiness_lines[1:])
     lines.extend(["", "VISA resources:"])
     if report.visa_resources:
         lines.extend(f"- {resource}" for resource in report.visa_resources)

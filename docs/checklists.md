@@ -330,6 +330,9 @@ remain point-guarded.
   excitation contacts, excitation amplitude, and current-bias resistor if used.
 - [ ] Confirm the plan shows the nominal source-drain AC current when
   `excitation_amplitude_v` and `current_bias_resistor_ohm` are declared.
+- [ ] Confirm the plan `Scan readiness` block shows the total gate-grid point
+  count, gate voltage steps, minimum programmed settle time, and default point
+  guard status.
 - [ ] Run the three-instrument preflight on the lab laptop.
   ```powershell
   ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
@@ -339,6 +342,8 @@ remain point-guarded.
   lock-in probe identifies SR860, and `Dual-gate lock-in preflight OK: True`.
 - [ ] Confirm the preflight `Topology` section matches the actual device wiring
   before connecting a real graphene Hall bar.
+- [ ] Confirm the preflight `Scan readiness` section matches the intended scan
+  size before raising `--max-hardware-points`.
 - [ ] Confirm the preflight `Lock-in setting check` shows every declared SR860
   expected setting and ends with `all expected settings match: True`.
 - [ ] If `Dual-gate lock-in preflight OK: False` is caused by a lock-in setting

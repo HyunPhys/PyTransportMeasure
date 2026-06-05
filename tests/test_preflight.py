@@ -247,6 +247,9 @@ def test_run_dual_gate_lockin_preflight_ok():
     assert lockin_probed == [("GPIB0::4::INSTR", 10000)]
     assert "Topology:" in text
     assert "- Source/drain: S -> D" in text
+    assert "Scan readiness:" in text
+    assert "- Gate grid: 5 x 5 = 25 points" in text
+    assert "- Within default point guard: False" in text
     assert "Gate1/gate2/lock-in addresses distinct: True" in text
     assert "all expected settings match: True" in text
     assert "Dual-gate lock-in preflight OK: True" in text
