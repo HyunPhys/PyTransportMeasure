@@ -2,7 +2,7 @@ import pytest
 
 from pytransport.errors import SafetyLimitError
 from pytransport.recipes import DrainIVRecipe, SafetyPreset
-from pytransport.safety import validate_point_current, validate_recipe_against_safety
+from pytransport.safety import validate_active_geometry, validate_point_current, validate_recipe_against_safety
 
 
 def make_recipe(**sweep_overrides):
@@ -62,4 +62,17 @@ def test_four_terminal_geometry_is_blocked_until_runner_support_exists():
 
     with pytest.raises(SafetyLimitError) as error:
         validate_recipe_against_safety(recipe, make_safety())
+    assert error.value.triggered_limit == "measurement_geometry_method"
+
+
+def test_active_geometry_guard_checks_method_before_terminal_count():
+    with pytest.raises(SafetyLimitError) as error:
+        validate_active_geometry("Drain I-V", "four_terminal", 4)
+    assert error.value.triggered_limit == "measurement_geometry_method"
+    assert "four_terminal" in str(error.value)
+
+
+def test_active_geometry_guard_checks_terminal_count_for_two_terminal_method():
+    with pytest.raises(SafetyLimitError) as error:
+        validate_active_geometry("Drain I-V", "two_terminal", 4)
     assert error.value.triggered_limit == "measurement_geometry_terminal_count"

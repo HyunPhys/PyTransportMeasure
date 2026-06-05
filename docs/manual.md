@@ -712,9 +712,11 @@ measurement_geometry:
   notes: Future remote-sense or separate voltage-probe measurement.
 ```
 
-At present, safety validation blocks `terminal_count: 4` before hardware output
-is enabled. This is intentional until the 2450 remote-sense or separate voltage
-readout runner has its own smoke tests.
+At present, safety validation blocks active runners unless
+`measurement_geometry.method: two_terminal` and `terminal_count: 2`. A
+`four_terminal` recipe is intentionally rejected before hardware output is
+enabled until the 2450 remote-sense or separate voltage readout runner has its
+own smoke tests.
 
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under

@@ -452,8 +452,8 @@ enable 4-probe mode.
 
 - [ ] Confirm the future recipe explicitly states `measurement_geometry.method:
   four_terminal` and `terminal_count: 4`.
-- [ ] Confirm current code blocks 4-terminal recipes before output is enabled
-  until runner support is implemented.
+- [ ] Confirm current code blocks `measurement_geometry.method:
+  four_terminal` before output is enabled until runner support is implemented.
 - [ ] Confirm the future implementation explicitly states `remote_4wire`.
 - [ ] Confirm the plan prints the selected sense mode before hardware access.
 - [ ] Use a known resistor or resistor network before a real device.
