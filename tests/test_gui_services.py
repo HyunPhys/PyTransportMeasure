@@ -7,6 +7,7 @@ from pytransport.gui_services import (
     GuiFakeSettings,
     GuiSchemeStepDraft,
     available_gui_methods,
+    compare_gui_schemes,
     create_gui_feedback_bundle,
     default_scheme_text,
     default_recipe_text,
@@ -218,6 +219,59 @@ def test_gui_saved_scheme_load_generates_report_text_without_report_file(tmp_pat
 
     assert "# saved_scheme_no_report" in result.report_text
     assert "report_path" not in result.artifact_paths
+
+
+def test_gui_scheme_comparison_builds_step_stats_from_saved_schemes(tmp_path):
+    scheme_a = write_saved_scheme_for_compare(tmp_path, "scheme_a", 1000.0)
+    scheme_b = write_saved_scheme_for_compare(tmp_path, "scheme_b", 2000.0)
+
+    comparison = compare_gui_schemes([scheme_a, scheme_b, scheme_a])
+
+    assert "Scheme Comparison" in comparison.text
+    assert "Schemes: 2" in comparison.text
+    assert len(comparison.rows) == 2
+    assert [row["scheme_name"] for row in comparison.rows] == ["scheme_a", "scheme_b"]
+    assert comparison.rows[0]["step_label"] == "iv"
+    assert comparison.rows[0]["runs"] == 1
+    assert comparison.rows[0]["mean_fitted_resistance_ohm"] == pytest.approx(1000.0)
+    assert comparison.rows[1]["mean_fitted_resistance_ohm"] == pytest.approx(2000.0)
+
+
+def write_saved_scheme_for_compare(tmp_path: Path, name: str, resistance_ohm: float) -> Path:
+    scheme_dir = tmp_path / "schemes" / name
+    run_dir = tmp_path / "raw" / name
+    scheme_dir.mkdir(parents=True)
+    run_dir.mkdir(parents=True)
+    current_a = 1e-6
+    voltage_v = resistance_ohm * current_a
+    (run_dir / "points.csv").write_text(
+        f"voltage_v,current_a\n0,0\n{voltage_v},{current_a}\n",
+        encoding="utf-8",
+    )
+    (run_dir / "metadata.json").write_text(
+        json.dumps({"completed": True, "measurement_name": name, "run_dir": str(run_dir)}),
+        encoding="utf-8",
+    )
+    summary = {
+        "scheme_name": name,
+        "scheme_path": f"configs/schemes/{name}.yaml",
+        "started_at": "2026-06-05T12:00:00",
+        "finished_at": "2026-06-05T12:01:00",
+        "dry_run": True,
+        "completed": True,
+        "quality": {"status": "PASS", "results": []},
+        "steps": [
+            {
+                "type": "drain_iv",
+                "label": "iv",
+                "completed": True,
+                "run_dir": str(run_dir),
+                "quality": {"status": "PASS", "results": []},
+            }
+        ],
+    }
+    (scheme_dir / "scheme_summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    return scheme_dir
 
 
 def test_gui_instrument_refresh_formats_resources():

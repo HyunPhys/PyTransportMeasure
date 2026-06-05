@@ -49,6 +49,7 @@ from .scheme_review import (
     evaluate_scheme_quality,
     format_scheme_report,
     format_scheme_quality,
+    scheme_stats_rows,
     summarize_scheme,
     update_scheme_summary_quality,
     write_scheme_overlay_svg,
@@ -97,6 +98,12 @@ class GuiSchemeRunResult:
     summary_text: str
     report_text: str
     artifact_paths: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class GuiSchemeComparison:
+    rows: tuple[dict[str, Any], ...]
+    text: str
 
 
 @dataclass(frozen=True)
@@ -1592,6 +1599,87 @@ def load_gui_saved_scheme(path: str | Path) -> GuiSchemeRunResult:
         report_text=report_text,
         artifact_paths=artifacts,
     )
+
+
+def compare_gui_schemes(paths: list[str | Path]) -> GuiSchemeComparison:
+    unique_paths = unique_existing_scheme_paths(paths)
+    rows: list[dict[str, Any]] = []
+    text_lines = ["Scheme Comparison", f"Schemes: {len(unique_paths)}"]
+    for path in unique_paths:
+        review = summarize_scheme(path)
+        text_lines.extend(
+            [
+                "",
+                f"- {review.scheme_name}",
+                f"  summary: {review.summary_path}",
+                f"  completed: {review.completed}",
+                f"  quality: {(review.quality or {}).get('status') or 'n/a'}",
+                f"  runs: {len(review.runs)}",
+            ]
+        )
+        stats = scheme_stats_rows(review)
+        if not stats:
+            rows.append(gui_scheme_comparison_row(review, None))
+            continue
+        for stat in stats:
+            rows.append(gui_scheme_comparison_row(review, stat))
+    text_lines.extend(["", f"Comparison rows: {len(rows)}"])
+    return GuiSchemeComparison(tuple(rows), "\n".join(text_lines))
+
+
+def unique_existing_scheme_paths(paths: list[str | Path]) -> list[Path]:
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for path in paths:
+        candidate = Path(path)
+        summary_path = candidate / "scheme_summary.json" if candidate.is_dir() else candidate
+        try:
+            key = summary_path.resolve()
+        except OSError:
+            key = summary_path
+        if key in seen or not summary_path.exists():
+            continue
+        seen.add(key)
+        unique.append(summary_path)
+    return unique
+
+
+def gui_scheme_comparison_row(review, stat: dict[str, Any] | None) -> dict[str, Any]:
+    quality = review.quality or {}
+    row = {
+        "scheme_name": review.scheme_name,
+        "started_at": review.started_at,
+        "completed": review.completed,
+        "quality_status": quality.get("status") or "n/a",
+        "dry_run": review.dry_run,
+        "scheme_dir": str(review.scheme_dir),
+        "step_label": "n/a",
+        "runs": len(review.runs),
+        "completed_runs": sum(1 for run in review.runs if run.completed is True),
+        "qc_pass": sum(1 for run in review.runs if (run.quality or {}).get("status") == "PASS"),
+        "qc_fail": sum(1 for run in review.runs if (run.quality or {}).get("status") == "FAIL"),
+        "mean_fitted_resistance_ohm": None,
+        "std_fitted_resistance_ohm": None,
+        "relative_std_percent": None,
+        "min_fitted_resistance_ohm": None,
+        "max_fitted_resistance_ohm": None,
+    }
+    if stat is not None:
+        row.update(
+            {
+                "step_label": stat.get("step_label"),
+                "runs": stat.get("runs"),
+                "completed_runs": stat.get("completed"),
+                "qc_pass": stat.get("qc_pass"),
+                "qc_fail": stat.get("qc_fail"),
+                "mean_fitted_resistance_ohm": stat.get("mean_fitted_resistance_ohm"),
+                "std_fitted_resistance_ohm": stat.get("std_fitted_resistance_ohm"),
+                "relative_std_percent": stat.get("relative_std_percent"),
+                "min_fitted_resistance_ohm": stat.get("min_fitted_resistance_ohm"),
+                "max_fitted_resistance_ohm": stat.get("max_fitted_resistance_ohm"),
+            }
+        )
+    return row
 
 
 def create_gui_feedback_bundle(

@@ -15,6 +15,7 @@ from .gui_services import (
     GuiSchemeRunResult,
     GuiSchemeStepDraft,
     available_gui_methods,
+    compare_gui_schemes,
     create_gui_feedback_bundle,
     default_recipe_text,
     default_scheme_text,
@@ -53,6 +54,7 @@ try:
     from PySide6.QtGui import QAction, QColor, QDesktopServices, QPainter, QPen
     from PySide6.QtWidgets import (
         QApplication,
+        QAbstractItemView,
         QComboBox,
         QFileDialog,
         QFormLayout,
@@ -90,7 +92,7 @@ except ModuleNotFoundError:  # pragma: no cover - exercised manually.
     Qt = _MissingQt()  # type: ignore[assignment]
     QAction = QDesktopServices = None  # type: ignore[assignment]
     QColor = QPainter = QPen = None  # type: ignore[assignment]
-    QApplication = QComboBox = QFileDialog = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QPlainTextEdit = QScrollArea = QSpinBox = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None  # type: ignore[assignment]
+    QApplication = QAbstractItemView = QComboBox = QFileDialog = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QPlainTextEdit = QScrollArea = QSpinBox = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None  # type: ignore[assignment]
     QMainWindow = object  # type: ignore[assignment]
 
 
@@ -532,6 +534,9 @@ class MainWindow(QMainWindow):
         self.load_scheme_result_button = QPushButton("Load Selected")
         self.load_scheme_result_button.clicked.connect(self.load_selected_scheme_result)
         self.load_scheme_result_button.setEnabled(False)
+        self.compare_schemes_button = QPushButton("Compare Selected")
+        self.compare_schemes_button.clicked.connect(self.compare_selected_schemes)
+        self.compare_schemes_button.setEnabled(False)
         self.scheme_source_dir = QLineEdit("data/schemes")
         self.scheme_source_dir.setPlaceholderText("scheme source folder")
         self.scheme_source_dir.setMinimumWidth(220)
@@ -578,6 +583,8 @@ class MainWindow(QMainWindow):
         self.scheme_result_text.setReadOnly(True)
         self.scheme_report_text = QPlainTextEdit()
         self.scheme_report_text.setReadOnly(True)
+        self.scheme_compare_text = QPlainTextEdit()
+        self.scheme_compare_text.setReadOnly(True)
         self.scheme_step_table = QTableWidget(0, 12)
         self.scheme_step_table.setHorizontalHeaderLabels(
             [
@@ -611,7 +618,31 @@ class MainWindow(QMainWindow):
         )
         self.saved_scheme_table.horizontalHeader().setStretchLastSection(True)
         self.saved_scheme_table.setSortingEnabled(True)
+        self.saved_scheme_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        self.saved_scheme_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.saved_scheme_table.itemSelectionChanged.connect(self.update_selected_scheme_controls)
+        self.scheme_compare_table = QTableWidget(0, 15)
+        self.scheme_compare_table.setHorizontalHeaderLabels(
+            [
+                "Scheme",
+                "Step",
+                "Started",
+                "Status",
+                "QC",
+                "Dry",
+                "Runs",
+                "Completed",
+                "QC PASS",
+                "QC FAIL",
+                "Mean R",
+                "Std R",
+                "Rel Std %",
+                "Min R",
+                "Max R",
+            ]
+        )
+        self.scheme_compare_table.horizontalHeader().setStretchLastSection(True)
+        self.scheme_compare_table.setSortingEnabled(True)
         self.saved_plot_canvas = IvPlotCanvas()
         self.live_plot_canvas = IvPlotCanvas()
         self.plot_status = QLabel("No plot loaded")
@@ -830,6 +861,7 @@ class MainWindow(QMainWindow):
         source_row.addWidget(self.browse_scheme_source_button)
         source_row.addWidget(self.refresh_schemes_button)
         source_row.addWidget(self.load_scheme_result_button)
+        source_row.addWidget(self.compare_schemes_button)
 
         controls_layout.addLayout(top_row)
         controls_layout.addLayout(action_row)
@@ -844,7 +876,15 @@ class MainWindow(QMainWindow):
         scheme_tabs.addTab(self.scheme_result_text, "Result")
         scheme_tabs.addTab(self.scheme_report_text, "Report")
         scheme_tabs.addTab(self.saved_scheme_table, "Saved")
+        scheme_tabs.addTab(self.build_scheme_compare_view(), "Compare")
         layout.addWidget(scheme_tabs, stretch=1)
+        return container
+
+    def build_scheme_compare_view(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.addWidget(self.scheme_compare_text)
+        layout.addWidget(self.scheme_compare_table, stretch=1)
         return container
 
     def build_plot_preview(self) -> QWidget:
@@ -1249,8 +1289,25 @@ class MainWindow(QMainWindow):
             return None
         return Path(item.text())
 
+    def selected_scheme_dirs(self) -> list[Path]:
+        rows = sorted({item.row() for item in self.saved_scheme_table.selectedItems()})
+        paths: list[Path] = []
+        seen: set[str] = set()
+        for row in rows:
+            item = self.saved_scheme_table.item(row, 7)
+            if item is None or not item.text():
+                continue
+            text = item.text()
+            if text in seen:
+                continue
+            seen.add(text)
+            paths.append(Path(text))
+        return paths
+
     def update_selected_scheme_controls(self) -> None:
-        self.load_scheme_result_button.setEnabled(self.selected_scheme_dir() is not None)
+        count = len(self.selected_scheme_dirs())
+        self.load_scheme_result_button.setEnabled(count >= 1)
+        self.compare_schemes_button.setEnabled(count >= 1)
 
     def load_selected_scheme_result(self) -> None:
         scheme_dir = self.selected_scheme_dir()
@@ -1264,6 +1321,49 @@ class MainWindow(QMainWindow):
         self.display_scheme_result(result)
         self.status_label.setText(f"Loaded scheme: {result.scheme_dir}")
         self.log_session(f"Saved scheme loaded: {result.scheme_dir}")
+
+    def compare_selected_schemes(self) -> None:
+        paths = self.selected_scheme_dirs()
+        if not paths:
+            return
+        try:
+            comparison = compare_gui_schemes(paths)
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.scheme_compare_text.setPlainText(comparison.text)
+        self.populate_scheme_compare_table(comparison.rows)
+        self.status_label.setText(f"Compared {len(paths)} saved schemes")
+        self.log_session(f"Saved schemes compared: {len(paths)} selected, {len(comparison.rows)} rows")
+
+    def populate_scheme_compare_table(self, rows: tuple[dict[str, Any], ...]) -> None:
+        self.scheme_compare_table.setSortingEnabled(False)
+        self.scheme_compare_table.setRowCount(0)
+        for record in rows:
+            row = self.scheme_compare_table.rowCount()
+            self.scheme_compare_table.insertRow(row)
+            values = [
+                record.get("scheme_name"),
+                record.get("step_label"),
+                record.get("started_at"),
+                scheme_status_text(record),
+                record.get("quality_status"),
+                record.get("dry_run"),
+                record.get("runs"),
+                record.get("completed_runs"),
+                record.get("qc_pass"),
+                record.get("qc_fail"),
+                record.get("mean_fitted_resistance_ohm"),
+                record.get("std_fitted_resistance_ohm"),
+                record.get("relative_std_percent"),
+                record.get("min_fitted_resistance_ohm"),
+                record.get("max_fitted_resistance_ohm"),
+            ]
+            for column, value in enumerate(values):
+                text = format_scheme_compare_value(value)
+                item = SortableTableWidgetItem(text, scheme_compare_sort_key(column, value))
+                self.scheme_compare_table.setItem(row, column, item)
+        self.scheme_compare_table.setSortingEnabled(True)
 
     def display_scheme_result(self, result: GuiSchemeRunResult) -> None:
         self.last_scheme_result = result
@@ -2123,6 +2223,25 @@ def scheme_table_sort_key(column: int, value: Any) -> Any:
             return int(value)
         except (TypeError, ValueError):
             return -1
+    return str(value).lower()
+
+
+def format_scheme_compare_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:.6g}"
+    return str(value)
+
+
+def scheme_compare_sort_key(column: int, value: Any) -> Any:
+    if value is None:
+        return ""
+    if column in {6, 7, 8, 9, 10, 11, 12, 13, 14}:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return float("-inf")
     return str(value).lower()
 
 

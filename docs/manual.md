@@ -502,6 +502,17 @@ Saved Scheme Browser workflow:
 7. Use `Scheme Folder` to open the selected saved scheme directory.
 8. Use `Scheme Report` when the saved scheme has a `scheme_report.md` file.
 
+Scheme Comparison workflow:
+
+1. Open `Schemes`.
+2. Click `Refresh Saved`.
+3. Select one or more rows in `Saved`.
+4. Click `Compare Selected`.
+5. Open `Compare`.
+6. Sort the table by `Mean R`, `Rel Std %`, `QC FAIL`, or another column.
+7. Use the table to decide which scheme/step should be inspected in more
+   detail.
+
 Drain I-V overrides let one base recipe be reused for several sweep conditions
 without copying the recipe file. For example, a row can set `Suffix` to
 `_small`, `Start V` to `-0.05`, `Stop V` to `0.05`, and `Points` to `5`.
@@ -512,7 +523,9 @@ Model`, writes a draft scheme under `data/gui_drafts/schemes`, and stores
 scheme artifacts under `data/schemes`. Dry-run intervals are skipped so the GUI
 can validate the workflow quickly. The `Saved` table reloads previous
 `scheme_summary.json` files from the selected source folder, including nested
-batch run counts when a linked batch summary is available.
+batch run counts when a linked batch summary is available. `Compare Selected`
+uses the same scheme statistics path as CLI review exports, so GUI comparison
+values stay consistent with `ptm scheme-stats`.
 
 Hardware scheme execution remains a CLI workflow until separate lab smoke tests
 gate it:

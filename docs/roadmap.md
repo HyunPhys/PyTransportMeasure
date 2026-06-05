@@ -245,9 +245,11 @@ This roadmap tracks the large development phases. Completed items are checked.
   - load existing scheme summaries from `data/schemes`
   - inspect older scheme reports and artifacts from the GUI
   - compare saved scheme runs without rebuilding the scheme YAML
-- [ ] Phase 24ad: GUI scheme comparison view
+- [x] Phase 24ad: GUI scheme comparison view
   - compare selected saved schemes side by side
   - surface per-step run statistics without opening CSV files
+  - reuse scheme review stats so GUI and CLI values match
+- [ ] Phase 24ae: GUI scheme overlay preview
   - add scheme overlay preview without SVG distortion
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view

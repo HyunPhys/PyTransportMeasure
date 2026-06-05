@@ -9,9 +9,11 @@ QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
 from pytransport.gui_app import (
     MainWindow,
+    format_scheme_compare_value,
     padded_range,
     run_status_text,
     same_path,
+    scheme_compare_sort_key,
     scheme_status_text,
     update_plain_text_preserving_scroll,
 )
@@ -285,6 +287,38 @@ def test_gui_saved_scheme_table_columns_and_selection(app):
     window.close()
 
 
+def test_gui_scheme_compare_table_populates_rows(app):
+    window = MainWindow()
+    rows = (
+        {
+            "scheme_name": "scheme_a",
+            "step_label": "iv",
+            "started_at": "2026-06-05T12:00:00",
+            "completed": True,
+            "quality_status": "PASS",
+            "dry_run": True,
+            "runs": 2,
+            "completed_runs": 2,
+            "qc_pass": 2,
+            "qc_fail": 0,
+            "mean_fitted_resistance_ohm": 1000.0,
+            "std_fitted_resistance_ohm": 1.25,
+            "relative_std_percent": 0.125,
+            "min_fitted_resistance_ohm": 999.0,
+            "max_fitted_resistance_ohm": 1001.0,
+        },
+    )
+
+    window.populate_scheme_compare_table(rows)
+
+    assert window.scheme_compare_table.columnCount() == 15
+    assert window.scheme_compare_table.rowCount() == 1
+    assert window.scheme_compare_table.item(0, 0).text() == "scheme_a"
+    assert window.scheme_compare_table.item(0, 10).text() == "1000"
+    assert window.scheme_compare_table.item(0, 12).text() == "0.125"
+    window.close()
+
+
 def test_same_path_handles_equivalent_relative_paths():
     assert same_path(Path("data/raw"), Path("data") / "raw")
 
@@ -300,6 +334,13 @@ def test_scheme_status_text_formats_completion():
     assert scheme_status_text({"completed": True}) == "Completed"
     assert scheme_status_text({"completed": False}) == "Incomplete"
     assert scheme_status_text({}) == "Unknown"
+
+
+def test_scheme_compare_format_and_sort_keys():
+    assert format_scheme_compare_value(1000.0) == "1000"
+    assert format_scheme_compare_value(None) == ""
+    assert scheme_compare_sort_key(10, "1000") == 1000.0
+    assert scheme_compare_sort_key(0, "Scheme") == "scheme"
 
 
 def test_qt_plot_widget_stores_saved_and_live_points(app):

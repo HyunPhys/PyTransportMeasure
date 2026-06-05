@@ -61,6 +61,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   scheme result/report.
 - [x] GUI Schemes workspace can browse and reload saved scheme summaries from a
   selected source folder.
+- [x] GUI Schemes workspace can compare selected saved schemes by per-step run
+  statistics.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -424,6 +426,10 @@ Use this checklist before pulse hardware work begins.
 - [ ] Select the row and confirm `Load Selected` becomes enabled.
 - [ ] Click `Load Selected`.
 - [ ] Confirm `Result` and `Report` update to the selected saved scheme.
+- [ ] Select one or more rows in `Saved`.
+- [ ] Click `Compare Selected`.
+- [ ] Confirm `Compare` shows per-scheme/per-step statistics.
+- [ ] Sort by `Mean R` or `Rel Std %` and confirm the rows reorder.
 - [ ] Use `Source Folder` to select another scheme parent folder and refresh.
 - [ ] Change a row to `batch` and set the path to
   `../batches/drain_iv_1k_repeat_linear.yaml`.
