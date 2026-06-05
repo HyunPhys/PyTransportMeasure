@@ -32,6 +32,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   bundles.
 - [x] GUI usability pass collapsed dry-run settings, relaxed resize constraints,
   and fixed Session Log scroll behavior.
+- [x] GUI Dry-run Model expands into a scrollable settings area instead of
+  crushing labels/fields in short windows.
 - [x] GUI workspace separates measurement, instruments, and analysis.
 - [x] GUI Instruments workspace can refresh VISA resources and test selected
   address communication.
@@ -150,6 +152,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Confirm `Session Log` shows `GUI session started`.
 - [ ] Confirm `Dry-run Model` starts collapsed and can be opened when fake
   settings need editing.
+- [ ] Confirm expanded `Dry-run Model` fields remain readable and scrollable in
+  a short window.
 - [ ] Confirm workspace tabs are `Measurement`, `Instruments`, and `Analysis`.
 - [ ] Open `Measurement > Workflow` and confirm the major steps are listed.
 - [ ] Click `Check YAML`, `Refresh Instruments`, `Test Selected Address`,

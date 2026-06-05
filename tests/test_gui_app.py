@@ -24,11 +24,13 @@ def test_gui_dry_run_model_is_collapsed_by_default(app):
     assert window.minimumHeight() <= 520
     assert window.fake_box.isCheckable()
     assert not window.fake_box.isChecked()
-    assert window.fake_content.isHidden()
+    assert window.fake_scroll.isHidden()
 
     window.fake_box.setChecked(True)
 
-    assert not window.fake_content.isHidden()
+    assert not window.fake_scroll.isHidden()
+    assert window.fake_scroll.widget() is window.fake_content
+    assert window.fake_scroll.maximumHeight() >= 160
     window.close()
 
 

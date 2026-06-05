@@ -197,6 +197,9 @@ This roadmap tracks the large development phases. Completed items are checked.
   - track Check YAML, instrument refresh/test, Plan, Dry Run, Preflight, and
     Hardware Run state
   - show the next safe GUI action from one workflow tab
+- [x] Phase 24s: GUI dry-run model scroll
+  - keep the collapsible dry-run model readable after expansion
+  - use a scroll container for fake-model settings in constrained windows
 
 ## Next GUI
 

@@ -392,6 +392,10 @@ The workflow guide marks completed steps with `[x]`. Editing YAML or the
 structured form resets recipe-dependent steps, while instrument refresh and
 communication-test state remain visible for the current session.
 
+`Dry-run Model` is collapsed by default. Expand it only when fake resistance,
+noise, gate modulation, or lock-in simulation values need editing. The expanded
+settings area is scrollable so it remains readable in short windows.
+
 Drain I-V form workflow:
 
 1. Select `Drain I-V`.

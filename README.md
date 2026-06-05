@@ -95,6 +95,7 @@ ptm-gui
 - GUI instrument refresh and communication test: [docs/phase39_gui_instrument_refresh.md](docs/phase39_gui_instrument_refresh.md)
 - GUI recipe sync status: [docs/phase40_gui_recipe_sync_status.md](docs/phase40_gui_recipe_sync_status.md)
 - GUI workflow guide: [docs/phase41_gui_workflow_guide.md](docs/phase41_gui_workflow_guide.md)
+- GUI dry-run model scroll: [docs/phase42_gui_dry_run_model_scroll.md](docs/phase42_gui_dry_run_model_scroll.md)
 
 ## Hardware Smoke Test
 
