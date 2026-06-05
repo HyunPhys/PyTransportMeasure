@@ -55,8 +55,10 @@ from .dual_gate_lockin_smoke import (
     run_dual_gate_lockin_readout_smoke,
 )
 from .dual_gate_lockin_review import (
+    audit_dual_gate_lockin_scale_up,
     audit_dual_gate_lockin_run,
     format_dual_gate_lockin_acceptance,
+    format_dual_gate_lockin_scale_up_audit,
     format_dual_gate_lockin_summary,
     summarize_dual_gate_lockin_run,
     write_dual_gate_lockin_acceptance_report,
@@ -1063,6 +1065,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         approval_note = str(args.hardware_approval_note or "").strip()
         raised_point_guard = args.max_hardware_points > DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS
         accepted_previous_audit = None
+        scale_up_audit = None
         if raised_point_guard and not approval_note:
             print(
                 "Dual-gate lock-in active sweep blocked: raising --max-hardware-points above "
@@ -1084,6 +1087,15 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             if not accepted_previous_audit.accepted:
                 print(
                     "Dual-gate lock-in active sweep blocked: --accepted-previous-run did not pass strict acceptance audit.",
+                    file=sys.stderr,
+                )
+                return 2
+            scale_up_audit = audit_dual_gate_lockin_scale_up(args.accepted_previous_run, recipe)
+            print(format_dual_gate_lockin_scale_up_audit(scale_up_audit))
+            print()
+            if not scale_up_audit.compatible:
+                print(
+                    "Dual-gate lock-in active sweep blocked: --accepted-previous-run is not compatible with the candidate recipe.",
                     file=sys.stderr,
                 )
                 return 2
@@ -1153,6 +1165,12 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                     ),
                     "accepted_previous_run_planned_points": (
                         accepted_previous_audit.planned_points if accepted_previous_audit is not None else None
+                    ),
+                    "accepted_previous_run_scale_up_compatible": (
+                        scale_up_audit.compatible if scale_up_audit is not None else None
+                    ),
+                    "accepted_previous_run_grid_signature": (
+                        scale_up_audit.previous_grid_signature if scale_up_audit is not None else None
                     ),
                 }
             },

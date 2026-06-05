@@ -292,7 +292,13 @@ root.
   - save the ordered gate1 x gate2 planned grid in run metadata
   - save a stable SHA-256 grid signature for artifact comparison
   - audit that `points.csv` follows the saved grid when metadata is available
-- [ ] Phase 25ab: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ab: Dual-gate lock-in scale-up compatibility guard
+  - compare accepted previous run metadata against the candidate recipe before
+    raised-point hardware output
+  - require compatible geometry, topology, lock-in settings, gate SMU settings,
+    compliance policy, and grid subset
+  - save scale-up compatibility state in `hardware_guard`
+- [ ] Phase 25ac: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

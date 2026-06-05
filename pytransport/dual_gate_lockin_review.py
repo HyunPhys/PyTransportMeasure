@@ -10,8 +10,10 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
+from .dual_gate_lockin import planned_dual_gate_lockin_grid
 from .dual_gate_review import fmt
 from .preflight import compare_lockin_settings, lockin_settings_ok
+from .recipes import DualGateLockInRecipe
 from .single_gate_review import current_color, legend_svg, mean, parse_bool, parse_optional_float
 
 
@@ -32,6 +34,23 @@ class DualGateLockInAcceptance:
     planned_points: int | None
     remaining_points: int | None
     issues: tuple[DualGateLockInAcceptanceIssue, ...]
+
+
+@dataclass(frozen=True)
+class DualGateLockInScaleUpIssue:
+    severity: str
+    check: str
+    message: str
+
+
+@dataclass(frozen=True)
+class DualGateLockInScaleUpAudit:
+    previous_run_dir: Path
+    compatible: bool
+    previous_points: int | None
+    candidate_points: int
+    previous_grid_signature: str | None
+    issues: tuple[DualGateLockInScaleUpIssue, ...]
 
 
 @dataclass(frozen=True)
@@ -246,6 +265,173 @@ def write_dual_gate_lockin_acceptance_report(
     audit = audit_dual_gate_lockin_run(path, require_lockin_settings=require_lockin_settings)
     output.write_text(format_dual_gate_lockin_acceptance(audit) + "\n", encoding="utf-8")
     return output
+
+
+def audit_dual_gate_lockin_scale_up(
+    previous_run: str | Path,
+    candidate_recipe: DualGateLockInRecipe,
+) -> DualGateLockInScaleUpAudit:
+    previous_path = Path(previous_run)
+    metadata = read_dual_gate_lockin_metadata(previous_path)
+    previous_recipe = metadata.get("recipe") or {}
+    candidate = candidate_recipe.model_dump(mode="json")
+    candidate_grid = planned_dual_gate_lockin_grid(candidate_recipe)
+    previous_grid = metadata.get("planned_gate_grid")
+    issues: list[DualGateLockInScaleUpIssue] = []
+
+    if metadata.get("measurement_type") != "dual_gate_lockin_sweep":
+        issues.append(
+            DualGateLockInScaleUpIssue(
+                "error",
+                "measurement_type",
+                f"expected previous dual_gate_lockin_sweep, got {metadata.get('measurement_type') or 'missing'}",
+            )
+        )
+    _compare_recipe_section(previous_recipe, candidate, "measurement_geometry", issues)
+    _compare_recipe_section(previous_recipe, candidate, "topology", issues)
+    _compare_recipe_section(previous_recipe, candidate, "lockin", issues)
+    _compare_smu_section(previous_recipe, candidate, "gate1_instrument", issues)
+    _compare_smu_section(previous_recipe, candidate, "gate2_instrument", issues)
+    _compare_gate_sweep_policy(previous_recipe, candidate, "gate1_sweep", issues)
+    _compare_gate_sweep_policy(previous_recipe, candidate, "gate2_sweep", issues)
+    if not isinstance(previous_grid, list) or not previous_grid:
+        issues.append(
+            DualGateLockInScaleUpIssue(
+                "error",
+                "planned_gate_grid",
+                "accepted previous run lacks planned_gate_grid metadata; rerun the limited scan with the current code",
+            )
+        )
+    else:
+        _check_previous_grid_subset(previous_grid, candidate_grid, issues)
+
+    errors = [issue for issue in issues if issue.severity == "error"]
+    return DualGateLockInScaleUpAudit(
+        previous_run_dir=previous_path,
+        compatible=not errors,
+        previous_points=_optional_int(metadata.get("planned_points")),
+        candidate_points=len(candidate_grid),
+        previous_grid_signature=metadata.get("planned_gate_grid_signature"),
+        issues=tuple(issues),
+    )
+
+
+def format_dual_gate_lockin_scale_up_audit(audit: DualGateLockInScaleUpAudit) -> str:
+    status = "PASS" if audit.compatible else "FAIL"
+    lines = [
+        f"Dual-gate lock-in scale-up compatibility: {status}",
+        f"Previous run directory: {audit.previous_run_dir}",
+        f"Previous points: {audit.previous_points if audit.previous_points is not None else 'n/a'}",
+        f"Candidate points: {audit.candidate_points}",
+        f"Previous grid signature: {audit.previous_grid_signature or 'n/a'}",
+    ]
+    if audit.issues:
+        lines.append("Issues:")
+        for issue in audit.issues:
+            lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    else:
+        lines.append("Issues: none")
+    return "\n".join(lines)
+
+
+def _compare_recipe_section(
+    previous_recipe: dict[str, Any],
+    candidate_recipe: dict[str, Any],
+    section: str,
+    issues: list[DualGateLockInScaleUpIssue],
+) -> None:
+    if previous_recipe.get(section) != candidate_recipe.get(section):
+        issues.append(
+            DualGateLockInScaleUpIssue(
+                "error",
+                section,
+                f"candidate {section} differs from accepted previous run",
+            )
+        )
+
+
+def _compare_smu_section(
+    previous_recipe: dict[str, Any],
+    candidate_recipe: dict[str, Any],
+    section: str,
+    issues: list[DualGateLockInScaleUpIssue],
+) -> None:
+    keys = ["id", "address", "terminal", "voltage_range_v", "current_range_a", "nplc", "source_delay_s"]
+    previous = previous_recipe.get(section) or {}
+    candidate = candidate_recipe.get(section) or {}
+    mismatches = [key for key in keys if previous.get(key) != candidate.get(key)]
+    if mismatches:
+        issues.append(
+            DualGateLockInScaleUpIssue(
+                "error",
+                section,
+                f"candidate {section} differs in {', '.join(mismatches)}",
+            )
+        )
+
+
+def _compare_gate_sweep_policy(
+    previous_recipe: dict[str, Any],
+    candidate_recipe: dict[str, Any],
+    section: str,
+    issues: list[DualGateLockInScaleUpIssue],
+) -> None:
+    previous = previous_recipe.get(section) or {}
+    candidate = candidate_recipe.get(section) or {}
+    if previous.get("current_compliance_a") != candidate.get("current_compliance_a"):
+        issues.append(
+            DualGateLockInScaleUpIssue(
+                "error",
+                section,
+                f"candidate {section}.current_compliance_a differs from accepted previous run",
+            )
+        )
+    previous_settle = previous.get("settle_s")
+    candidate_settle = candidate.get("settle_s")
+    try:
+        if previous_settle is not None and candidate_settle is not None and float(candidate_settle) < float(previous_settle):
+            issues.append(
+                DualGateLockInScaleUpIssue(
+                    "error",
+                    section,
+                    f"candidate {section}.settle_s is shorter than accepted previous run",
+                )
+            )
+    except (TypeError, ValueError):
+        issues.append(DualGateLockInScaleUpIssue("error", section, f"candidate {section}.settle_s is invalid"))
+
+
+def _check_previous_grid_subset(
+    previous_grid: list[Any],
+    candidate_grid: list[dict[str, float | int]],
+    issues: list[DualGateLockInScaleUpIssue],
+) -> None:
+    candidate_pairs = {
+        (_rounded_grid_voltage(point["gate1_voltage_v"]), _rounded_grid_voltage(point["gate2_voltage_v"]))
+        for point in candidate_grid
+    }
+    missing = []
+    for point in previous_grid:
+        try:
+            pair = (_rounded_grid_voltage(point["gate1_voltage_v"]), _rounded_grid_voltage(point["gate2_voltage_v"]))
+        except (KeyError, TypeError, ValueError):
+            issues.append(DualGateLockInScaleUpIssue("error", "planned_gate_grid", "previous planned grid is malformed"))
+            return
+        if pair not in candidate_pairs:
+            missing.append(pair)
+    if missing:
+        preview = ", ".join(f"({gate1:g}, {gate2:g})" for gate1, gate2 in missing[:4])
+        issues.append(
+            DualGateLockInScaleUpIssue(
+                "error",
+                "planned_gate_grid",
+                f"candidate grid does not include {len(missing)} previous accepted point(s): {preview}",
+            )
+        )
+
+
+def _rounded_grid_voltage(value: Any) -> float:
+    return round(float(value), 12)
 
 
 def _audit_smu_readback(

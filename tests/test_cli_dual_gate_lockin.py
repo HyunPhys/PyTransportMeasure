@@ -356,6 +356,34 @@ def test_cli_dual_gate_lockin_records_raised_point_guard_note(tmp_path, monkeypa
     assert metadata["hardware_guard"]["accepted_previous_run"] == str(previous_run)
     assert metadata["hardware_guard"]["accepted_previous_run_audit_passed"] is True
     assert metadata["hardware_guard"]["accepted_previous_run_points_written"] == 4
+    assert metadata["hardware_guard"]["accepted_previous_run_scale_up_compatible"] is True
+    assert metadata["hardware_guard"]["accepted_previous_run_grid_signature"]
+
+
+def test_cli_dual_gate_lockin_blocks_raised_guard_when_previous_grid_not_in_candidate(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    text = recipe.read_text(encoding="utf-8")
+    text = text.replace("  start_v: -0.1\n  stop_v: 0.1\n", "  start_v: -0.2\n  stop_v: 0.2\n", 1)
+    recipe.write_text(text, encoding="utf-8")
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--allow-active-sweep",
+            "--max-hardware-points",
+            "12",
+            "--hardware-approval-note",
+            "limited lab feedback ok",
+            "--accepted-previous-run",
+            str(previous_run),
+            "--yes",
+        ]
+    )
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
 
 
 def test_cli_dual_gate_lockin_active_sweep_blocks_when_too_many_points(tmp_path, monkeypatch):

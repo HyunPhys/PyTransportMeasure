@@ -441,8 +441,12 @@ before raising `--max-hardware-points`:
 If `--max-hardware-points` is raised above the default guard, the CLI requires
 both `--hardware-approval-note` and `--accepted-previous-run`. The previous run
 must be a saved dual-gate lock-in sweep that passes strict
-`ptm dual-gate-lockin-audit`, including SR860 setting readback. The note and
-accepted-run audit summary are saved in `metadata.json` under `hardware_guard`.
+`ptm dual-gate-lockin-audit`, including SR860 setting readback. The CLI also
+checks scale-up compatibility: measurement geometry, topology, lock-in settings,
+gate Keithley settings, compliance policy, and whether the candidate grid
+contains the accepted previous grid points. The note, accepted-run audit
+summary, and compatibility result are saved in `metadata.json` under
+`hardware_guard`.
 Use this for short lab-context notes such as
 `"2x2 smoke passed, leakage < 10 pA, expanding to 5x5"`.
 

@@ -427,13 +427,17 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-audit data\raw\<accepted_limited_run_folder> --write-report
   ```
+- [ ] Confirm the raised hardware run prints
+  `Dual-gate lock-in scale-up compatibility: PASS` before preflight/output.
 - [ ] Confirm runs with raised hardware point guards save `metadata.json`
   `hardware_guard.default_max_hardware_points`,
   `hardware_guard.requested_max_hardware_points`,
   `hardware_guard.raised_above_default`, and
   `hardware_guard.approval_note`,
   `hardware_guard.accepted_previous_run`, and
-  `hardware_guard.accepted_previous_run_audit_passed`.
+  `hardware_guard.accepted_previous_run_audit_passed`,
+  `hardware_guard.accepted_previous_run_scale_up_compatible`, and
+  `hardware_guard.accepted_previous_run_grid_signature`.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
