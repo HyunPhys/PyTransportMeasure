@@ -549,11 +549,16 @@ root.
     outputs into one package-local handoff summary
   - expose a single PASS/REVIEW state for lab notebook attachment
   - keep individual JSON artifacts as the detailed audit trail
-- [ ] Phase 25cb: Hall package lab-return manifest
+- [x] Phase 25cb: Hall package lab-return manifest
   - create a package-local manifest for files returned from the lab laptop after
     acquisition
   - record run folders, operator notes, package hash, and post-run intake status
   - keep the handoff and return records connected for later analysis
+- [ ] Phase 25cc: Hall package lifecycle status
+  - combine handoff summary, lab-return manifest, intake, analysis, review, and
+    next-scan proposal into a single lifecycle status report
+  - expose which package stage is ready, missing, or requires review
+  - prepare package lifecycle state for GUI package inspection
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

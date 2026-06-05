@@ -584,6 +584,12 @@ remain point-guarded.
 - [ ] Confirm intake prints `Hall suite result intake: PASS`.
 - [ ] Confirm `result_intake_report.md` and `result_intake.json` are written in
   the package folder.
+- [ ] Write the lab-return manifest after intake PASS.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lab-return-manifest data\hall_packages\<sample_lab_package> --operator-note "<lab notebook reference>" --overwrite
+  ```
+- [ ] Confirm `lab_return/lab_return_manifest.md` says
+  `Ready for analysis: True` and lists the returned run folders.
 - [ ] Confirm the report shows each run acceptance as PASS and no
   `recipe_match`, `grid_signature`, `voltage_probe_role`, or magnetic-field
   errors.

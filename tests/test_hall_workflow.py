@@ -14,6 +14,7 @@ from pytransport.hall_workflow import (
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
     write_dual_gate_lockin_hall_suite_handoff_summary,
+    write_dual_gate_lockin_hall_suite_lab_return_manifest,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
 )
 
@@ -248,6 +249,58 @@ def test_hall_handoff_summary_writes_single_pass_index(tmp_path):
     assert (summary_dir / "hardware_command_review.json").exists()
     assert (summary_dir / "lab_smoke_bundle.json").exists()
     assert "Ready for lab handoff: True" in report
+
+
+def test_hall_lab_return_manifest_records_accepted_intake(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+    intake = {
+        "package_manifest_path": str(package.manifest_path),
+        "accepted": True,
+        "issues": [],
+        "runs": {
+            "longitudinal": {
+                "run_dir": str(tmp_path / "raw" / "vxx"),
+                "accepted": True,
+                "completed": True,
+                "points_written": 4,
+                "planned_points": 4,
+                "remaining_points": 0,
+            },
+            "plus": {
+                "run_dir": str(tmp_path / "raw" / "plus"),
+                "accepted": True,
+                "completed": True,
+                "points_written": 4,
+                "planned_points": 4,
+                "remaining_points": 0,
+            },
+            "minus": {
+                "run_dir": str(tmp_path / "raw" / "minus"),
+                "accepted": True,
+                "completed": True,
+                "points_written": 4,
+                "planned_points": 4,
+                "remaining_points": 0,
+            },
+        },
+    }
+    intake_path = package.package_dir / "result_intake.json"
+    intake_path.write_text(json.dumps(intake), encoding="utf-8")
+
+    payload = write_dual_gate_lockin_hall_suite_lab_return_manifest(
+        package.package_dir,
+        operator_note="lab laptop run completed",
+    )
+
+    manifest_dir = package.package_dir / "lab_return"
+    saved = json.loads((manifest_dir / "lab_return_manifest.json").read_text(encoding="utf-8"))
+    report = (manifest_dir / "lab_return_manifest.md").read_text(encoding="utf-8")
+    assert payload["ready_for_analysis"] is True
+    assert saved["operator_note"] == "lab laptop run completed"
+    assert saved["result_intake_accepted"] is True
+    assert saved["package_manifest_sha256"]
+    assert set(saved["runs"]) == {"longitudinal", "plus", "minus"}
+    assert "Ready for analysis: True" in report
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

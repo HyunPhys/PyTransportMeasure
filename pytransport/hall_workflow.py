@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import json
 import shutil
+from datetime import datetime
+from hashlib import sha256
 from pathlib import Path
 
 import yaml
@@ -511,6 +513,95 @@ def format_dual_gate_lockin_hall_suite_handoff_summary(payload: dict) -> str:
         "Attach this summary to the lab notebook entry for the package. Run the lab smoke checklist on the lab laptop before any active hardware command.",
         "",
     ]
+    return "\n".join(lines)
+
+
+def write_dual_gate_lockin_hall_suite_lab_return_manifest(
+    package_manifest_or_dir: Path,
+    *,
+    result_intake_json: Path | None = None,
+    output_dir: Path | None = None,
+    operator_note: str | None = None,
+    overwrite: bool = False,
+) -> dict:
+    manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    intake_path = result_intake_json or package_dir / "result_intake.json"
+    intake = _load_json_object(intake_path)
+    if "accepted" not in intake:
+        raise ValueError(f"{intake_path} is missing accepted")
+    runs = intake.get("runs")
+    if not isinstance(runs, dict):
+        raise ValueError(f"{intake_path} is missing runs")
+    out = output_dir or package_dir / "lab_return"
+    if out.exists() and not overwrite:
+        raise FileExistsError(f"Lab return manifest output already exists: {out}")
+    out.mkdir(parents=True, exist_ok=True)
+    package_zip = package_dir.with_suffix(".zip")
+    run_records = {
+        key: {
+            "run_dir": record.get("run_dir"),
+            "accepted": record.get("accepted"),
+            "completed": record.get("completed"),
+            "points_written": record.get("points_written"),
+            "planned_points": record.get("planned_points"),
+            "remaining_points": record.get("remaining_points"),
+        }
+        for key, record in runs.items()
+        if isinstance(record, dict)
+    }
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "package_manifest_sha256": _sha256_file(manifest_path),
+        "package_zip": str(package_zip) if package_zip.exists() else None,
+        "package_zip_sha256": _sha256_file(package_zip) if package_zip.exists() else None,
+        "result_intake_json": str(intake_path),
+        "result_intake_accepted": bool(intake.get("accepted")),
+        "result_intake_issue_count": len(intake.get("issues", [])) if isinstance(intake.get("issues"), list) else None,
+        "runs": run_records,
+        "operator_note": operator_note,
+        "ready_for_analysis": bool(intake.get("accepted")),
+    }
+    json_path = out / "lab_return_manifest.json"
+    report_path = out / "lab_return_manifest.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_lab_return_manifest(payload), encoding="utf-8")
+    payload["json_path"] = str(json_path)
+    payload["report_path"] = str(report_path)
+    return payload
+
+
+def format_dual_gate_lockin_hall_suite_lab_return_manifest(payload: dict) -> str:
+    lines = [
+        "# Hall Suite Lab Return Manifest",
+        "",
+        f"- Package: `{payload.get('package_dir')}`",
+        f"- Manifest SHA256: `{payload.get('package_manifest_sha256')}`",
+        f"- Result intake: `{payload.get('result_intake_json')}`",
+        f"- Intake accepted: {payload.get('result_intake_accepted')}",
+        f"- Ready for analysis: {payload.get('ready_for_analysis')}",
+        f"- Operator note: {payload.get('operator_note') or 'n/a'}",
+        "",
+        "| Role | Run folder | Accepted | Completed | Points | Remaining |",
+        "| --- | --- | --- | --- | ---: | ---: |",
+    ]
+    for key, record in payload.get("runs", {}).items():
+        lines.append(
+            f"| {key} | `{record.get('run_dir')}` | {record.get('accepted')} | "
+            f"{record.get('completed')} | {record.get('points_written')}/{record.get('planned_points')} | "
+            f"{record.get('remaining_points')} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Lab Use",
+            "",
+            "Keep this manifest with the returned package folder. Continue to Hall analysis only when `Ready for analysis` is True.",
+            "",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -1203,6 +1294,14 @@ def _hardware_command_flag_check(
         "expected": required_value,
         "command": command,
     }
+
+
+def _sha256_file(path: Path) -> str:
+    digest = sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: Path) -> Path:

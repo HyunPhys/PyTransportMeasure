@@ -579,6 +579,17 @@ setting readback was not available. For real hardware runs, leave the strict
 default in place. Continue to Hall antisymmetry, zero-field correction, and
 mobility analysis only after intake reports PASS.
 
+After intake passes, record the returned lab run set in the package:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-lab-return-manifest data\hall_packages\sampleA_cd1_lab1 --operator-note "<lab notebook reference>" --overwrite
+```
+
+This writes `lab_return/lab_return_manifest.md` and
+`lab_return/lab_return_manifest.json`, including the package manifest hash,
+package ZIP hash when available, returned run folders, operator note, and intake
+acceptance status.
+
 When intake passes, the full Hall analysis sequence can be run as one command:
 
 ```powershell

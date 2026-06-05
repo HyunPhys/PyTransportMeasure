@@ -621,6 +621,20 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert "Accepted for Hall analysis: True" in report.read_text(encoding="utf-8")
     assert payload["accepted"] is True
     assert payload["runs"]["longitudinal"]["points_written"] == 4
+    return_code = main(
+        [
+            "dual-gate-lockin-hall-suite-lab-return-manifest",
+            str(package_dir),
+            "--operator-note",
+            "returned from lab laptop",
+            "--overwrite",
+        ]
+    )
+    assert return_code == 0
+    return_manifest = json.loads((package_dir / "lab_return" / "lab_return_manifest.json").read_text(encoding="utf-8"))
+    assert return_manifest["ready_for_analysis"] is True
+    assert return_manifest["operator_note"] == "returned from lab laptop"
+    assert set(return_manifest["runs"]) == {"longitudinal", "plus", "minus", "zero"}
 
     code = main(
         [
