@@ -392,6 +392,14 @@ remain point-guarded.
   section.
 - [ ] For a normal 2x2 sweep, confirm `abort_class: completed`,
   `planned_points: 4`, `points_written: 4`, and `remaining_points: 0`.
+- [ ] Audit the saved limited active sweep before expanding the hardware grid.
+  ```powershell
+  ptm dual-gate-lockin-audit data\raw\<dual_gate_lockin_run_folder> --write-report
+  ```
+- [ ] Confirm the audit prints `Dual-gate lock-in acceptance: PASS`.
+- [ ] Confirm `dual_gate_lockin_acceptance.md` is written.
+- [ ] If the audit fails, review the listed issue before changing gate range,
+  point count, NPLC, compliance, or SR860 settings.
 - [ ] If a safety stop occurs, confirm `abort_class: safety_stop`,
   `outputs_off_after_run: true`, and do not resume until leakage/compliance
   cause is reviewed.

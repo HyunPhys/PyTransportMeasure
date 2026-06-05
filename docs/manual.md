@@ -462,6 +462,24 @@ The blocked hardware command prints the same preflight report before returning.
 Use the limited active recipe first, and only raise `--max-hardware-points`
 after the lab smoke checklist and saved recovery metadata look correct.
 
+After a limited active sweep, audit the saved run before expanding the grid:
+
+```powershell
+ptm dual-gate-lockin-audit data\raw\<dual_gate_lockin_run_folder> --write-report
+```
+
+The audit requires a completed dual-gate lock-in sweep, complete point count,
+matched gate1/gate2 Keithley configuration readback, explicit Keithley NPLC
+warnings, confirmed 0 V before output-off cleanup, and SR860 setting readback
+that matches the recipe. A `PASS` result is the artifact-level checkpoint for
+deciding whether the next hardware grid can be larger.
+
+For dry-run artifact checks only, fake SR860 metadata can be relaxed:
+
+```powershell
+ptm dual-gate-lockin-audit data\raw\<dry_run_folder> --allow-missing-lockin-settings
+```
+
 ## Campaign
 
 Use a campaign to collect runs, batches, and schemes into one analysis set.

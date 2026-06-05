@@ -10,7 +10,27 @@ from pathlib import Path
 from typing import Any
 
 from .dual_gate_review import fmt
+from .preflight import compare_lockin_settings, lockin_settings_ok
 from .single_gate_review import current_color, legend_svg, mean, parse_bool, parse_optional_float
+
+
+@dataclass(frozen=True)
+class DualGateLockInAcceptanceIssue:
+    severity: str
+    check: str
+    message: str
+
+
+@dataclass(frozen=True)
+class DualGateLockInAcceptance:
+    run_dir: Path
+    accepted: bool
+    measurement_type: str | None
+    completed: bool | None
+    points_written: int | None
+    planned_points: int | None
+    remaining_points: int | None
+    issues: tuple[DualGateLockInAcceptanceIssue, ...]
 
 
 @dataclass(frozen=True)
@@ -102,6 +122,231 @@ def read_dual_gate_lockin_points(run_dir: str | Path) -> list[dict[str, float | 
                 }
             )
     return rows
+
+
+def audit_dual_gate_lockin_run(
+    run_dir: str | Path,
+    require_lockin_settings: bool = True,
+) -> DualGateLockInAcceptance:
+    path = Path(run_dir)
+    metadata = read_dual_gate_lockin_metadata(path)
+    issues: list[DualGateLockInAcceptanceIssue] = []
+    measurement_type = metadata.get("measurement_type")
+    completed = metadata.get("completed")
+    points_written = _optional_int(metadata.get("points_written"))
+    planned_points = _optional_int(metadata.get("planned_points"))
+    remaining_points = _optional_int(metadata.get("remaining_points"))
+
+    if measurement_type != "dual_gate_lockin_sweep":
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "measurement_type",
+                f"expected dual_gate_lockin_sweep, got {measurement_type or 'missing'}",
+            )
+        )
+    if completed is not True:
+        issues.append(DualGateLockInAcceptanceIssue("error", "completed", "run did not complete cleanly"))
+    if metadata.get("abort_class") != "completed":
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "abort_class",
+                f"expected completed, got {metadata.get('abort_class') or 'missing'}",
+            )
+        )
+    if metadata.get("error_type") or metadata.get("error_message"):
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "error",
+                f"{metadata.get('error_type') or 'unknown'}: {metadata.get('error_message') or ''}".strip(),
+            )
+        )
+    if points_written is None or planned_points is None:
+        issues.append(DualGateLockInAcceptanceIssue("error", "point_count", "points_written/planned_points missing"))
+    elif points_written != planned_points:
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "point_count",
+                f"points_written {points_written} != planned_points {planned_points}",
+            )
+        )
+    if remaining_points not in {0, None}:
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "remaining_points",
+                f"expected 0 remaining points, got {remaining_points}",
+            )
+        )
+    _audit_smu_readback(metadata, "gate1", issues)
+    _audit_smu_readback(metadata, "gate2", issues)
+    _audit_output_cleanup(metadata, "gate1", issues)
+    _audit_output_cleanup(metadata, "gate2", issues)
+    _audit_lockin_probe(metadata, issues)
+    if require_lockin_settings:
+        _audit_lockin_settings(metadata, issues)
+    try:
+        csv_points = len(read_dual_gate_lockin_points(path))
+    except Exception as exc:
+        issues.append(DualGateLockInAcceptanceIssue("error", "points_csv", f"{type(exc).__name__}: {exc}"))
+    else:
+        if points_written is not None and csv_points != points_written:
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    "points_csv",
+                    f"points.csv row count {csv_points} != metadata points_written {points_written}",
+                )
+            )
+
+    errors = [issue for issue in issues if issue.severity == "error"]
+    return DualGateLockInAcceptance(
+        run_dir=path,
+        accepted=not errors,
+        measurement_type=measurement_type,
+        completed=completed,
+        points_written=points_written,
+        planned_points=planned_points,
+        remaining_points=remaining_points,
+        issues=tuple(issues),
+    )
+
+
+def format_dual_gate_lockin_acceptance(audit: DualGateLockInAcceptance) -> str:
+    status = "PASS" if audit.accepted else "FAIL"
+    lines = [
+        f"Dual-gate lock-in acceptance: {status}",
+        f"Run directory: {audit.run_dir}",
+        f"Measurement type: {audit.measurement_type or 'n/a'}",
+        f"Completed: {audit.completed}",
+        f"Points: {audit.points_written if audit.points_written is not None else 'n/a'} / {audit.planned_points if audit.planned_points is not None else 'n/a'}",
+        f"Remaining points: {audit.remaining_points if audit.remaining_points is not None else 'n/a'}",
+    ]
+    if audit.issues:
+        lines.append("Issues:")
+        for issue in audit.issues:
+            lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    else:
+        lines.append("Issues: none")
+    return "\n".join(lines)
+
+
+def write_dual_gate_lockin_acceptance_report(
+    run_dir: str | Path,
+    output_path: str | Path | None = None,
+    require_lockin_settings: bool = True,
+) -> Path:
+    path = Path(run_dir)
+    output = Path(output_path) if output_path is not None else path / "dual_gate_lockin_acceptance.md"
+    audit = audit_dual_gate_lockin_run(path, require_lockin_settings=require_lockin_settings)
+    output.write_text(format_dual_gate_lockin_acceptance(audit) + "\n", encoding="utf-8")
+    return output
+
+
+def _audit_smu_readback(
+    metadata: dict[str, Any],
+    role: str,
+    issues: list[DualGateLockInAcceptanceIssue],
+) -> None:
+    configured = metadata.get(f"configured_{role}_smu") or {}
+    check = metadata.get(f"configured_{role}_smu_readback_check")
+    if not isinstance(check, dict):
+        issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_smu_readback", "readback check missing"))
+        return
+    if check.get("available") is not True:
+        issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_smu_readback", "readback unavailable"))
+    if check.get("matched") is not True:
+        failed = [item for item in check.get("checks", []) if not item.get("matched")]
+        details = "; ".join(
+            f"{item.get('field')} expected {item.get('expected')} got {item.get('actual')}" for item in failed[:4]
+        )
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                f"{role}_smu_readback",
+                details or "readback did not match expected source configuration",
+            )
+        )
+    if configured.get("nplc") is None:
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "warning",
+                f"{role}_nplc",
+                "NPLC was not explicit in the recipe; set it deliberately before hardware scans",
+            )
+        )
+
+
+def _audit_output_cleanup(
+    metadata: dict[str, Any],
+    role: str,
+    issues: list[DualGateLockInAcceptanceIssue],
+) -> None:
+    state = (metadata.get("output_state") or {}).get(role) or {}
+    if state.get("enabled") is True:
+        issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_output", "metadata still marks output enabled"))
+    if state.get("off_after_run") is not True:
+        issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_output", "output-off cleanup not confirmed"))
+    if state.get("zero_before_off_succeeded") is not True:
+        issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_zero", "0 V before output-off not confirmed"))
+    last_command = state.get("last_commanded_voltage_v")
+    try:
+        if last_command is None or abs(float(last_command)) > 1e-12:
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    f"{role}_zero",
+                    f"last commanded voltage after cleanup is {last_command}, expected 0 V",
+                )
+            )
+    except (TypeError, ValueError):
+        issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_zero", "last commanded voltage is invalid"))
+
+
+def _audit_lockin_probe(metadata: dict[str, Any], issues: list[DualGateLockInAcceptanceIssue]) -> None:
+    probe = metadata.get("lockin_probe")
+    if not isinstance(probe, dict):
+        issues.append(DualGateLockInAcceptanceIssue("error", "lockin_probe", "lock-in probe missing"))
+        return
+    if not probe.get("idn"):
+        issues.append(DualGateLockInAcceptanceIssue("error", "lockin_probe", "lock-in IDN missing"))
+    for field in ["error_status", "lia_status"]:
+        if field in probe and str(probe.get(field)).strip() not in {"0", "+0"}:
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    field,
+                    f"SR860 {field} is {probe.get(field)}, expected 0",
+                )
+            )
+
+
+def _audit_lockin_settings(metadata: dict[str, Any], issues: list[DualGateLockInAcceptanceIssue]) -> None:
+    recipe = metadata.get("recipe") or {}
+    lockin = recipe.get("lockin") or {}
+    checks = compare_lockin_settings(lockin, metadata.get("lockin_probe"))
+    if not checks:
+        issues.append(DualGateLockInAcceptanceIssue("warning", "lockin_settings", "no expected SR860 settings declared"))
+        return
+    if not lockin_settings_ok(checks):
+        failed = [check for check in checks if not check.ok]
+        details = "; ".join(
+            f"{check.field} expected {check.expected} got {check.actual if check.actual is not None else 'missing'}"
+            for check in failed[:4]
+        )
+        issues.append(DualGateLockInAcceptanceIssue("error", "lockin_settings", details))
+
+
+def _optional_int(value: Any) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def summarize_dual_gate_lockin_run(run_dir: str | Path) -> DualGateLockInSummary:

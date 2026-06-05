@@ -55,8 +55,11 @@ from .dual_gate_lockin_smoke import (
     run_dual_gate_lockin_readout_smoke,
 )
 from .dual_gate_lockin_review import (
+    audit_dual_gate_lockin_run,
+    format_dual_gate_lockin_acceptance,
     format_dual_gate_lockin_summary,
     summarize_dual_gate_lockin_run,
+    write_dual_gate_lockin_acceptance_report,
     write_dual_gate_lockin_heatmap_svg,
     write_dual_gate_lockin_report,
     write_dual_gate_lockin_stats_csv,
@@ -326,6 +329,19 @@ def build_parser() -> argparse.ArgumentParser:
         help="Required when raising --max-hardware-points above the default guard; saved into run metadata.",
     )
     dual_gate_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
+
+    dual_gate_lockin_audit = subparsers.add_parser(
+        "dual-gate-lockin-audit",
+        help="Audit a saved dual-gate lock-in sweep before expanding hardware scan size.",
+    )
+    dual_gate_lockin_audit.add_argument("run_dir", type=Path)
+    dual_gate_lockin_audit.add_argument(
+        "--allow-missing-lockin-settings",
+        action="store_true",
+        help="Do not fail when saved metadata lacks SR860 setting readback fields.",
+    )
+    dual_gate_lockin_audit.add_argument("--write-report", action="store_true")
+    dual_gate_lockin_audit.add_argument("--output", type=Path)
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
@@ -1103,6 +1119,22 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         print()
         print(format_dual_gate_lockin_summary(summarize_dual_gate_lockin_run(run_dir)))
     return exit_code_for_metadata(metadata)
+
+
+def command_dual_gate_lockin_audit(args: argparse.Namespace) -> int:
+    audit = audit_dual_gate_lockin_run(
+        args.run_dir,
+        require_lockin_settings=not args.allow_missing_lockin_settings,
+    )
+    print(format_dual_gate_lockin_acceptance(audit))
+    if args.write_report or args.output is not None:
+        output_path = write_dual_gate_lockin_acceptance_report(
+            args.run_dir,
+            args.output,
+            require_lockin_settings=not args.allow_missing_lockin_settings,
+        )
+        print(f"Dual-gate lock-in acceptance report: {output_path}")
+    return 0 if audit.accepted else 2
 
 
 def command_ac_lockin_plan(args: argparse.Namespace) -> int:
@@ -2312,6 +2344,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_active_smoke(args)
     if args.command == "dual-gate-lockin":
         return command_dual_gate_lockin(args)
+    if args.command == "dual-gate-lockin-audit":
+        return command_dual_gate_lockin_audit(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
     if args.command == "ac-lockin-preflight":

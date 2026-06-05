@@ -259,7 +259,13 @@ root.
   - save command count, last commanded voltage, command error, and
     pre-cleanup setpoint per SMU role
   - use this for partial-run review before broader Hall-bar scans
-- [ ] Phase 25u: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25u: Dual-gate lock-in acceptance audit
+  - add `ptm dual-gate-lockin-audit` for saved limited active sweeps
+  - check completed status, point completeness, SMU readback, NPLC declaration,
+    output cleanup, zero-before-off, and SR860 setting readback
+  - write `dual_gate_lockin_acceptance.md` as the artifact checkpoint before
+    expanding hardware scans
+- [ ] Phase 25v: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

@@ -7,8 +7,11 @@ import pytest
 from pytransport.dual_gate_lockin import dual_gate_lockin_point_count, format_dual_gate_lockin_plan, run_dual_gate_lockin_sweep
 from pytransport.dual_gate_lockin_smoke import run_dual_gate_lockin_active_gate_smoke
 from pytransport.dual_gate_lockin_review import (
+    audit_dual_gate_lockin_run,
+    format_dual_gate_lockin_acceptance,
     format_dual_gate_lockin_summary,
     summarize_dual_gate_lockin_run,
+    write_dual_gate_lockin_acceptance_report,
     write_dual_gate_lockin_heatmap_svg,
     write_dual_gate_lockin_report,
     write_dual_gate_lockin_stats_csv,
@@ -207,6 +210,15 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert gate1_smu.state.gate1_voltage_v == pytest.approx(0.0)
     assert gate2_smu.state.gate2_voltage_v == pytest.approx(0.0)
 
+    acceptance = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=False)
+    assert acceptance.accepted is True
+    assert "Dual-gate lock-in acceptance: PASS" in format_dual_gate_lockin_acceptance(acceptance)
+    assert write_dual_gate_lockin_acceptance_report(run_dir, require_lockin_settings=False).name == "dual_gate_lockin_acceptance.md"
+
+    strict_acceptance = audit_dual_gate_lockin_run(run_dir)
+    assert strict_acceptance.accepted is False
+    assert any(issue.check == "lockin_settings" for issue in strict_acceptance.issues)
+
     summary = summarize_dual_gate_lockin_run(run_dir)
     assert summary.points == 9
     assert summary.gate1_points == 3
@@ -224,6 +236,23 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     report = (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
     assert "## Recovery" in report
     assert "Mean Resistance" in report
+
+
+def test_dual_gate_lockin_acceptance_fails_output_cleanup_issue(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1_smu, gate2_smu, lockin)
+    run_dir = Path(metadata["run_dir"])
+    metadata_path = run_dir / "metadata.json"
+    saved_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    saved_metadata["output_state"]["gate1"]["off_after_run"] = False
+    metadata_path.write_text(json.dumps(saved_metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    acceptance = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=False)
+
+    assert acceptance.accepted is False
+    assert any(issue.check == "gate1_output" for issue in acceptance.issues)
 
 
 def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):

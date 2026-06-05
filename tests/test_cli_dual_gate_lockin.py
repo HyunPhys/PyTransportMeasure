@@ -33,6 +33,18 @@ lockin:
   address: GPIB0::4::INSTR
   channels: [x, y, r, theta]
   read_timing: after_dc_settle
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
+  input_mode: voltage
+  voltage_input: a
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
 topology:
   device_layout: hall_bar
   gate1_role: top_gate
@@ -96,6 +108,37 @@ def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
     assert (run_dirs[0] / "dual_gate_lockin_heatmap.svg").exists()
     assert (run_dirs[0] / "dual_gate_lockin_report.md").exists()
     assert (run_dirs[0] / "dual_gate_lockin_stats.csv").exists()
+
+
+def test_cli_dual_gate_lockin_audit_saved_run(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+    assert code == 0
+    run_dir = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[0]
+
+    strict_code = cli.main(["dual-gate-lockin-audit", str(run_dir)])
+    relaxed_code = cli.main(
+        [
+            "dual-gate-lockin-audit",
+            str(run_dir),
+            "--allow-missing-lockin-settings",
+            "--write-report",
+        ]
+    )
+
+    assert strict_code == 2
+    assert relaxed_code == 0
+    assert (run_dir / "dual_gate_lockin_acceptance.md").exists()
 
 
 def test_cli_dual_gate_lockin_hardware_run_is_blocked(tmp_path, monkeypatch):
