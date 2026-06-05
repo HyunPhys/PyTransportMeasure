@@ -1167,6 +1167,24 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm `Active hardware run allowed: False`.
 - [ ] Do not enable four-terminal DC output yet.
 
+## Four-Terminal DC Dry-Run Artifact Checklist
+
+- [ ] Run:
+  ```powershell
+  ptm four-terminal-dc configs\recipes\four_terminal_dc_schema_draft.yaml --dry-run --fake-resistance-ohm 1000000 --progress
+  ```
+- [ ] Confirm the command prints `Four-terminal DC dry-run`.
+- [ ] Confirm `Active hardware run allowed: False`.
+- [ ] Open the printed run directory.
+- [ ] Confirm `points.csv`, `metadata.json`, `recipe_snapshot.yaml`, and
+  `safety_snapshot.yaml` exist.
+- [ ] Confirm `metadata.json` has `measurement_type: four_terminal_dc`.
+- [ ] Confirm `dry_run: true`.
+- [ ] Confirm `configured_smu.nplc`, `voltage_range_v`, `current_range_a`, and
+  `current_compliance_a` match the recipe.
+- [ ] Confirm `remote_sense.configured_in_dry_run` is `false`.
+- [ ] Confirm the command without `--dry-run` refuses to run hardware output.
+
 ## Development Checklist
 
 - [ ] Keep hardware logic out of CLI argument handling.

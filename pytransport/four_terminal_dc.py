@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 import json
+import random
+import time
 from dataclasses import asdict, dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
 
 from pydantic import ValidationError
 
-from .recipes import DrainIVRecipe, FourTerminalDCRecipe, load_four_terminal_dc_recipe, load_yaml
+from .errors import SafetyLimitError
+from .instruments.fake import fake_voltage_source_config_readback
+from .io import RunWriter
+from .model import MeasurementPoint
+from .recipes import DrainIVRecipe, FourTerminalDCRecipe, SafetyPreset, load_four_terminal_dc_recipe, load_yaml, sweep_delays, sweep_voltages
+from .safety import validate_point_current
+from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
 
 
 @dataclass(frozen=True)
@@ -424,6 +433,127 @@ def write_four_terminal_dc_preflight_json(
     return path
 
 
+def run_four_terminal_dc_dry_run(
+    recipe: FourTerminalDCRecipe,
+    safety: SafetyPreset,
+    *,
+    recipe_path: str | Path | None = None,
+    fake_resistance_ohm: float = 1_000_000.0,
+    fake_noise_std_a: float = 0.0,
+    progress_callback: Callable[[MeasurementPoint, int], None] | None = None,
+) -> dict[str, Any]:
+    if fake_resistance_ohm <= 0:
+        raise ValueError("fake_resistance_ohm must be > 0")
+    if fake_noise_std_a < 0:
+        raise ValueError("fake_noise_std_a must be >= 0")
+    _validate_four_terminal_dc_against_safety(recipe, safety)
+    writer = RunWriter(Path(recipe.output.directory), recipe.measurement_name)
+    writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
+    writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
+    smu_config = build_voltage_source_config(recipe.instrument, recipe.sweep.current_compliance_a)
+    metadata: dict[str, Any] = {
+        "measurement_name": recipe.measurement_name,
+        "measurement_type": "four_terminal_dc",
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "completed": False,
+        "interrupted": False,
+        "dry_run": True,
+        "active_hardware_run_allowed": False,
+        "runner_status": "dry_run_skeleton_non_executable_hardware",
+        "error_type": None,
+        "error_message": None,
+        "triggered_limit": None,
+        "points_written": 0,
+        "recipe": recipe.model_dump(mode="json"),
+        "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
+        "safety": safety.model_dump(mode="json"),
+        "run_dir": str(writer.run_dir),
+        "csv_path": str(writer.csv_path),
+        "metadata_path": str(writer.metadata_path),
+        "recipe_snapshot_path": str(writer.recipe_snapshot_path),
+        "safety_snapshot_path": str(writer.safety_snapshot_path),
+        "plot_path": None,
+        "report_path": None,
+        "contact_map": recipe.contacts.model_dump(mode="json"),
+        "dc_sense_mode": recipe.dc_sense_mode,
+        "remote_sense": {
+            "scpi_enable_command": ":SENS:CURR:RSEN ON",
+            "scpi_readback_query": ":SENS:CURR:RSEN?",
+            "configured_in_dry_run": False,
+            "active_hardware_output_enabled": False,
+        },
+        "configured_smu": voltage_source_config_snapshot(smu_config),
+        "configured_smu_readback": fake_voltage_source_config_readback(smu_config),
+        "fake_model": {
+            "kind": "four_terminal_dc_ohmic_current",
+            "resistance_ohm": fake_resistance_ohm,
+            "noise_std_a": fake_noise_std_a,
+            "sense_voltage_v_equals_force_voltage_v": True,
+        },
+    }
+    points_written = 0
+    try:
+        start = time.monotonic()
+        voltages = sweep_voltages(recipe.sweep)
+        delays = sweep_delays(recipe.sweep)
+        for index, (voltage_v, delay_s) in enumerate(zip(voltages, delays)):
+            if delay_s > 0:
+                time.sleep(min(delay_s, 0.001))
+            current_a = float(voltage_v) / fake_resistance_ohm + random.gauss(0.0, fake_noise_std_a)
+            compliance_hit = abs(current_a) >= recipe.sweep.current_compliance_a
+            if compliance_hit:
+                raise SafetyLimitError("Simulated four-terminal DC compliance was reached", "instrument_compliance")
+            validate_point_current(current_a, safety)
+            resistance_ohm = None if current_a == 0 else float(voltage_v) / current_a
+            point = MeasurementPoint(
+                index=index,
+                voltage_v=float(voltage_v),
+                current_a=current_a,
+                elapsed_s=time.monotonic() - start,
+                resistance_ohm=resistance_ohm,
+                compliance_hit=False,
+            )
+            writer.write_point(point)
+            points_written += 1
+            if progress_callback is not None:
+                progress_callback(point, len(voltages))
+        metadata["completed"] = True
+        return metadata
+    except SafetyLimitError as exc:
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = str(exc)
+        metadata["triggered_limit"] = exc.triggered_limit
+        return metadata
+    except Exception as exc:
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = str(exc)
+        return metadata
+    finally:
+        metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        metadata["points_written"] = points_written
+        writer.write_metadata(metadata)
+        writer.close()
+
+
+def format_four_terminal_dc_dry_run_result(metadata: dict[str, Any]) -> str:
+    return "\n".join(
+        [
+            "Four-terminal DC dry-run",
+            f"Run directory: {metadata['run_dir']}",
+            f"CSV: {metadata['csv_path']}",
+            f"Metadata: {metadata['metadata_path']}",
+            f"Completed: {metadata['completed']}",
+            f"Points written: {metadata['points_written']}",
+            f"Active hardware run allowed: {metadata['active_hardware_run_allowed']}",
+            f"NPLC: {metadata['configured_smu'].get('nplc')}",
+            f"Voltage range: {metadata['configured_smu'].get('voltage_range_v')} V",
+            f"Current range: {metadata['configured_smu'].get('current_range_a')} A",
+            f"Compliance: {metadata['configured_smu'].get('current_compliance_a')} A",
+            f"Remote sense configured in dry-run: {metadata['remote_sense']['configured_in_dry_run']}",
+        ]
+    )
+
+
 def _recipe_preflight_checks(recipe: FourTerminalDCRecipe) -> list[FourTerminalDCPreflightCheck]:
     return [
         FourTerminalDCPreflightCheck(
@@ -550,3 +680,23 @@ def _readback_available(value: str | None) -> bool:
     if value is None:
         return False
     return not value.upper().startswith("ERROR")
+
+
+def _validate_four_terminal_dc_against_safety(recipe: FourTerminalDCRecipe, safety: SafetyPreset) -> None:
+    max_recipe_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.sweep))
+    if max_recipe_voltage > safety.max_abs_voltage_v:
+        raise SafetyLimitError(
+            (
+                f"Four-terminal DC sweep reaches {max_recipe_voltage:g} V, "
+                f"above safety limit {safety.max_abs_voltage_v:g} V"
+            ),
+            triggered_limit="max_abs_voltage_v",
+        )
+    if recipe.sweep.current_compliance_a > safety.max_abs_current_a:
+        raise SafetyLimitError(
+            (
+                f"Four-terminal DC compliance {recipe.sweep.current_compliance_a:g} A, "
+                f"above safety limit {safety.max_abs_current_a:g} A"
+            ),
+            triggered_limit="max_abs_current_a",
+        )

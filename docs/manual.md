@@ -1583,6 +1583,19 @@ voltage range readbacks are available. It still prints
 `Active hardware run allowed: False`; four-terminal DC output remains blocked
 until a later runner phase is written and separately verified.
 
+To validate four-terminal DC run artifacts without enabling hardware output,
+use the dry-run runner:
+
+```powershell
+ptm four-terminal-dc configs\recipes\four_terminal_dc_schema_draft.yaml --dry-run --fake-resistance-ohm 1000000 --progress
+```
+
+This writes `points.csv`, `metadata.json`, `recipe_snapshot.yaml`, and
+`safety_snapshot.yaml` using the four-terminal recipe schema. The metadata
+records the contact map, `dc_sense_mode`, NPLC/ranges/compliance, and planned
+remote-sense SCPI commands. Running the same command without `--dry-run` is
+blocked because active Keithley remote-sense output is not implemented yet.
+
 Keithley source blocks may also set an instrument voltage-source delay:
 
 ```yaml

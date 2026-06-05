@@ -616,10 +616,15 @@ root.
   - add non-output preflight readback planning for `:SENS:CURR:RSEN?`
   - keep remote-sense output blocked until preflight proves terminal, range,
     NPLC, compliance, and remote-sense readback checks are available
-- [ ] Phase 25cp: Four-terminal DC fake metadata runner skeleton
+- [x] Phase 25cp: Four-terminal DC fake metadata runner skeleton
   - add a dry-run/fake artifact path for four-terminal DC metadata and reports
   - keep real Keithley remote-sense output blocked until lab preflight feedback
     confirms the readback gate
+- [ ] Phase 25cq: Four-terminal DC active-run command review
+  - design the exact guarded remote-sense output sequence using preflight
+    evidence and Keithley 2450 SCPI behavior
+  - require explicit approval gates before wiring `:SENS:CURR:RSEN ON` into
+    any active runner
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -1,4 +1,6 @@
+import csv
 import json
+from pathlib import Path
 
 import pytest
 
@@ -7,9 +9,10 @@ from pytransport.four_terminal_dc import (
     format_four_terminal_dc_preflight,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    run_four_terminal_dc_dry_run,
     run_four_terminal_dc_preflight,
 )
-from pytransport.recipes import FourTerminalDCRecipe, load_four_terminal_dc_recipe
+from pytransport.recipes import FourTerminalDCRecipe, load_four_terminal_dc_recipe, load_named_safety_preset
 
 
 def write_candidate_recipe(path):
@@ -39,7 +42,15 @@ sweep:
     )
 
 
-def write_schema_draft_recipe(path, *, terminal_plane="FRONT", instrument_terminal="FRONT", sense_lo_contact="V-"):
+def write_schema_draft_recipe(
+    path,
+    *,
+    terminal_plane="FRONT",
+    instrument_terminal="FRONT",
+    sense_lo_contact="V-",
+    output_dir=None,
+):
+    output_block = "" if output_dir is None else f"output:\n  directory: {output_dir}\n"
     path.write_text(
         f"""
 measurement_name: schema_draft_four_terminal_dc
@@ -67,6 +78,7 @@ sweep:
   points: 3
   delay_s: 0.1
   current_compliance_a: 1.0e-7
+{output_block.rstrip()}
 implementation_status: schema_draft_non_executable
 """.lstrip(),
         encoding="utf-8",
@@ -227,6 +239,57 @@ def test_four_terminal_dc_preflight_reports_failed_hardware_readback():
     assert any(check.name == "remote_sense_readback_available" and not check.ok for check in report.checks)
 
 
+def test_four_terminal_dc_dry_run_writes_metadata_without_active_output(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+
+    metadata = run_four_terminal_dc_dry_run(
+        recipe,
+        safety,
+        recipe_path=recipe_path,
+        fake_resistance_ohm=1_000_000,
+        fake_noise_std_a=0,
+    )
+    run_dir = Path(metadata["run_dir"])
+    rows = list(csv.DictReader((run_dir / "points.csv").open(newline="", encoding="utf-8")))
+    saved_metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+
+    assert metadata["completed"] is True
+    assert metadata["dry_run"] is True
+    assert metadata["active_hardware_run_allowed"] is False
+    assert metadata["remote_sense"]["configured_in_dry_run"] is False
+    assert metadata["configured_smu"]["nplc"] == pytest.approx(1.0)
+    assert metadata["configured_smu_readback"]["current_nplc"] == "1"
+    assert len(rows) == 3
+    assert rows[0]["voltage_v"] == "-0.01"
+    assert saved_metadata["measurement_type"] == "four_terminal_dc"
+    assert saved_metadata["contact_map"]["sense_hi_contact"] == "V+"
+
+
+def test_four_terminal_dc_dry_run_saves_partial_metadata_on_limit(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+
+    metadata = run_four_terminal_dc_dry_run(
+        recipe,
+        safety,
+        recipe_path=recipe_path,
+        fake_resistance_ohm=1,
+        fake_noise_std_a=0,
+    )
+    run_dir = Path(metadata["run_dir"])
+    saved_metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+
+    assert metadata["completed"] is False
+    assert metadata["error_type"] == "SafetyLimitError"
+    assert metadata["points_written"] == 0
+    assert saved_metadata["triggered_limit"] == "instrument_compliance"
+
+
 def test_cli_four_terminal_dc_design_gate_outputs_text_and_json(tmp_path, capsys):
     recipe = tmp_path / "four_terminal_dc.yaml"
     output = tmp_path / "design_gate.json"
@@ -279,3 +342,26 @@ def test_cli_four_terminal_dc_preflight_dry_check_outputs_text_and_json(tmp_path
     assert main(["four-terminal-dc-preflight", recipe, "--dry-check", "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["active_hardware_run_allowed"] is False
+
+
+def test_cli_four_terminal_dc_requires_dry_run(capsys):
+    recipe = "configs/recipes/four_terminal_dc_schema_draft.yaml"
+
+    assert main(["four-terminal-dc", recipe]) == 2
+    assert "hardware output is not implemented" in capsys.readouterr().err
+
+
+def test_cli_four_terminal_dc_dry_run_writes_artifacts(tmp_path, capsys):
+    recipe = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe, output_dir=tmp_path.as_posix())
+
+    assert main(["four-terminal-dc", str(recipe), "--dry-run", "--fake-resistance-ohm", "1000000"]) == 0
+    text = capsys.readouterr().out
+    run_dir_line = next(line for line in text.splitlines() if line.startswith("Run directory: "))
+    run_dir = Path(run_dir_line.split(": ", maxsplit=1)[1])
+    metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+
+    assert "Four-terminal DC dry-run" in text
+    assert "Active hardware run allowed: False" in text
+    assert metadata["completed"] is True
+    assert metadata["configured_smu"]["nplc"] == pytest.approx(1.0)

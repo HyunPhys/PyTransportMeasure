@@ -71,7 +71,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
     MeasurementMode(
         key="four_terminal_dc",
         label="Four-terminal DC",
-        status="planned",
+        status="dry_run_ready",
         measurement_type="dc_four_terminal",
         geometry="four_terminal, 4-terminal",
         primary_instruments=("Keithley 2450 source", "Keithley 2450 voltage-sense or sense terminals"),
@@ -81,7 +81,9 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "ptm four-terminal-dc-preflight configs/recipes/four_terminal_dc_schema_draft.yaml --dry-check",
             "ptm four-terminal-dc-preflight configs/recipes/four_terminal_dc_schema_draft.yaml",
         ),
-        run_commands=(),
+        run_commands=(
+            "ptm four-terminal-dc configs/recipes/four_terminal_dc_schema_draft.yaml --dry-run --fake-resistance-ohm 1000000 --progress",
+        ),
         guarded_parameters=(
             "source Keithley NPLC/range/compliance",
             "sense terminal mode",
@@ -93,8 +95,8 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "read :SENS:CURR:RSEN? before any future output path",
             "keep active hardware run disabled while preflight is being verified",
         ),
-        current_limitations=("No active runner yet; preflight can probe hardware but cannot enable output.",),
-        next_step="Run four-terminal-dc-preflight on the lab laptop, then add a fake metadata runner skeleton.",
+        current_limitations=("Dry-run artifacts exist; no active Keithley remote-sense output path yet.",),
+        next_step="Run lab preflight feedback, then design the guarded active remote-sense output sequence.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

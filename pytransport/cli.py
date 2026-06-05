@@ -110,10 +110,12 @@ from .dual_gate_lockin_review import (
 )
 from .feedback_bundle import create_feedback_bundle
 from .four_terminal_dc import (
+    format_four_terminal_dc_dry_run_result,
     format_four_terminal_dc_preflight,
     format_four_terminal_dc_recipe_validation,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    run_four_terminal_dc_dry_run,
     run_four_terminal_dc_preflight,
     validate_four_terminal_dc_recipe_file,
     write_four_terminal_dc_design_gate_json,
@@ -309,6 +311,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     four_terminal_dc_preflight.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     four_terminal_dc_preflight.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
+
+    four_terminal_dc = subparsers.add_parser(
+        "four-terminal-dc",
+        help="Run a four-terminal DC recipe. Current milestone supports dry-run artifacts only.",
+    )
+    four_terminal_dc.add_argument("recipe", type=Path)
+    four_terminal_dc.add_argument("--dry-run", action="store_true", help="Required for this guarded milestone.")
+    four_terminal_dc.add_argument("--fake-resistance-ohm", type=float, default=1_000_000.0)
+    four_terminal_dc.add_argument("--fake-noise-std-a", type=float, default=0.0)
+    four_terminal_dc.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    four_terminal_dc.add_argument("--progress", action="store_true")
 
     run = subparsers.add_parser("run", help="Run a Drain I-V recipe.")
     run.add_argument("recipe", type=Path)
@@ -1348,6 +1361,34 @@ def command_four_terminal_dc_preflight(args: argparse.Namespace) -> int:
     elif not args.json_output:
         print(format_four_terminal_dc_preflight(report))
     return 0 if report.preflight_passed else 2
+
+
+def command_four_terminal_dc(args: argparse.Namespace) -> int:
+    if not args.dry_run:
+        print(
+            "four-terminal-dc hardware output is not implemented yet; rerun with --dry-run for artifact validation.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        recipe = validate_four_terminal_dc_recipe_file(args.recipe)
+        safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
+        metadata = run_four_terminal_dc_dry_run(
+            recipe,
+            safety,
+            recipe_path=args.recipe,
+            fake_resistance_ohm=args.fake_resistance_ohm,
+            fake_noise_std_a=args.fake_noise_std_a,
+            progress_callback=print_progress if args.progress else None,
+        )
+    except Exception as exc:
+        print(f"Four-terminal DC dry-run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    print(format_four_terminal_dc_dry_run_result(metadata))
+    if metadata.get("error_type"):
+        print(f"Error: {metadata['error_type']}: {metadata['error_message']}")
+        return 2
+    return 0 if metadata.get("completed") else 2
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -3892,6 +3933,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_four_terminal_dc_validate(args)
     if args.command == "four-terminal-dc-preflight":
         return command_four_terminal_dc_preflight(args)
+    if args.command == "four-terminal-dc":
+        return command_four_terminal_dc(args)
     if args.command == "run":
         return command_run(args)
     if args.command == "single-gate-plan":
