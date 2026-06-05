@@ -190,10 +190,14 @@ root.
   - use the required topology block for SR860 excitation path and Hall-bar source-drain wiring
   - verify gate leakage and lock-in readout on a safe test device
   - apply one static gate-voltage pair, record leakage/readout, and always turn outputs off
-- [ ] Phase 25i: Dual-gate lock-in limited active sweep
+- [x] Phase 25i: Dual-gate lock-in limited active sweep
   - require successful active-gate smoke first
   - enable a tiny bounded gate1 x gate2 scan with strict current limits
-  - add interruption/resume policy before broad scans
+  - keep broad scans blocked until interruption/resume policy exists
+- [ ] Phase 25j: Dual-gate lock-in interruption and resume policy
+  - define whether interrupted active sweeps can resume or must restart
+  - add operator-visible abort metadata and recovery checklist
+  - keep broad scans blocked until this policy exists
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

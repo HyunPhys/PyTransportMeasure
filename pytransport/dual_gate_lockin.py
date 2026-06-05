@@ -200,6 +200,8 @@ def run_dual_gate_lockin_sweep(
         "error_message": None,
         "triggered_limit": None,
         "points_written": 0,
+        "gate_outputs_enabled": False,
+        "outputs_off_after_run": False,
         "recipe": recipe.model_dump(mode="json"),
         "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
         "safety": safety.model_dump(mode="json"),
@@ -240,6 +242,7 @@ def run_dual_gate_lockin_sweep(
         )
         gate1_smu.output_on()
         gate2_smu.output_on()
+        metadata["gate_outputs_enabled"] = True
 
         start = time.monotonic()
         gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
@@ -308,6 +311,8 @@ def run_dual_gate_lockin_sweep(
             try:
                 gate2_smu.output_off()
             finally:
+                metadata["gate_outputs_enabled"] = False
+                metadata["outputs_off_after_run"] = True
                 gate1_smu.close()
                 gate2_smu.close()
                 lockin.close()

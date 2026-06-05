@@ -47,7 +47,7 @@ from .dual_gate_review import (
     write_dual_gate_report,
     write_dual_gate_stats_csv,
 )
-from .dual_gate_lockin import run_dual_gate_lockin_sweep
+from .dual_gate_lockin import dual_gate_lockin_point_count, run_dual_gate_lockin_sweep
 from .dual_gate_lockin_smoke import (
     format_dual_gate_lockin_active_smoke_plan,
     format_dual_gate_lockin_smoke_plan,
@@ -310,6 +310,9 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin.add_argument("--progress", action="store_true")
     dual_gate_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     dual_gate_lockin.add_argument("--preview-points", type=int, default=5)
+    dual_gate_lockin.add_argument("--allow-active-sweep", action="store_true", help="Enable the guarded hardware gate sweep path.")
+    dual_gate_lockin.add_argument("--max-hardware-points", type=int, default=9, help="Maximum allowed hardware points for guarded active sweep.")
+    dual_gate_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
@@ -975,25 +978,50 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
     validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
     print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
     print()
-    if not args.dry_run:
+    if not args.dry_run and not args.allow_active_sweep:
         report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
         print(format_dual_gate_lockin_preflight_report(report))
         print()
         print(
-            "Dual-gate lock-in hardware runs are not active yet. Use --dry-run until SR860 excitation/readout topology is smoke-tested.",
+            "Dual-gate lock-in hardware sweep is guarded. Use --allow-active-sweep only after preflight, readout smoke, and active-gate smoke pass.",
             file=sys.stderr,
         )
         return 2
-    gate1_smu, gate2_smu, lockin = build_dual_gate_lockin_fake_instruments(
-        args.fake_gate1_leak_resistance_ohm,
-        args.fake_gate2_leak_resistance_ohm,
-        args.fake_lockin_r_v,
-        args.fake_lockin_gate1_sensitivity_v_per_v,
-        args.fake_lockin_gate2_sensitivity_v_per_v,
-        args.fake_lockin_cross_sensitivity_v_per_v2,
-        args.fake_lockin_phase_deg,
-        args.fake_noise_std,
-    )
+    if args.dry_run:
+        gate1_smu, gate2_smu, lockin = build_dual_gate_lockin_fake_instruments(
+            args.fake_gate1_leak_resistance_ohm,
+            args.fake_gate2_leak_resistance_ohm,
+            args.fake_lockin_r_v,
+            args.fake_lockin_gate1_sensitivity_v_per_v,
+            args.fake_lockin_gate2_sensitivity_v_per_v,
+            args.fake_lockin_cross_sensitivity_v_per_v2,
+            args.fake_lockin_phase_deg,
+            args.fake_noise_std,
+        )
+    else:
+        total_points = dual_gate_lockin_point_count(recipe)
+        if args.max_hardware_points < 1:
+            raise ValueError("--max-hardware-points must be >= 1")
+        if total_points > args.max_hardware_points:
+            print(
+                f"Dual-gate lock-in active sweep blocked: {total_points} points exceeds --max-hardware-points {args.max_hardware_points}.",
+                file=sys.stderr,
+            )
+            return 2
+        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        print(format_dual_gate_lockin_preflight_report(report))
+        print()
+        if not report.ok:
+            print("Dual-gate lock-in active sweep blocked because preflight did not pass.", file=sys.stderr)
+            return 2
+        if should_confirm_hardware_run(False, args.yes) and not confirm_hardware_run(
+            lambda prompt: input(prompt.replace("hardware output and sweep", "dual-gate lock-in active sweep"))
+        ):
+            print("Dual-gate lock-in active sweep cancelled before output was enabled.", file=sys.stderr)
+            return 2
+        gate1_smu = Keithley2450(recipe.gate1_instrument.address, recipe.gate1_instrument.timeout_ms)
+        gate2_smu = Keithley2450(recipe.gate2_instrument.address, recipe.gate2_instrument.timeout_ms)
+        lockin = SRS_SR860(recipe.lockin.address or "", recipe.lockin.timeout_ms)
     progress_callback = print_dual_gate_lockin_progress if args.progress else None
     metadata = run_dual_gate_lockin_sweep(
         recipe,

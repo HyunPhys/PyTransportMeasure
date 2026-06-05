@@ -355,6 +355,25 @@ preflight is available.
   `gate_outputs_enabled: false` after the run.
 - [ ] Confirm leakage currents are below the chosen safety/current-compliance
   limits before any active gate sweep work begins.
+- [ ] Preview the limited active 2x2 sweep recipe.
+  ```powershell
+  ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_limited_active.yaml
+  ```
+- [ ] Confirm `Total points: 4`, small gate voltage range, intended NPLC, and
+  topology before hardware output.
+- [ ] Run the limited active sweep only after the active-gate smoke passes.
+  ```powershell
+  ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 4 --progress --plot --report --gate-stats
+  ```
+- [ ] Confirm the command asks for confirmation before enabling gate outputs
+  unless `--yes` is explicitly used.
+- [ ] Confirm metadata has `outputs_off_after_run: true` and
+  `gate_outputs_enabled: false` after the sweep.
+- [ ] Confirm the broader dry-run recipe is blocked by the point guard in
+  hardware mode.
+  ```powershell
+  ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --allow-active-sweep --max-hardware-points 4 --yes
+  ```
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

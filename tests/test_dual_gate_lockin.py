@@ -123,6 +123,18 @@ def test_dual_gate_lockin_recipe_sample_and_plan():
     assert "Total points: 25" in plan
 
 
+def test_dual_gate_lockin_limited_active_recipe_is_tiny_and_guarded():
+    recipe = load_dual_gate_lockin_recipe("configs/recipes/dual_gate_lockin_limited_active.yaml")
+    safety = load_named_safety_preset(recipe.safety_preset)
+    plan = format_dual_gate_lockin_plan(recipe, safety, "configs/recipes/dual_gate_lockin_limited_active.yaml")
+
+    assert recipe.measurement_name == "dual_gate_lockin_limited_active"
+    assert dual_gate_lockin_point_count(recipe) == 4
+    assert recipe.gate1_sweep.current_compliance_a <= 1e-8
+    assert recipe.gate2_sweep.current_compliance_a <= 1e-8
+    assert "Total points: 4" in plan
+
+
 def test_dual_gate_lockin_recipe_rejects_incomplete_active_excitation(tmp_path):
     data = dual_gate_lockin_recipe_data(tmp_path)
     data["topology"]["excitation_contacts"] = ["S"]

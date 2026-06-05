@@ -366,6 +366,7 @@ ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
 ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
 ptm dual-gate-lockin-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --samples 5 --interval-s 0.2 --progress
 ptm dual-gate-lockin-active-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --gate1-v 0.01 --gate2-v 0 --samples 3 --settle-s 0.2 --interval-s 0.2 --progress
+ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 4 --progress --plot --report --gate-stats
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
 ```
 
@@ -408,6 +409,12 @@ records leakage current and SR860 X/Y/R/theta samples to `active_gate_smoke.csv`
 then turns both gate outputs off in normal, error, and interrupt paths. Start
 with small voltages and do not use `--yes` until the prompt has been checked on
 the lab laptop.
+
+The limited active sweep command enables the full gate1 x gate2 runner only when
+`--allow-active-sweep` is supplied and the recipe point count is no larger than
+`--max-hardware-points`. Use `configs/recipes/dual_gate_lockin_limited_active.yaml`
+for the first guarded 2x2 sweep. The broader dry-run recipe is intentionally
+blocked by the default point guard in hardware mode.
 
 Hardware output is intentionally blocked:
 
