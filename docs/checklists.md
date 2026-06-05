@@ -619,6 +619,12 @@ remain point-guarded.
 - [ ] Confirm rehearsal artifacts include fake runs, result intake, Hall
   analysis, analysis review, and a next proposal JSON.
 - [ ] Confirm the rehearsal summary carries `approved_next_scan` provenance.
+- [ ] Print the read-only Hall workflow status before lab handoff.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-status data\hall_packages\<approved_next_package>
+  ```
+- [ ] Confirm package manifest, runbook, ZIP, copied recipes, approved
+  provenance, and dry-run rehearsal show PASS or expected review status.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

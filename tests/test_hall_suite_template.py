@@ -658,6 +658,23 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert (rehearsal / "hall_analysis" / "hall_suite_analysis_review.json").exists()
     assert (rehearsal / "hall_analysis" / "hall_suite_next_scan_proposal.json").exists()
 
+    status_json = tmp_path / "approved_status.json"
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-status",
+            str(approved_package),
+            "--json-output",
+            str(status_json),
+        ]
+    )
+    assert code == 0
+    status_payload = json.loads(status_json.read_text(encoding="utf-8"))
+    assert status_payload["ready_for_lab_review"] is True
+    stage_by_key = {stage["key"]: stage for stage in status_payload["stages"]}
+    assert stage_by_key["approved_next_scan"]["ok"] is True
+    assert stage_by_key["dry_run_rehearsal"]["ok"] is True
+    assert stage_by_key["recipes"]["details"] == "4 recipes"
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(

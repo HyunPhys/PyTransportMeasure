@@ -487,11 +487,16 @@ root.
     analysis, review, and proposal in one verification workflow
   - verify package provenance survives the full loop
   - keep the rehearsal hardware-free for local development
-- [ ] Phase 25bo: Hall workflow command consolidation
+- [x] Phase 25bo: Hall workflow command consolidation
   - add one read-only workflow status command for Hall-suite packages
   - summarize which stages exist: package, rehearsal, intake, analysis, review,
     proposal, approval, approved package
   - keep hardware execution separate from status/reporting commands
+- [ ] Phase 25bp: Hall workflow module split
+  - move Hall workflow orchestration helpers out of the CLI into a dedicated
+    module
+  - keep CLI commands thin wrappers around core APIs
+  - preserve existing command behavior and tests
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

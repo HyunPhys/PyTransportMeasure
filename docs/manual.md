@@ -610,6 +610,18 @@ result intake, Hall analysis, analysis review, and next-scan proposal. This is
 hardware-free and is meant to verify that package provenance and analysis flow
 survive the full loop before using the lab instruments.
 
+At any point, print a read-only workflow status summary for the package:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-status data\hall_packages\sampleA_cd1_next_lab1
+```
+
+This command does not run hardware and does not create measurement artifacts. It
+checks whether the package manifest, runbook, ZIP, copied recipes, approved
+next-scan provenance, dry-run rehearsal, result intake, Hall analysis, analysis
+review, and next proposal artifacts exist, and can optionally write the same
+status as JSON with `--json-output`.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

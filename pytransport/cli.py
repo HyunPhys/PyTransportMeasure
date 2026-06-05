@@ -739,6 +739,13 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--overwrite", action="store_true")
 
+    dual_gate_lockin_hall_suite_status = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-status",
+        help="Read-only status summary for a Hall-suite package workflow.",
+    )
+    dual_gate_lockin_hall_suite_status.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_status.add_argument("--json-output", type=Path)
+
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
         help="Combine +B and -B dual-gate lock-in Hall runs into antisymmetrized Hall artifacts.",
@@ -2233,6 +2240,117 @@ def command_dual_gate_lockin_hall_suite_approved_next_scan_rehearse(args: argpar
     print(f"Analysis: {result['analysis_dir']}")
     print(f"Next proposal: {result['next_proposal_json']}")
     return 0
+
+
+def command_dual_gate_lockin_hall_suite_status(args: argparse.Namespace) -> int:
+    try:
+        payload = inspect_dual_gate_lockin_hall_suite_workflow_status(args.package_manifest_or_dir)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite status failed: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output is not None:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(format_dual_gate_lockin_hall_suite_workflow_status(payload))
+    return 0 if payload["ready_for_lab_review"] else 1
+
+
+def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
+    manifest_path = _resolve_cli_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    manifest = _load_cli_json_object(manifest_path)
+    stages = []
+
+    def add_stage(key: str, label: str, path: Path | None, *, ok: bool | None = None, details: str = "") -> None:
+        exists = path.exists() if path is not None else False
+        passed = exists if ok is None else bool(ok)
+        stages.append(
+            {
+                "key": key,
+                "label": label,
+                "exists": exists,
+                "ok": passed,
+                "path": str(path) if path is not None else None,
+                "details": details,
+            }
+        )
+
+    runbook = package_dir / "acquisition_runbook.md"
+    zip_path = package_dir.with_suffix(".zip")
+    add_stage("package_manifest", "Package manifest", manifest_path, ok=True, details=f"package={manifest.get('package_name', 'n/a')}")
+    add_stage("runbook", "Acquisition runbook", runbook)
+    add_stage("zip", "Package ZIP", zip_path)
+    copied = manifest.get("copied_recipes") if isinstance(manifest.get("copied_recipes"), dict) else {}
+    recipe_paths = []
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        value = copied.get(key)
+        if value:
+            path = Path(str(value))
+            if not path.is_absolute():
+                path = package_dir / path
+            recipe_paths.append(path)
+    add_stage("recipes", "Copied recipes", package_dir / "recipes", ok=bool(recipe_paths) and all(path.exists() for path in recipe_paths), details=f"{len(recipe_paths)} recipes")
+    approved = manifest.get("approved_next_scan") if isinstance(manifest.get("approved_next_scan"), dict) else None
+    add_stage("approved_next_scan", "Approved next-scan provenance", manifest_path, ok=approved is not None, details=(approved or {}).get("strategy", "not present") if approved else "not present")
+
+    intake_json = package_dir / "result_intake.json"
+    intake_ok = False
+    if intake_json.exists():
+        try:
+            intake_ok = _load_cli_json_object(intake_json).get("accepted") is True
+        except ValueError:
+            intake_ok = False
+    add_stage("result_intake", "Result intake", intake_json, ok=intake_ok if intake_json.exists() else False)
+    analysis_dir = package_dir / "hall_analysis"
+    analysis_manifest = analysis_dir / "hall_suite_analysis_manifest.json"
+    add_stage("analysis", "Hall analysis", analysis_manifest)
+    review_json = analysis_dir / "hall_suite_analysis_review.json"
+    review_ok = False
+    if review_json.exists():
+        try:
+            review_ok = _load_cli_json_object(review_json).get("accepted_for_next_scan_decision") is True
+        except ValueError:
+            review_ok = False
+    add_stage("analysis_review", "Analysis review", review_json, ok=review_ok if review_json.exists() else False)
+    proposal_json = analysis_dir / "hall_suite_next_scan_proposal.json"
+    add_stage("next_proposal", "Next-scan proposal", proposal_json)
+
+    rehearsal_dir = package_dir / "dry_run_rehearsal"
+    rehearsal_json = rehearsal_dir / "rehearsal_summary.json"
+    rehearsal_ok = False
+    if rehearsal_json.exists():
+        try:
+            rehearsal_ok = _load_cli_json_object(rehearsal_json).get("completed") is True
+        except ValueError:
+            rehearsal_ok = False
+    add_stage("dry_run_rehearsal", "Dry-run rehearsal", rehearsal_json, ok=rehearsal_ok if rehearsal_json.exists() else False)
+    ready_for_lab_review = all(stage["ok"] for stage in stages[:4])
+    return {
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "package_name": manifest.get("package_name"),
+        "approved_next_scan": approved,
+        "ready_for_lab_review": ready_for_lab_review,
+        "stages": stages,
+    }
+
+
+def format_dual_gate_lockin_hall_suite_workflow_status(payload: dict) -> str:
+    lines = [
+        "Dual-gate lock-in Hall suite workflow status",
+        f"Package: {payload.get('package_name') or 'n/a'}",
+        f"Directory: {payload.get('package_dir')}",
+        f"Ready for lab review: {payload.get('ready_for_lab_review')}",
+        "",
+        "| Stage | Status | Path | Details |",
+        "| --- | --- | --- | --- |",
+    ]
+    for stage in payload.get("stages", []):
+        status = "PASS" if stage.get("ok") else "MISSING" if not stage.get("exists") else "REVIEW"
+        lines.append(
+            f"| {stage.get('label')} | {status} | `{stage.get('path') or 'n/a'}` | {stage.get('details') or ''} |"
+        )
+    return "\n".join(lines)
 
 
 def run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal(
@@ -3759,6 +3877,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_approved_next_scan_package(args)
     if args.command == "dual-gate-lockin-hall-suite-approved-next-scan-rehearse":
         return command_dual_gate_lockin_hall_suite_approved_next_scan_rehearse(args)
+    if args.command == "dual-gate-lockin-hall-suite-status":
+        return command_dual_gate_lockin_hall_suite_status(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":
