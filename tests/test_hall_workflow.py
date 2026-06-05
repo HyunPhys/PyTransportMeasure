@@ -18,6 +18,7 @@ from pytransport.hall_workflow import (
     write_dual_gate_lockin_hall_suite_handoff_summary,
     write_dual_gate_lockin_hall_suite_lab_return_manifest,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
+    write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits,
 )
 
 
@@ -290,6 +291,7 @@ def test_hall_lab_smoke_bundle_writes_identify_probe_and_preflight_commands(tmp_
     assert len(saved["commands"]["probe"]) == 3
     assert len(saved["commands"]["preflight"]) == 4
     assert len(saved["commands"]["measurement_parameter_audit"]) == 4
+    assert len(saved["commands"]["measurement_parameter_audit_collect"]) == 1
     assert len(saved["commands"]["post_run_intake"]) == 2
     assert saved["return_contract"]["required_run_roles"] == ["longitudinal", "plus", "minus"]
     assert saved["return_contract"]["optional_run_roles"] == ["zero"]
@@ -297,14 +299,36 @@ def test_hall_lab_smoke_bundle_writes_identify_probe_and_preflight_commands(tmp_
     assert any("--instrument srs_sr860" in command for command in saved["commands"]["probe"])
     assert all("ptm measurement-parameter-audit dual_gate_lockin_sweep" in command for command in saved["commands"]["measurement_parameter_audit"])
     assert all("--json-output" in command for command in saved["commands"]["measurement_parameter_audit"])
+    assert "dual-gate-lockin-hall-suite-lab-smoke-audits" in saved["commands"]["measurement_parameter_audit_collect"][0]
     assert "dual-gate-lockin-hall-suite-intake" in saved["commands"]["post_run_intake"][0]
     assert "--zero-field-run-dir data\\raw\\<zero_B_run>" in saved["commands"]["post_run_intake"][0]
     assert "ptm list-resources" in checklist
     assert "## 6. Per-Recipe Measurement Parameter Audit" in checklist
+    assert "Or collect all per-recipe audits at once" in checklist
     assert "Hardware-ready: True" in checklist
     assert "Every dual-gate lock-in preflight reports OK" in checklist
     assert "## 8. Post-Run Intake And Return" in checklist
     assert "result_intake.json" in checklist
+
+
+def test_hall_lab_smoke_parameter_audits_write_package_local_artifacts(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+
+    payload = write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(package.package_dir)
+
+    smoke_dir = package.package_dir / "lab_smoke"
+    summary = json.loads((smoke_dir / "measurement_parameter_audits.json").read_text(encoding="utf-8"))
+    report = (smoke_dir / "measurement_parameter_audits.md").read_text(encoding="utf-8")
+    assert payload["completed"] is True
+    assert payload["ok_for_hardware"] is True
+    assert payload["record_count"] == 4
+    assert summary["ok_for_hardware"] is True
+    assert "Continue to hardware preflight only when every row is PASS" in report
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        record = next(item for item in summary["records"] if item["recipe_key"] == key)
+        assert record["ok_for_hardware"] is True
+        assert (smoke_dir / f"{key}_measurement_parameter_audit.json").exists()
+        assert (smoke_dir / f"{key}_measurement_parameter_audit.md").exists()
 
 
 def test_hall_lab_smoke_bundle_reports_four_terminal_ac_prerequisite(tmp_path):

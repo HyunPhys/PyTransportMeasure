@@ -147,6 +147,7 @@ from .hall_workflow import (
     format_dual_gate_lockin_hall_suite_handoff_summary,
     format_dual_gate_lockin_hall_suite_hardware_command_review,
     format_dual_gate_lockin_hall_suite_lab_return_manifest,
+    format_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits,
     format_dual_gate_lockin_hall_suite_lifecycle_status,
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_return_bundle_index,
@@ -157,6 +158,7 @@ from .hall_workflow import (
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
     write_dual_gate_lockin_hall_suite_handoff_summary,
+    write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
     write_dual_gate_lockin_hall_suite_lab_return_manifest,
     write_dual_gate_lockin_hall_suite_return_bundle_index,
@@ -916,6 +918,14 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_lab_smoke_bundle.add_argument("--output-dir", type=Path)
     dual_gate_lockin_hall_suite_lab_smoke_bundle.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_lab_smoke_bundle.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_lab_smoke_audits = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-lab-smoke-audits",
+        help="Run package-local measurement-parameter audits for every Hall-suite recipe before lab preflight.",
+    )
+    dual_gate_lockin_hall_suite_lab_smoke_audits.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_lab_smoke_audits.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_suite_lab_smoke_audits.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_suite_hardware_command_review = subparsers.add_parser(
         "dual-gate-lockin-hall-suite-hardware-command-review",
@@ -2755,6 +2765,22 @@ def command_dual_gate_lockin_hall_suite_lab_smoke_bundle(args: argparse.Namespac
     return 0
 
 
+def command_dual_gate_lockin_hall_suite_lab_smoke_audits(args: argparse.Namespace) -> int:
+    try:
+        payload = write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(
+            args.package_manifest_or_dir,
+            output_dir=args.output_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite lab smoke audits failed: {exc}", file=sys.stderr)
+        return 2
+    print(format_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(payload))
+    print(f"Report: {payload['report_path']}")
+    print(f"JSON: {payload['json_path']}")
+    return 0 if payload["ok_for_hardware"] else 1
+
+
 def command_dual_gate_lockin_hall_suite_hardware_command_review(args: argparse.Namespace) -> int:
     try:
         payload = review_dual_gate_lockin_hall_suite_hardware_commands(args.package_manifest_or_dir)
@@ -4229,6 +4255,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_validate_package(args)
     if args.command == "dual-gate-lockin-hall-suite-lab-smoke-bundle":
         return command_dual_gate_lockin_hall_suite_lab_smoke_bundle(args)
+    if args.command == "dual-gate-lockin-hall-suite-lab-smoke-audits":
+        return command_dual_gate_lockin_hall_suite_lab_smoke_audits(args)
     if args.command == "dual-gate-lockin-hall-suite-hardware-command-review":
         return command_dual_gate_lockin_hall_suite_hardware_command_review(args)
     if args.command == "dual-gate-lockin-hall-suite-handoff-summary":

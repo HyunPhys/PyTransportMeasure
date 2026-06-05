@@ -595,6 +595,16 @@ handoff and return are tied to the same package.
 Run the measurement-parameter audit commands before preflight. Each command
 writes a package-local JSON artifact under `lab_smoke/` and should print
 `Hardware-ready: True`.
+To run all of those recipe audits in one step, use:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-lab-smoke-audits data\hall_packages\sampleA_cd1_lab1 --overwrite
+```
+
+This writes `lab_smoke/measurement_parameter_audits.md`,
+`lab_smoke/measurement_parameter_audits.json`, and one JSON/Markdown pair per
+packaged recipe. Continue to hardware preflight only when the summary reports
+`Hardware-ready: True`.
 
 Finally, review the active hardware command templates in the package runbook:
 

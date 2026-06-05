@@ -525,6 +525,18 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert (smoke_dir / "package_validation.json").exists()
     assert smoke_payload["instrument_count"] == 3
     assert len(smoke_payload["commands"]["preflight"]) == 4
+    audit_code = main(
+        [
+            "dual-gate-lockin-hall-suite-lab-smoke-audits",
+            str(package_dir),
+            "--overwrite",
+        ]
+    )
+    audit_summary = json.loads((smoke_dir / "measurement_parameter_audits.json").read_text(encoding="utf-8"))
+    assert audit_code == 0
+    assert audit_summary["ok_for_hardware"] is True
+    assert (smoke_dir / "longitudinal_measurement_parameter_audit.json").exists()
+    assert (smoke_dir / "longitudinal_measurement_parameter_audit.md").exists()
     command_review_json = tmp_path / "hardware_command_review.json"
     command_review_code = main(
         [

@@ -22,6 +22,7 @@ from .dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_result_intake,
 )
 from .instruments.fake import DualGateFakeDeviceState, DualGateFakeLockIn, DualGateFakeSMU
+from .measurement_parameters import format_measurement_parameter_audit, measurement_parameter_audit_to_dict
 from .recipes import OutputConfig, load_dual_gate_lockin_recipe, load_named_safety_preset
 
 
@@ -255,6 +256,9 @@ def write_dual_gate_lockin_hall_suite_lab_smoke_bundle(
             _hall_suite_measurement_parameter_audit_command(key, path, out)
             for key, path in recipe_paths.items()
         ],
+        "measurement_parameter_audit_collect": [
+            f"ptm dual-gate-lockin-hall-suite-lab-smoke-audits {package_dir} --overwrite"
+        ],
         "post_run_intake": [
             _hall_suite_result_intake_command(package_dir, recipe_paths),
             f"ptm dual-gate-lockin-hall-suite-lab-return-manifest {package_dir} --operator-note \"<lab notebook reference>\" --overwrite",
@@ -350,6 +354,12 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
             *commands.get("measurement_parameter_audit", []),
             "```",
             "",
+            "Or collect all per-recipe audits at once:",
+            "",
+            "```powershell",
+            *commands.get("measurement_parameter_audit_collect", []),
+            "```",
+            "",
             "## 7. Per-Recipe Preflight",
             "",
             "```powershell",
@@ -378,6 +388,113 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
             "",
         ]
     )
+
+
+def write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(
+    package_manifest_or_dir: Path,
+    *,
+    output_dir: Path | None = None,
+    overwrite: bool = False,
+) -> dict:
+    validation = validate_dual_gate_lockin_hall_suite_package_manifest(package_manifest_or_dir)
+    if not validation["valid"]:
+        raise ValueError("package validation failed; run validate-package and fix issues before smoke audits")
+    package_dir = Path(validation["package_dir"])
+    manifest_path = Path(validation["package_manifest"])
+    manifest = _load_json_object(manifest_path)
+    recipe_paths = _package_recipe_paths(manifest, package_dir)
+    out = output_dir or package_dir / "lab_smoke"
+    out.mkdir(parents=True, exist_ok=True)
+    summary_path = out / "measurement_parameter_audits.json"
+    report_path = out / "measurement_parameter_audits.md"
+    if (summary_path.exists() or report_path.exists()) and not overwrite:
+        raise FileExistsError(f"Lab smoke measurement-parameter audit output already exists in {out}")
+
+    records = []
+    for recipe_key, recipe_path in recipe_paths.items():
+        recipe = load_dual_gate_lockin_recipe(recipe_path)
+        payload = {
+            "recipe_key": recipe_key,
+            "recipe_path": str(recipe_path),
+            **measurement_parameter_audit_to_dict(recipe),
+        }
+        json_path = out / f"{recipe_key}_measurement_parameter_audit.json"
+        markdown_path = out / f"{recipe_key}_measurement_parameter_audit.md"
+        if (json_path.exists() or markdown_path.exists()) and not overwrite:
+            raise FileExistsError(f"Lab smoke measurement-parameter audit already exists for {recipe_key}: {json_path}")
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        markdown_path.write_text(
+            "\n".join(
+                [
+                    f"# {recipe_key} Measurement Parameter Audit",
+                    "",
+                    f"- Recipe: `{recipe_path}`",
+                    f"- Hardware-ready: {payload['ok_for_hardware']}",
+                    "",
+                    format_measurement_parameter_audit(recipe),
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        records.append(
+            {
+                "recipe_key": recipe_key,
+                "recipe_path": str(recipe_path),
+                "json": str(json_path),
+                "markdown": str(markdown_path),
+                "ok_for_hardware": bool(payload["ok_for_hardware"]),
+                "smu_ok_for_hardware": bool(payload["smu"]["ok_for_hardware"]),
+                "lockin_ok_for_hardware": bool(payload["lockin"]["ok_for_hardware"]),
+            }
+        )
+
+    summary = {
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "output_dir": str(out),
+        "completed": True,
+        "ok_for_hardware": all(record["ok_for_hardware"] for record in records),
+        "record_count": len(records),
+        "records": records,
+    }
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(summary), encoding="utf-8")
+    summary["json_path"] = str(summary_path)
+    summary["report_path"] = str(report_path)
+    return summary
+
+
+def format_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(payload: dict) -> str:
+    lines = [
+        "# Hall Suite Lab Smoke Measurement Parameter Audits",
+        "",
+        f"- Package: `{payload.get('package_dir')}`",
+        f"- Manifest: `{payload.get('package_manifest')}`",
+        f"- Output dir: `{payload.get('output_dir')}`",
+        f"- Hardware-ready: {payload.get('ok_for_hardware')}",
+        "",
+        "| Recipe | Status | SMU | SR860 | JSON | Markdown |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for record in payload.get("records", []):
+        status = "PASS" if record.get("ok_for_hardware") else "REVIEW"
+        smu_status = "PASS" if record.get("smu_ok_for_hardware") else "REVIEW"
+        lockin_status = "PASS" if record.get("lockin_ok_for_hardware") else "REVIEW"
+        lines.append(
+            f"| {record.get('recipe_key')} | {status} | {smu_status} | {lockin_status} | "
+            f"`{record.get('json')}` | `{record.get('markdown')}` |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Lab Use",
+            "",
+            "Continue to hardware preflight only when every row is PASS.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def _hall_suite_return_contract(recipe_paths: dict[str, Path]) -> dict:

@@ -592,9 +592,14 @@ remain point-guarded.
   command per packaged recipe.
 - [ ] Run the smoke checklist's `measurement-parameter-audit` commands before
   hardware preflight and confirm each one prints `Hardware-ready: True`.
+- [ ] Or run the package-local audit collector and confirm it reports
+  `Hardware-ready: True`.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lab-smoke-audits data\hall_packages\<sample_lab_package> --overwrite
+  ```
 - [ ] Confirm the smoke checklist writes one
   `lab_smoke/<recipe_key>_measurement_parameter_audit.json` artifact per
-  packaged recipe.
+  packaged recipe plus `lab_smoke/measurement_parameter_audits.json`.
 - [ ] Confirm `lab_smoke/lab_smoke_checklist.md` includes `Post-Run Intake And
   Return` with `dual-gate-lockin-hall-suite-intake` and
   `dual-gate-lockin-hall-suite-lab-return-manifest` commands.

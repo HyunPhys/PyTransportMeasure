@@ -809,6 +809,11 @@ root.
   - save planned JSON audit paths under `lab_smoke/`
   - make lab smoke pass criteria require `Hardware-ready: True` before
     connecting preflight/output workflows
+- [x] Phase 25dae: Hall lab smoke audit collector
+  - add `ptm dual-gate-lockin-hall-suite-lab-smoke-audits`
+  - write package-local measurement-parameter audit JSON/Markdown artifacts for
+    every Hall-suite recipe in one command
+  - summarize SMU/SR860 hardware readiness before hardware preflight
 
 ## Next GUI
 
