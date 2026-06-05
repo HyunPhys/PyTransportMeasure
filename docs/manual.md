@@ -75,7 +75,7 @@ Important modules:
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
 | Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; SR860 readout smoke, active-gate smoke, and guarded tiny active sweep available | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin-smoke`, `ptm dual-gate-lockin --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
-| 4-probe / remote sense | Designed and deferred | No active command |
+| 4-probe / remote sense | Design gate only; active output blocked | `ptm four-terminal-dc-design-gate` |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
 | GUI | Dry-run desktop foundation | `ptm-gui` |
 
@@ -91,6 +91,19 @@ development path: two-terminal DC, four-terminal DC, two-terminal AC,
 four-terminal AC, and Hall-suite dual-gate lock-in runs. It separates
 `hardware_verified`, `hardware_smoke_ready`, `dry_run_ready`, and `planned`
 paths so convenience/UI work does not hide the actual measurement readiness.
+
+For the future Keithley 2450 four-terminal DC path, run the design gate before
+editing driver code:
+
+```powershell
+ptm four-terminal-dc-design-gate
+ptm four-terminal-dc-design-gate configs\recipes\<candidate_four_terminal_dc>.yaml --json-output docs\four_terminal_dc_design_gate.json
+```
+
+The design gate never enables hardware output. It records the required
+method-specific recipe fields, contact guards, Keithley remote-sense SCPI
+commands such as `:SENS:CURR:RSEN ON`, and readback queries that must exist
+before a 4-wire DC runner can be implemented.
 
 ## Installation
 

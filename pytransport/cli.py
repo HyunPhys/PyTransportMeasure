@@ -109,6 +109,11 @@ from .dual_gate_lockin_review import (
     write_dual_gate_lockin_stats_csv,
 )
 from .feedback_bundle import create_feedback_bundle
+from .four_terminal_dc import (
+    format_four_terminal_dc_design_gate,
+    inspect_four_terminal_dc_design_gate,
+    write_four_terminal_dc_design_gate_json,
+)
 from .hall_analysis import (
     write_dual_gate_lockin_hall_antisym,
     write_dual_gate_lockin_hall_mobility,
@@ -269,6 +274,14 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_modes.add_argument("--verbose", action="store_true", help="Include commands, guards, and limitations.")
     measurement_modes.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     measurement_modes.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
+
+    four_terminal_dc_design_gate = subparsers.add_parser(
+        "four-terminal-dc-design-gate",
+        help="Show the guarded design gate for future Keithley 2450 four-terminal DC measurement.",
+    )
+    four_terminal_dc_design_gate.add_argument("recipe", type=Path, nargs="?")
+    four_terminal_dc_design_gate.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    four_terminal_dc_design_gate.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
 
     run = subparsers.add_parser("run", help="Run a Drain I-V recipe.")
     run.add_argument("recipe", type=Path)
@@ -1257,6 +1270,22 @@ def command_measurement_modes(args: argparse.Namespace) -> int:
         print(json.dumps(measurement_mode_matrix_payload(), indent=2, sort_keys=True))
     elif not args.json_output:
         print(format_measurement_mode_matrix(verbose=args.verbose))
+    return 0
+
+
+def command_four_terminal_dc_design_gate(args: argparse.Namespace) -> int:
+    try:
+        report = inspect_four_terminal_dc_design_gate(args.recipe)
+    except Exception as exc:
+        print(f"Four-terminal DC design gate failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_four_terminal_dc_design_gate_json(report, args.json_output)
+        print(f"Four-terminal DC design gate JSON: {output_path}")
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+    elif not args.json_output:
+        print(format_four_terminal_dc_design_gate(report))
     return 0
 
 
@@ -3796,6 +3825,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_probe(args)
     if args.command == "measurement-modes":
         return command_measurement_modes(args)
+    if args.command == "four-terminal-dc-design-gate":
+        return command_four_terminal_dc_design_gate(args)
     if args.command == "run":
         return command_run(args)
     if args.command == "single-gate-plan":

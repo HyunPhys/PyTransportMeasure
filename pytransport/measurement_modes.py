@@ -90,7 +90,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "verify 2450 remote-sense SCPI from manual before implementation",
         ),
         current_limitations=("No active runner yet; intentionally left as TODO for future 4-probe DC phase.",),
-        next_step="Design Keithley 2450 remote-sense/4-wire DC recipe and smoke test against resistor/contact fixture.",
+        next_step="Run ptm four-terminal-dc-design-gate before adding any active 4-wire DC output path.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

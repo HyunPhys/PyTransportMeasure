@@ -15,6 +15,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Two-terminal AC lock-in hardware smoke path is available after preflight.
 - [x] Measurement-mode execution matrix tracks two-terminal DC, four-terminal
   DC, two-terminal AC, four-terminal AC, and Hall-suite dual-gate readiness.
+- [x] Four-terminal DC design gate documents required Keithley remote-sense
+  SCPI/contact guards while keeping active hardware output blocked.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.
