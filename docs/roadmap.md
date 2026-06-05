@@ -814,6 +814,12 @@ root.
   - write package-local measurement-parameter audit JSON/Markdown artifacts for
     every Hall-suite recipe in one command
   - summarize SMU/SR860 hardware readiness before hardware preflight
+- [x] Phase 25daf: Hall lab smoke audit lifecycle integration
+  - include lab-smoke measurement-parameter audit status in handoff summaries
+  - surface `Lab smoke measurement-parameter audits` in workflow/lifecycle
+    status
+  - keep Keithley NPLC/range/compliance and SR860 parameter readiness visible
+    before active Hall scans
 
 ## Next GUI
 

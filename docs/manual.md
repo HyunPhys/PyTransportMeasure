@@ -625,11 +625,16 @@ ptm dual-gate-lockin-hall-suite-handoff-summary data\hall_packages\sampleA_cd1_l
 
 This writes `handoff_summary/handoff_summary.md`,
 `handoff_summary/handoff_summary.json`, and copies the detailed validation,
-smoke, and hardware-command JSON records into the same folder.
+smoke, measurement-parameter audit, and hardware-command JSON records into the
+same folder. The measurement-parameter audit covers Keithley settings such as
+NPLC, ranges, compliance, and source delay together with SR860 reference/input/
+range/sensitivity/time-constant/filter/settle settings.
 If a four-terminal AC smoke prerequisite is attached, the handoff summary also
 prints a `Four-terminal AC smoke prerequisite` check plus a dedicated section
 with the intake JSON path and PASS/REVIEW state. The read-only workflow status
-command shows the same prerequisite as a workflow stage before lab handoff.
+command shows the same prerequisite as a workflow stage before lab handoff. The
+same status output also includes `Lab smoke measurement-parameter audits`, so a
+package visibly records whether the lab-smoke parameter bundle has passed.
 
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:
@@ -667,10 +672,12 @@ ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\sampleA_cd1_
 ```
 
 This command summarizes the package manifest, measurement-condition audits,
-Keithley parameter audits, SR860 setting audits, handoff summary, result
-intake, acquisition-condition drift audit, lab-return manifest, Hall analysis,
-analysis review, and next-scan proposal in one table. `ready_for_lab_handoff`
-stays false unless the preserved measurement-condition audits pass.
+Keithley parameter audits, SR860 setting audits, lab-smoke
+measurement-parameter audits, handoff summary, result intake,
+acquisition-condition drift audit, lab-return manifest, Hall analysis, analysis
+review, and next-scan proposal in one table. `ready_for_lab_handoff` stays
+false unless the preserved measurement-condition audits and lab-smoke
+measurement-parameter audit bundle pass.
 `ready_for_analysis` stays false unless result intake, lab-return manifest, and
 acquisition-condition drift audit all pass. Use it as the quick lab-notebook
 status check before deciding what the next command should be.

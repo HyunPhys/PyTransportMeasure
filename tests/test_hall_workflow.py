@@ -103,10 +103,13 @@ def test_hall_workflow_status_reports_package_stage_readiness(tmp_path):
     assert stage_by_key["keithley_parameter_audits"]["details"] == "4 recipe audits"
     assert stage_by_key["lockin_setting_audits"]["ok"] is True
     assert stage_by_key["lockin_setting_audits"]["details"] == "4 recipe audits"
+    assert stage_by_key["lab_smoke_parameter_audits"]["ok"] is False
+    assert stage_by_key["lab_smoke_parameter_audits"]["details"] == "not written"
     assert stage_by_key["dry_run_rehearsal"]["ok"] is False
     assert "Ready for lab review: True" in text
     assert "| Keithley parameter audits | PASS |" in text
     assert "| SR860 setting audits | PASS |" in text
+    assert "| Lab smoke measurement-parameter audits | MISSING |" in text
     assert "| Dry-run rehearsal | MISSING |" in text
 
 
@@ -404,13 +407,19 @@ def test_hall_handoff_summary_writes_single_pass_index(tmp_path):
     assert payload["pass"] is True
     assert summary["checks"]["hardware_command_review"] is True
     assert summary["checks"]["lab_smoke_bundle"] is True
+    assert summary["checks"]["lab_smoke_parameter_audits"] is True
     assert summary["checks"]["package_validation"] is True
     assert summary["checks"]["four_terminal_ac_smoke_prerequisite"] is True
     assert summary["four_terminal_ac_smoke_prerequisite"]["present"] is False
+    assert summary["lab_smoke_parameter_audits"]["ok"] is True
+    assert summary["lab_smoke_parameter_audits"]["record_count"] == 4
     assert (summary_dir / "package_validation.json").exists()
     assert (summary_dir / "hardware_command_review.json").exists()
     assert (summary_dir / "lab_smoke_bundle.json").exists()
+    assert (summary_dir / "lab_smoke_parameter_audits.json").exists()
+    assert (summary_dir / "lab_smoke" / "measurement_parameter_audits.json").exists()
     assert "Ready for lab handoff: True" in report
+    assert "| Lab smoke measurement-parameter audits | PASS |" in report
 
 
 def test_hall_handoff_summary_reports_four_terminal_ac_prerequisite(tmp_path):
@@ -536,18 +545,25 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
     initial = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
     assert initial["state"] == "package_ready"
     assert initial["measurement_conditions_ready"] is True
+    assert initial["lab_smoke_parameters_ready"] is False
     assert initial["ready_for_lab_handoff"] is False
     initial_stage_by_key = {stage["key"]: stage for stage in initial["stages"]}
     assert initial_stage_by_key["measurement_condition_audits"]["ok"] is True
     assert initial_stage_by_key["keithley_parameter_audits"]["ok"] is True
     assert initial_stage_by_key["lockin_setting_audits"]["ok"] is True
+    assert initial_stage_by_key["lab_smoke_parameter_audits"]["ok"] is False
 
     write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
     handoff = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
     handoff_text = format_dual_gate_lockin_hall_suite_lifecycle_status(handoff)
+    handoff_stage_by_key = {stage["key"]: stage for stage in handoff["stages"]}
     assert handoff["state"] == "ready_for_lab_handoff"
+    assert handoff["lab_smoke_parameters_ready"] is True
     assert handoff["ready_for_lab_handoff"] is True
     assert "Lifecycle state: ready_for_lab_handoff" in handoff_text
+    assert "Lab smoke parameters ready: True" in handoff_text
+    assert handoff_stage_by_key["lab_smoke_parameter_audits"]["ok"] is True
+    assert "| Lab smoke measurement-parameter audits | PASS |" in handoff_text
     assert "| Lab handoff summary | PASS |" in handoff_text
 
     intake_path = package.package_dir / "result_intake.json"

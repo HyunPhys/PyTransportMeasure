@@ -561,9 +561,11 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     handoff = json.loads((handoff_dir / "handoff_summary.json").read_text(encoding="utf-8"))
     assert handoff_code == 0
     assert handoff["pass"] is True
+    assert handoff["checks"]["lab_smoke_parameter_audits"] is True
     assert (handoff_dir / "handoff_summary.md").exists()
     assert (handoff_dir / "package_validation.json").exists()
     assert (handoff_dir / "hardware_command_review.json").exists()
+    assert (handoff_dir / "lab_smoke_parameter_audits.json").exists()
     lifecycle_json = tmp_path / "lifecycle_status.json"
     lifecycle_code = main(
         [
@@ -577,11 +579,13 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert lifecycle_code == 0
     assert lifecycle["state"] == "ready_for_lab_handoff"
     assert lifecycle["measurement_conditions_ready"] is True
+    assert lifecycle["lab_smoke_parameters_ready"] is True
     assert lifecycle["ready_for_lab_handoff"] is True
     lifecycle_stage_by_key = {stage["key"]: stage for stage in lifecycle["stages"]}
     assert lifecycle_stage_by_key["measurement_condition_audits"]["ok"] is True
     assert lifecycle_stage_by_key["keithley_parameter_audits"]["ok"] is True
     assert lifecycle_stage_by_key["lockin_setting_audits"]["ok"] is True
+    assert lifecycle_stage_by_key["lab_smoke_parameter_audits"]["ok"] is True
 
 
 def test_hall_suite_package_rejects_incomplete_sr860_measurement_parameters(tmp_path):

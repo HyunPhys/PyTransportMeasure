@@ -618,6 +618,9 @@ remain point-guarded.
   ```
 - [ ] Confirm `handoff_summary/handoff_summary.md` prints
   `Ready for lab handoff: True`.
+- [ ] Confirm `handoff_summary/handoff_summary.md` prints
+  `Lab smoke measurement-parameter audits | PASS` and the copied audit JSON
+  exists at `handoff_summary/lab_smoke_parameter_audits.json`.
 - [ ] If the package includes a four-terminal AC smoke prerequisite, confirm
   `handoff_summary/handoff_summary.md` prints `Four-terminal AC smoke
   prerequisite | PASS` and the prerequisite section points to the copied intake
@@ -629,8 +632,12 @@ remain point-guarded.
 - [ ] Confirm lifecycle state is `ready_for_lab_handoff`.
 - [ ] Confirm lifecycle output says `Measurement conditions ready: True` and
   the Keithley/SR860 audit stages are PASS.
+- [ ] Confirm lifecycle output says `Lab smoke parameters ready: True` and the
+  `Lab smoke measurement-parameter audits` stage is PASS.
 - [ ] Print workflow status and confirm `Four-terminal AC smoke prerequisite`
   is `PASS` when prerequisite evidence was attached.
+- [ ] Print workflow status and confirm `Lab smoke measurement-parameter audits`
+  is PASS after the collector or handoff summary has written the audit bundle.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.

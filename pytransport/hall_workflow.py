@@ -659,15 +659,30 @@ def write_dual_gate_lockin_hall_suite_handoff_summary(
         safety_dir=safety_dir,
         overwrite=True,
     )
+    lab_smoke_parameter_audits = write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits(
+        package_dir,
+        output_dir=out / "lab_smoke",
+        overwrite=True,
+    )
     hardware_review = review_dual_gate_lockin_hall_suite_hardware_commands(package_dir)
     package_validation_path = out / "package_validation.json"
     smoke_json_path = out / "lab_smoke_bundle.json"
+    lab_smoke_parameter_audits_json_path = out / "lab_smoke_parameter_audits.json"
     hardware_review_path = out / "hardware_command_review.json"
     package_validation_path.write_text(json.dumps(validation, indent=2, sort_keys=True), encoding="utf-8")
     smoke_json_path.write_text(json.dumps(smoke, indent=2, sort_keys=True), encoding="utf-8")
+    lab_smoke_parameter_audits_json_path.write_text(
+        json.dumps(lab_smoke_parameter_audits, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     hardware_review_path.write_text(json.dumps(hardware_review, indent=2, sort_keys=True), encoding="utf-8")
 
-    pass_state = bool(validation.get("valid")) and bool(smoke.get("completed")) and bool(hardware_review.get("valid"))
+    pass_state = (
+        bool(validation.get("valid"))
+        and bool(smoke.get("completed"))
+        and bool(lab_smoke_parameter_audits.get("ok_for_hardware"))
+        and bool(hardware_review.get("valid"))
+    )
     prerequisite_summary = _four_terminal_ac_smoke_prerequisite_from_validation(validation)
     prerequisite_ok = prerequisite_summary["ok"] if prerequisite_summary["present"] else True
     pass_state = pass_state and prerequisite_ok
@@ -681,13 +696,23 @@ def write_dual_gate_lockin_hall_suite_handoff_summary(
             "package_validation": bool(validation.get("valid")),
             "four_terminal_ac_smoke_prerequisite": prerequisite_ok,
             "lab_smoke_bundle": bool(smoke.get("completed")),
+            "lab_smoke_parameter_audits": bool(lab_smoke_parameter_audits.get("ok_for_hardware")),
             "hardware_command_review": bool(hardware_review.get("valid")),
         },
         "four_terminal_ac_smoke_prerequisite": prerequisite_summary,
+        "lab_smoke_parameter_audits": {
+            "ok": bool(lab_smoke_parameter_audits.get("ok_for_hardware")),
+            "record_count": lab_smoke_parameter_audits.get("record_count"),
+            "json": str(lab_smoke_parameter_audits_json_path),
+            "source_json": lab_smoke_parameter_audits.get("json_path"),
+            "source_markdown": lab_smoke_parameter_audits.get("report_path"),
+        },
         "artifacts": {
             "package_validation_json": str(package_validation_path),
             "lab_smoke_bundle_json": str(smoke_json_path),
             "lab_smoke_checklist": smoke.get("report_path"),
+            "lab_smoke_parameter_audits_json": str(lab_smoke_parameter_audits_json_path),
+            "lab_smoke_parameter_audits_report": lab_smoke_parameter_audits.get("report_path"),
             "hardware_command_review_json": str(hardware_review_path),
         },
         "issue_count": len(validation.get("issues", [])) + len(hardware_review.get("issues", [])),
@@ -716,6 +741,7 @@ def format_dual_gate_lockin_hall_suite_handoff_summary(payload: dict) -> str:
         f"| Package validation | {'PASS' if checks.get('package_validation') else 'REVIEW'} |",
         f"| Four-terminal AC smoke prerequisite | {'PASS' if checks.get('four_terminal_ac_smoke_prerequisite') else 'REVIEW'} |",
         f"| Lab smoke bundle | {'PASS' if checks.get('lab_smoke_bundle') else 'REVIEW'} |",
+        f"| Lab smoke measurement-parameter audits | {'PASS' if checks.get('lab_smoke_parameter_audits') else 'REVIEW'} |",
         f"| Hardware command review | {'PASS' if checks.get('hardware_command_review') else 'REVIEW'} |",
         "",
         "## Artifacts",
@@ -723,6 +749,8 @@ def format_dual_gate_lockin_hall_suite_handoff_summary(payload: dict) -> str:
         f"- Package validation JSON: `{artifacts.get('package_validation_json')}`",
         f"- Lab smoke checklist: `{artifacts.get('lab_smoke_checklist')}`",
         f"- Lab smoke bundle JSON: `{artifacts.get('lab_smoke_bundle_json')}`",
+        f"- Lab smoke measurement-parameter audit JSON: `{artifacts.get('lab_smoke_parameter_audits_json')}`",
+        f"- Lab smoke measurement-parameter audit report: `{artifacts.get('lab_smoke_parameter_audits_report')}`",
         f"- Hardware command review JSON: `{artifacts.get('hardware_command_review_json')}`",
         "",
         "## Four-Terminal AC Prerequisite",
@@ -814,6 +842,40 @@ def _four_terminal_ac_smoke_prerequisite_stage(manifest: dict, package_dir: Path
             f"contacts={record.get('topology_excitation_contacts')} -> {record.get('topology_lockin_input_contacts')}"
         )
     return {"path": path, "ok": ok, "details": detail}
+
+
+def _lab_smoke_parameter_audits_stage(package_dir: Path) -> dict:
+    candidates = [
+        package_dir / "lab_smoke" / "measurement_parameter_audits.json",
+        package_dir / "handoff_summary" / "lab_smoke" / "measurement_parameter_audits.json",
+        package_dir / "handoff_summary" / "lab_smoke_parameter_audits.json",
+    ]
+    for path in candidates:
+        if not path.exists():
+            continue
+        try:
+            payload = _load_json_object(path)
+        except ValueError:
+            return {"path": path, "ok": False, "details": "invalid JSON"}
+        records = payload.get("records")
+        ok = (
+            payload.get("completed") is True
+            and payload.get("ok_for_hardware") is True
+            and isinstance(records, list)
+            and bool(records)
+            and all(isinstance(record, dict) and bool(record.get("ok_for_hardware")) for record in records)
+        )
+        record_count = len(records) if isinstance(records, list) else 0
+        return {
+            "path": path,
+            "ok": ok,
+            "details": f"{record_count} recipe audits, ok_for_hardware={payload.get('ok_for_hardware')!r}",
+        }
+    return {
+        "path": candidates[0],
+        "ok": False,
+        "details": "not written",
+    }
 
 
 def write_dual_gate_lockin_hall_suite_lab_return_manifest(
@@ -995,6 +1057,14 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
             ok=bool(workflow_stage.get("ok")),
             details=str(workflow_stage.get("details") or "not present"),
         )
+    lab_smoke_parameter_stage = _lab_smoke_parameter_audits_stage(package_dir)
+    add_stage(
+        "lab_smoke_parameter_audits",
+        "Lab smoke measurement-parameter audits",
+        lab_smoke_parameter_stage["path"],
+        ok=lab_smoke_parameter_stage["ok"],
+        details=lab_smoke_parameter_stage["details"],
+    )
     handoff_json = package_dir / "handoff_summary" / "handoff_summary.json"
     handoff = _load_optional_json_object(handoff_json)
     add_stage(
@@ -1104,9 +1174,15 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         "package_name": workflow.get("package_name"),
         "state": state,
         "measurement_conditions_ready": measurement_conditions_ready,
-        "ready_for_lab_handoff": measurement_conditions_ready and _stage_ok(stages, "handoff_summary"),
+        "lab_smoke_parameters_ready": _stage_ok(stages, "lab_smoke_parameter_audits"),
+        "ready_for_lab_handoff": (
+            measurement_conditions_ready
+            and _stage_ok(stages, "lab_smoke_parameter_audits")
+            and _stage_ok(stages, "handoff_summary")
+        ),
         "ready_for_analysis": (
             measurement_conditions_ready
+            and _stage_ok(stages, "lab_smoke_parameter_audits")
             and _stage_ok(stages, "lab_return")
             and _stage_ok(stages, "result_intake")
             and _stage_ok(stages, "condition_snapshot")
@@ -1130,6 +1206,7 @@ def format_dual_gate_lockin_hall_suite_lifecycle_status(payload: dict) -> str:
         f"Directory: {payload.get('package_dir')}",
         f"Lifecycle state: {payload.get('state')}",
         f"Measurement conditions ready: {payload.get('measurement_conditions_ready')}",
+        f"Lab smoke parameters ready: {payload.get('lab_smoke_parameters_ready')}",
         "",
         "| Stage | Status | Path | Details |",
         "| --- | --- | --- | --- |",
@@ -1349,6 +1426,14 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         prerequisite_stage["path"],
         ok=prerequisite_stage["ok"],
         details=prerequisite_stage["details"],
+    )
+    lab_smoke_parameter_stage = _lab_smoke_parameter_audits_stage(package_dir)
+    add_stage(
+        "lab_smoke_parameter_audits",
+        "Lab smoke measurement-parameter audits",
+        lab_smoke_parameter_stage["path"],
+        ok=lab_smoke_parameter_stage["ok"],
+        details=lab_smoke_parameter_stage["details"],
     )
 
     intake_json = package_dir / "result_intake.json"
@@ -2073,6 +2158,17 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
             or _stage_ok(stages, "analysis")
         ):
             return "measurement_condition_review"
+    if (
+        measurement_conditions_ready
+        and (
+            _stage_ok(stages, "handoff_summary")
+            or _stage_ok(stages, "result_intake")
+            or _stage_ok(stages, "lab_return")
+            or _stage_ok(stages, "analysis")
+        )
+        and not _stage_ok(stages, "lab_smoke_parameter_audits")
+    ):
+        return "lab_smoke_parameter_review"
     if _stage_ok(stages, "result_intake") and not _stage_ok(stages, "condition_snapshot"):
         snapshot_stage = next((stage for stage in stages if stage.get("key") == "condition_snapshot"), {})
         if snapshot_stage.get("exists"):
@@ -2099,7 +2195,11 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
         return "ready_for_analysis"
     if _stage_ok(stages, "result_intake"):
         return "intake_accepted"
-    if measurement_conditions_ready and _stage_ok(stages, "handoff_summary"):
+    if (
+        measurement_conditions_ready
+        and _stage_ok(stages, "lab_smoke_parameter_audits")
+        and _stage_ok(stages, "handoff_summary")
+    ):
         return "ready_for_lab_handoff"
     if _stage_ok(stages, "package_ready"):
         return "package_ready"
