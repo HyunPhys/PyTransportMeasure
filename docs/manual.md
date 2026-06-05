@@ -506,6 +506,22 @@ Use this when development happens on one computer but hardware validation
 happens on the lab laptop. The package records the exact recipe set and command
 sequence to use, but it does not enable any output or talk to VISA.
 
+After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
+folders against the package before Hall analysis:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-intake data\hall_packages\sampleA_cd1_lab1 data\raw\<vxx_run> data\raw\<plus_B_run> data\raw\<minus_B_run> --zero-field-run-dir data\raw\<zero_B_run>
+```
+
+The intake command reads `package_manifest.json`, checks the packaged recipe
+suite, runs strict dual-gate lock-in acceptance on each run folder, compares
+each run's saved recipe snapshot and gate-grid signature against the packaged
+recipe, and writes `result_intake_report.md` plus `result_intake.json`. Use
+`--allow-missing-lockin-settings` only for dry-run or old metadata where SR860
+setting readback was not available. For real hardware runs, leave the strict
+default in place. Continue to Hall antisymmetry, zero-field correction, and
+mobility analysis only after intake reports PASS.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

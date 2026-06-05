@@ -4,13 +4,45 @@ import zipfile
 import yaml
 
 from pytransport.cli import main
+from pytransport.dual_gate_lockin import run_dual_gate_lockin_sweep
 from pytransport.dual_gate_lockin_hall_suite import (
     audit_dual_gate_lockin_hall_suite,
     format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_plan,
     write_dual_gate_lockin_hall_suite_template,
 )
-from pytransport.recipes import load_dual_gate_lockin_recipe
+from pytransport.instruments.fake import DualGateFakeDeviceState, DualGateFakeLockIn, DualGateFakeSMU
+from pytransport.recipes import load_dual_gate_lockin_recipe, load_named_safety_preset
+
+
+def run_hall_suite_recipe_dry(recipe_path):
+    recipe = load_dual_gate_lockin_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    state = DualGateFakeDeviceState(
+        gate1_leak_resistance_ohm=1_000_000_000.0,
+        gate2_leak_resistance_ohm=1_000_000_000.0,
+    )
+    gate1 = DualGateFakeSMU("gate1", state)
+    gate2 = DualGateFakeSMU("gate2", state)
+    lockin = DualGateFakeLockIn(state, base_r_v=2e-6, phase_deg=0, noise_std_v=0)
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1, gate2, lockin, recipe_path=recipe_path)
+    return metadata["run_dir"]
+
+
+def shrink_hall_suite_for_intake_tests(result):
+    for path in [
+        result.longitudinal_recipe,
+        result.plus_hall_recipe,
+        result.minus_hall_recipe,
+        result.zero_hall_recipe,
+    ]:
+        data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        data["gate1_sweep"]["points"] = 2
+        data["gate2_sweep"]["points"] = 2
+        data["gate1_sweep"]["settle_s"] = 0.0
+        data["gate2_sweep"]["settle_s"] = 0.0
+        data["lockin"]["read_settle_s"] = 0.0
+        path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
 def test_write_hall_suite_template_creates_valid_recipe_set(tmp_path):
@@ -453,3 +485,107 @@ def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_
     )
 
     assert code == 2
+
+
+def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="intake_graphene",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    shrink_hall_suite_for_intake_tests(result)
+    package_code = main(
+        [
+            "dual-gate-lockin-hall-suite-package",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            str(tmp_path / "packages"),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--package-name",
+            "intake_graphene_package",
+            "--chunk-size",
+            "5",
+        ]
+    )
+    assert package_code == 0
+    package_dir = tmp_path / "packages" / "intake_graphene_package"
+    recipe_dir = package_dir / "recipes"
+    long_run = run_hall_suite_recipe_dry(recipe_dir / result.longitudinal_recipe.name)
+    plus_run = run_hall_suite_recipe_dry(recipe_dir / result.plus_hall_recipe.name)
+    minus_run = run_hall_suite_recipe_dry(recipe_dir / result.minus_hall_recipe.name)
+    zero_run = run_hall_suite_recipe_dry(recipe_dir / result.zero_hall_recipe.name)
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-intake",
+            str(package_dir),
+            str(long_run),
+            str(plus_run),
+            str(minus_run),
+            "--zero-field-run-dir",
+            str(zero_run),
+            "--allow-missing-lockin-settings",
+        ]
+    )
+
+    assert code == 0
+    report = package_dir / "result_intake_report.md"
+    payload = json.loads((package_dir / "result_intake.json").read_text(encoding="utf-8"))
+    assert report.exists()
+    assert "Accepted for Hall analysis: True" in report.read_text(encoding="utf-8")
+    assert payload["accepted"] is True
+    assert payload["runs"]["longitudinal"]["points_written"] == 4
+
+
+def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="bad_intake_graphene",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    shrink_hall_suite_for_intake_tests(result)
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-package",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            str(tmp_path / "packages"),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--package-name",
+            "bad_intake_package",
+            "--chunk-size",
+            "5",
+        ]
+    )
+    assert code == 0
+    package_dir = tmp_path / "packages" / "bad_intake_package"
+    recipe_dir = package_dir / "recipes"
+    long_run = run_hall_suite_recipe_dry(recipe_dir / result.longitudinal_recipe.name)
+    plus_run = run_hall_suite_recipe_dry(recipe_dir / result.plus_hall_recipe.name)
+    zero_run = run_hall_suite_recipe_dry(recipe_dir / result.zero_hall_recipe.name)
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-intake",
+            str(package_dir),
+            str(long_run),
+            str(plus_run),
+            str(long_run),
+            "--zero-field-run-dir",
+            str(zero_run),
+            "--allow-missing-lockin-settings",
+        ]
+    )
+
+    assert code == 2
+    payload = json.loads((package_dir / "result_intake.json").read_text(encoding="utf-8"))
+    assert payload["accepted"] is False
+    assert any(issue["check"] == "minus.recipe_match" for issue in payload["issues"])

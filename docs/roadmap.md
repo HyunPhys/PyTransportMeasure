@@ -449,10 +449,16 @@ root.
     preflight outputs, acquisition notes, and analysis commands
   - make the lab-laptop handoff explicit for no-local-hardware development
   - keep the package hardware-free until the researcher runs it in the lab
-- [ ] Phase 25bh: Hall-suite execution result intake
+- [x] Phase 25bh: Hall-suite execution result intake
+  - add `ptm dual-gate-lockin-hall-suite-intake`
   - inspect a completed package session from the lab laptop
   - verify Vxx/+B/-B/0B run folders against the packaged recipes and manifest
   - produce a one-command post-run audit before Hall analysis
+- [ ] Phase 25bi: Hall-suite analysis orchestration
+  - run accepted suite outputs through antisymmetry, optional zero-field
+    correction, and mobility analysis from one command
+  - require result intake PASS before writing derived Hall artifacts
+  - keep analysis provenance tied to package manifest and run folders
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

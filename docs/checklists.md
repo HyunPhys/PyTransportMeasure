@@ -540,6 +540,19 @@ remain point-guarded.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.
+- [ ] After the lab laptop completes Vxx/+B/-B/0B runs, intake the returned run
+  folders before Hall analysis.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-intake data\hall_packages\<sample_lab_package> data\raw\<vxx_run> data\raw\<plus_B_run> data\raw\<minus_B_run> --zero-field-run-dir data\raw\<zero_B_run>
+  ```
+- [ ] Confirm intake prints `Hall suite result intake: PASS`.
+- [ ] Confirm `result_intake_report.md` and `result_intake.json` are written in
+  the package folder.
+- [ ] Confirm the report shows each run acceptance as PASS and no
+  `recipe_match`, `grid_signature`, `voltage_probe_role`, or magnetic-field
+  errors.
+- [ ] Continue to Hall antisymmetry, zero-field correction, and mobility
+  analysis only after intake PASS.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

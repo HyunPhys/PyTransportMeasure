@@ -72,6 +72,7 @@ from .dual_gate_lockin_hall_suite import (
     format_hall_suite_audit,
     write_dual_gate_lockin_hall_suite_acquisition_package,
     write_dual_gate_lockin_hall_suite_adjusted_recipes,
+    write_dual_gate_lockin_hall_suite_result_intake,
     write_dual_gate_lockin_hall_suite_template,
 )
 from .dual_gate_lockin_smoke import (
@@ -625,6 +626,24 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_package.add_argument("--acquisition-note")
     dual_gate_lockin_hall_suite_package.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_package.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_intake = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-intake",
+        help="Audit completed Vxx/+B/-B/0B run folders against a Hall-suite acquisition package before Hall analysis.",
+    )
+    dual_gate_lockin_hall_suite_intake.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument("longitudinal_run_dir", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument("plus_hall_run_dir", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument("minus_hall_run_dir", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument("--zero-field-run-dir", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument("--output", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument("--json-output", type=Path)
+    dual_gate_lockin_hall_suite_intake.add_argument(
+        "--allow-missing-lockin-settings",
+        action="store_true",
+        help="Do not require SR860 setting readback in saved run metadata.",
+    )
+    dual_gate_lockin_hall_suite_intake.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -1959,6 +1978,32 @@ def command_dual_gate_lockin_hall_suite_package(args: argparse.Namespace) -> int
     return 0
 
 
+def command_dual_gate_lockin_hall_suite_intake(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_result_intake(
+            args.package_manifest_or_dir,
+            args.longitudinal_run_dir,
+            args.plus_hall_run_dir,
+            args.minus_hall_run_dir,
+            zero_hall_run_dir=args.zero_field_run_dir,
+            output_path=args.output,
+            json_output_path=args.json_output,
+            require_lockin_settings=not args.allow_missing_lockin_settings,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite intake failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Hall suite result intake: {'PASS' if result.accepted else 'FAIL'}")
+    print(f"Report: {result.report_path}")
+    print(f"JSON: {result.json_path}")
+    if result.issues:
+        print("Issues:")
+        for issue in result.issues:
+            print(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    return 0 if result.accepted else 2
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3252,6 +3297,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_chunk_plan(args)
     if args.command == "dual-gate-lockin-hall-suite-package":
         return command_dual_gate_lockin_hall_suite_package(args)
+    if args.command == "dual-gate-lockin-hall-suite-intake":
+        return command_dual_gate_lockin_hall_suite_intake(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

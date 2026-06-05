@@ -11,7 +11,16 @@ from typing import Any
 
 import yaml
 
-from .dual_gate_lockin import dual_gate_lockin_point_count, format_dual_gate_lockin_plan
+from .dual_gate_lockin import (
+    dual_gate_lockin_grid_signature,
+    dual_gate_lockin_point_count,
+    format_dual_gate_lockin_plan,
+)
+from .dual_gate_lockin_review import (
+    audit_dual_gate_lockin_run,
+    format_dual_gate_lockin_acceptance,
+    read_dual_gate_lockin_metadata,
+)
 from .dual_gate_lockin_scaleup import build_dual_gate_lockin_adjusted_recipe_data
 from .recipes import DualGateLockInRecipe, SafetyPreset, load_named_safety_preset, load_yaml
 
@@ -61,6 +70,22 @@ class HallSuiteAcquisitionPackageResult:
     runbook_path: Path
     manifest_path: Path
     zip_path: Path
+
+
+@dataclass(frozen=True)
+class HallSuiteResultIntakeIssue:
+    severity: str
+    check: str
+    message: str
+
+
+@dataclass(frozen=True)
+class HallSuiteResultIntake:
+    package_manifest_path: Path
+    accepted: bool
+    report_path: Path | None
+    json_path: Path | None
+    issues: tuple[HallSuiteResultIntakeIssue, ...]
 
 
 def write_dual_gate_lockin_hall_suite_template(
@@ -340,6 +365,160 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
     zip_path = Path(shutil.make_archive(str(package_dir), "zip", root_dir=package_dir))
     return HallSuiteAcquisitionPackageResult(package_dir, recipes_dir, runbook_path, manifest_path, zip_path)
+
+
+def write_dual_gate_lockin_hall_suite_result_intake(
+    package_manifest_or_dir: str | Path,
+    longitudinal_run_dir: str | Path,
+    plus_hall_run_dir: str | Path,
+    minus_hall_run_dir: str | Path,
+    *,
+    zero_hall_run_dir: str | Path | None = None,
+    output_path: str | Path | None = None,
+    json_output_path: str | Path | None = None,
+    require_lockin_settings: bool = True,
+    overwrite: bool = False,
+) -> HallSuiteResultIntake:
+    manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
+    manifest = _load_package_manifest(manifest_path)
+    package_dir = manifest_path.parent
+    recipe_paths = _package_recipe_paths(manifest, package_dir)
+    if zero_hall_run_dir is not None and "zero" not in recipe_paths:
+        raise ValueError("zero_hall_run_dir was supplied but the package has no zero-field recipe")
+
+    issues: list[HallSuiteResultIntakeIssue] = []
+    suite_audit = audit_dual_gate_lockin_hall_suite(
+        recipe_paths["longitudinal"],
+        recipe_paths["plus"],
+        recipe_paths["minus"],
+        zero_hall_recipe=recipe_paths.get("zero"),
+    )
+    if not suite_audit.compatible:
+        issues.append(HallSuiteResultIntakeIssue("error", "package_suite", "packaged recipe suite is not compatible"))
+
+    run_dirs = {
+        "longitudinal": Path(longitudinal_run_dir),
+        "plus": Path(plus_hall_run_dir),
+        "minus": Path(minus_hall_run_dir),
+    }
+    if zero_hall_run_dir is not None:
+        run_dirs["zero"] = Path(zero_hall_run_dir)
+    elif "zero" in recipe_paths:
+        issues.append(HallSuiteResultIntakeIssue("warning", "zero_run", "package includes a zero-field recipe but no zero-field run was supplied"))
+
+    run_audits = {
+        key: audit_dual_gate_lockin_run(path, require_lockin_settings=require_lockin_settings)
+        for key, path in run_dirs.items()
+    }
+    for key, audit in run_audits.items():
+        if not audit.accepted:
+            issues.append(HallSuiteResultIntakeIssue("error", f"{key}.run_acceptance", "run failed strict acceptance audit"))
+        issues.extend(_compare_run_to_packaged_recipe(key, run_dirs[key], recipe_paths[key]))
+
+    role_fields = _run_role_fields(run_dirs)
+    _check_intake_roles(role_fields, issues)
+    if "plus" in role_fields and "minus" in role_fields:
+        plus_b = role_fields["plus"].get("magnetic_field_t")
+        minus_b = role_fields["minus"].get("magnetic_field_t")
+        if isinstance(plus_b, (int, float)) and isinstance(minus_b, (int, float)):
+            if plus_b <= 0 or minus_b >= 0 or abs(plus_b + minus_b) > max(1e-12, abs(plus_b) * 1e-9):
+                issues.append(HallSuiteResultIntakeIssue("error", "run_magnetic_field", "+B and -B runs do not have equal-magnitude opposite fields"))
+
+    errors = [issue for issue in issues if issue.severity == "error"]
+    accepted = not errors
+    report_text = format_dual_gate_lockin_hall_suite_result_intake(
+        manifest_path,
+        manifest,
+        suite_audit,
+        run_audits,
+        issues,
+        accepted=accepted,
+    )
+    report_path = Path(output_path) if output_path is not None else package_dir / "result_intake_report.md"
+    json_path = Path(json_output_path) if json_output_path is not None else package_dir / "result_intake.json"
+    for path in [report_path, json_path]:
+        if path.exists() and not overwrite:
+            raise FileExistsError(f"Result intake output already exists: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(report_text, encoding="utf-8")
+    json_payload = {
+        "package_manifest_path": str(manifest_path),
+        "accepted": accepted,
+        "issues": [issue.__dict__ for issue in issues],
+        "runs": {
+            key: {
+                "run_dir": str(audit.run_dir),
+                "accepted": audit.accepted,
+                "completed": audit.completed,
+                "points_written": audit.points_written,
+                "planned_points": audit.planned_points,
+                "remaining_points": audit.remaining_points,
+            }
+            for key, audit in run_audits.items()
+        },
+    }
+    json_path.write_text(json.dumps(json_payload, indent=2, sort_keys=True), encoding="utf-8")
+    return HallSuiteResultIntake(manifest_path, accepted, report_path, json_path, tuple(issues))
+
+
+def format_dual_gate_lockin_hall_suite_result_intake(
+    manifest_path: Path,
+    manifest: dict[str, Any],
+    suite_audit: HallSuiteAudit,
+    run_audits: dict[str, Any],
+    issues: list[HallSuiteResultIntakeIssue],
+    *,
+    accepted: bool,
+) -> str:
+    lines = [
+        "# Dual-Gate Lock-In Hall Suite Result Intake",
+        "",
+        f"- Package manifest: `{manifest_path}`",
+        f"- Package name: {manifest.get('package_name') or 'n/a'}",
+        f"- Accepted for Hall analysis: {accepted}",
+        f"- Expected point count per run: {manifest.get('point_count') or 'n/a'}",
+        "",
+        "## Packaged Recipe Suite",
+        "",
+        "```text",
+        format_hall_suite_audit(suite_audit),
+        "```",
+        "",
+        "## Run Acceptance",
+        "",
+    ]
+    for key, audit in run_audits.items():
+        lines.extend(
+            [
+                f"### {_suite_key_label(key)}",
+                "",
+                "```text",
+                format_dual_gate_lockin_acceptance(audit),
+                "```",
+                "",
+            ]
+        )
+    lines.extend(["## Intake Issues", ""])
+    if issues:
+        for issue in issues:
+            lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "## Next Commands",
+            "",
+            "```powershell",
+            "# Run these only after intake is accepted.",
+            "ptm dual-gate-lockin-hall-antisym data\\raw\\<plus_B_run> data\\raw\\<minus_B_run> --output-dir data\\analysis\\<hall_antisym_folder>",
+            "ptm dual-gate-lockin-hall-zero-correct data\\raw\\<plus_B_run> data\\raw\\<zero_B_run> --output-dir data\\analysis\\<hall_zero_corrected_folder>",
+            "ptm dual-gate-lockin-hall-mobility data\\analysis\\<hall_density_folder> data\\raw\\<longitudinal_Vxx_run> --output-dir data\\analysis\\<hall_mobility_folder>",
+            "```",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
@@ -1003,6 +1182,127 @@ def _copy_suite_recipes(audit: HallSuiteAudit, recipes_dir: Path) -> dict[str, P
         shutil.copy2(source, target)
         copied[key] = target
     return copied
+
+
+def _resolve_package_manifest_path(package_manifest_or_dir: str | Path) -> Path:
+    path = Path(package_manifest_or_dir)
+    if path.is_dir():
+        path = path / "package_manifest.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Package manifest does not exist: {path}")
+    return path
+
+
+def _load_package_manifest(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def _package_recipe_paths(manifest: dict[str, Any], package_dir: Path) -> dict[str, Path]:
+    copied = manifest.get("copied_recipes")
+    if not isinstance(copied, dict):
+        raise ValueError("Package manifest is missing copied_recipes")
+    mapping = {
+        "longitudinal": copied.get("longitudinal"),
+        "plus": copied.get("plus"),
+        "minus": copied.get("minus"),
+        "zero": copied.get("zero"),
+    }
+    paths = {}
+    for key, value in mapping.items():
+        if not value:
+            continue
+        path = Path(value)
+        if not path.is_absolute():
+            path = package_dir / path
+        if not path.exists():
+            raise FileNotFoundError(f"Packaged {key} recipe does not exist: {path}")
+        paths[key] = path
+    for key in ["longitudinal", "plus", "minus"]:
+        if key not in paths:
+            raise ValueError(f"Package manifest is missing copied recipe for {key}")
+    return paths
+
+
+def _compare_run_to_packaged_recipe(
+    key: str,
+    run_dir: Path,
+    recipe_path: Path,
+) -> list[HallSuiteResultIntakeIssue]:
+    issues: list[HallSuiteResultIntakeIssue] = []
+    metadata = read_dual_gate_lockin_metadata(run_dir)
+    expected_recipe = DualGateLockInRecipe.model_validate(load_yaml(recipe_path))
+    actual_recipe_data = metadata.get("recipe")
+    if not isinstance(actual_recipe_data, dict):
+        return [HallSuiteResultIntakeIssue("error", f"{key}.recipe_snapshot", "run metadata does not contain a recipe snapshot")]
+    try:
+        actual_recipe = DualGateLockInRecipe.model_validate(actual_recipe_data)
+    except Exception as exc:
+        return [HallSuiteResultIntakeIssue("error", f"{key}.recipe_snapshot", f"invalid run recipe snapshot: {type(exc).__name__}: {exc}")]
+
+    if actual_recipe.model_dump(mode="json") != expected_recipe.model_dump(mode="json"):
+        issues.append(HallSuiteResultIntakeIssue("error", f"{key}.recipe_match", "run recipe snapshot differs from packaged recipe"))
+    if metadata.get("measurement_name") != expected_recipe.measurement_name:
+        issues.append(
+            HallSuiteResultIntakeIssue(
+                "error",
+                f"{key}.measurement_name",
+                f"expected {expected_recipe.measurement_name}, got {metadata.get('measurement_name') or 'missing'}",
+            )
+        )
+    expected_signature = dual_gate_lockin_grid_signature(expected_recipe)
+    actual_signature = metadata.get("planned_gate_grid_signature")
+    if actual_signature != expected_signature:
+        issues.append(
+            HallSuiteResultIntakeIssue(
+                "error",
+                f"{key}.grid_signature",
+                f"expected {expected_signature}, got {actual_signature or 'missing'}",
+            )
+        )
+    return issues
+
+
+def _run_role_fields(run_dirs: dict[str, Path]) -> dict[str, dict[str, Any]]:
+    fields: dict[str, dict[str, Any]] = {}
+    for key, run_dir in run_dirs.items():
+        metadata = read_dual_gate_lockin_metadata(run_dir)
+        recipe = metadata.get("recipe") if isinstance(metadata.get("recipe"), dict) else {}
+        topology = recipe.get("topology") if isinstance(recipe.get("topology"), dict) else {}
+        fields[key] = {
+            "voltage_probe_role": topology.get("voltage_probe_role"),
+            "magnetic_field_t": topology.get("magnetic_field_t"),
+            "measurement_name": metadata.get("measurement_name"),
+        }
+    return fields
+
+
+def _check_intake_roles(
+    role_fields: dict[str, dict[str, Any]],
+    issues: list[HallSuiteResultIntakeIssue],
+) -> None:
+    expected_roles = {"longitudinal": "longitudinal", "plus": "hall", "minus": "hall", "zero": "hall"}
+    for key, expected in expected_roles.items():
+        if key not in role_fields:
+            continue
+        actual = role_fields[key].get("voltage_probe_role")
+        if actual != expected:
+            issues.append(HallSuiteResultIntakeIssue("error", f"{key}.voltage_probe_role", f"expected {expected}, got {actual or 'missing'}"))
+    if "zero" in role_fields:
+        zero_b = role_fields["zero"].get("magnetic_field_t")
+        if not isinstance(zero_b, (int, float)) or abs(zero_b) > 1e-12:
+            issues.append(HallSuiteResultIntakeIssue("error", "zero.magnetic_field_t", "zero-field run must have B = 0"))
+
+
+def _suite_key_label(key: str) -> str:
+    return {
+        "longitudinal": "Longitudinal Vxx",
+        "plus": "+B Hall Vxy",
+        "minus": "-B Hall Vxy",
+        "zero": "0B Hall Vxy",
+    }.get(key, key)
 
 
 def _copy_labeled_files(
