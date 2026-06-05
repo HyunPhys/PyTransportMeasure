@@ -453,10 +453,13 @@ ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allo
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,
 `last_completed_index`, last completed gate voltages, `next_point_index`,
-`outputs_off_after_run`, and `recovery_recommendation`. Current policy is
-manual review plus restart from the beginning, not automatic resume. If
-`abort_class` is `safety_stop`, do not resume until the leakage/compliance cause
-has been reviewed.
+`planned_gate_grid`, `planned_gate_grid_signature`, `outputs_off_after_run`,
+and `recovery_recommendation`. The grid signature is a hash of the ordered
+gate1 x gate2 voltage grid; use it to confirm that a saved partial or accepted
+run belongs to the same scan plan before comparing or expanding runs. Current
+policy is manual review plus restart from the beginning, not automatic resume.
+If `abort_class` is `safety_stop`, do not resume until the leakage/compliance
+cause has been reviewed.
 
 Broad hardware scans are intentionally blocked by default:
 
@@ -478,8 +481,10 @@ ptm dual-gate-lockin-audit data\raw\<dual_gate_lockin_run_folder> --write-report
 The audit requires a completed dual-gate lock-in sweep, complete point count,
 matched gate1/gate2 Keithley configuration readback, explicit Keithley NPLC
 warnings, confirmed 0 V before output-off cleanup, and SR860 setting readback
-that matches the recipe. A `PASS` result is the artifact-level checkpoint for
-deciding whether the next hardware grid can be larger.
+that matches the recipe. Newer run metadata also lets the audit verify that
+`points.csv` follows the saved ordered gate grid and that the grid signature
+matches. A `PASS` result is the artifact-level checkpoint for deciding whether
+the next hardware grid can be larger.
 
 For dry-run artifact checks only, fake SR860 metadata can be relaxed:
 

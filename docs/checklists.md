@@ -394,6 +394,9 @@ remain point-guarded.
 - [ ] Confirm metadata has `planned_points`, `points_written`,
   `remaining_points`, `abort_class`, `last_completed_index`,
   `next_point_index`, and `recovery_recommendation`.
+- [ ] Confirm metadata has `planned_gate_grid`,
+  `planned_gate_grid_signature`, and
+  `planned_gate_grid_signature_algorithm: sha256_json_v1`.
 - [ ] Confirm the generated `dual_gate_lockin_report.md` contains a `Recovery`
   section.
 - [ ] For a normal 2x2 sweep, confirm `abort_class: completed`,

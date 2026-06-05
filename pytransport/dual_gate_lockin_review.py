@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from dataclasses import dataclass
 from html import escape
@@ -201,6 +202,7 @@ def audit_dual_gate_lockin_run(
                     f"points.csv row count {csv_points} != metadata points_written {points_written}",
                 )
             )
+        _audit_planned_gate_grid(metadata, rows=read_dual_gate_lockin_points(path), issues=issues)
 
     errors = [issue for issue in issues if issue.severity == "error"]
     return DualGateLockInAcceptance(
@@ -338,6 +340,88 @@ def _audit_lockin_settings(metadata: dict[str, Any], issues: list[DualGateLockIn
             for check in failed[:4]
         )
         issues.append(DualGateLockInAcceptanceIssue("error", "lockin_settings", details))
+
+
+def _audit_planned_gate_grid(
+    metadata: dict[str, Any],
+    rows: list[dict[str, float | int | bool | None]],
+    issues: list[DualGateLockInAcceptanceIssue],
+) -> None:
+    grid = metadata.get("planned_gate_grid")
+    signature = metadata.get("planned_gate_grid_signature")
+    algorithm = metadata.get("planned_gate_grid_signature_algorithm")
+    if not isinstance(grid, list) or not signature:
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "warning",
+                "planned_gate_grid",
+                "planned gate grid/signature missing; rerun with newer metadata before relying on resume comparisons",
+            )
+        )
+        return
+    if algorithm != "sha256_json_v1":
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "planned_gate_grid",
+                f"unsupported signature algorithm {algorithm or 'missing'}",
+            )
+        )
+        return
+    expected_signature = _planned_gate_grid_signature(grid)
+    if str(signature) != expected_signature:
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "planned_gate_grid",
+                "planned gate grid signature does not match saved grid",
+            )
+        )
+    if len(grid) != len(rows):
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "planned_gate_grid",
+                f"planned grid length {len(grid)} != points.csv row count {len(rows)}",
+            )
+        )
+        return
+    for index, (planned, row) in enumerate(zip(grid, rows)):
+        try:
+            planned_index = int(planned["index"])
+            planned_gate1_index = int(planned["gate1_index"])
+            planned_gate2_index = int(planned["gate2_index"])
+            planned_gate1_v = float(planned["gate1_voltage_v"])
+            planned_gate2_v = float(planned["gate2_voltage_v"])
+        except (KeyError, TypeError, ValueError):
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    "planned_gate_grid",
+                    f"planned grid entry #{index} is malformed",
+                )
+            )
+            return
+        if (
+            planned_index != int(row["index"])
+            or planned_gate1_index != int(row["gate1_index"])
+            or planned_gate2_index != int(row["gate2_index"])
+            or abs(planned_gate1_v - float(row["gate1_voltage_v"])) > 1e-12
+            or abs(planned_gate2_v - float(row["gate2_voltage_v"])) > 1e-12
+        ):
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    "planned_gate_grid",
+                    f"points.csv row #{index} does not match planned grid entry",
+                )
+            )
+            return
+
+
+def _planned_gate_grid_signature(grid: list[Any]) -> str:
+    payload = json.dumps(grid, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def _optional_int(value: Any) -> int | None:

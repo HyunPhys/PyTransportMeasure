@@ -4,7 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from pytransport.dual_gate_lockin import dual_gate_lockin_point_count, format_dual_gate_lockin_plan, run_dual_gate_lockin_sweep
+from pytransport.dual_gate_lockin import (
+    dual_gate_lockin_grid_signature,
+    dual_gate_lockin_point_count,
+    format_dual_gate_lockin_plan,
+    planned_dual_gate_lockin_grid,
+    run_dual_gate_lockin_sweep,
+)
 from pytransport.dual_gate_lockin_smoke import run_dual_gate_lockin_active_gate_smoke
 from pytransport.dual_gate_lockin_review import (
     audit_dual_gate_lockin_run,
@@ -196,6 +202,23 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert float(rows[0]["lockin_conductance_s"]) == pytest.approx(1 / float(rows[0]["lockin_resistance_ohm"]))
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
     assert saved_metadata["planned_points"] == 9
+    assert saved_metadata["planned_gate_grid"] == planned_dual_gate_lockin_grid(recipe)
+    assert saved_metadata["planned_gate_grid_signature"] == dual_gate_lockin_grid_signature(recipe)
+    assert saved_metadata["planned_gate_grid_signature_algorithm"] == "sha256_json_v1"
+    assert saved_metadata["planned_gate_grid"][0] == {
+        "index": 0,
+        "gate1_index": 0,
+        "gate2_index": 0,
+        "gate1_voltage_v": -0.1,
+        "gate2_voltage_v": -0.1,
+    }
+    assert saved_metadata["planned_gate_grid"][-1] == {
+        "index": 8,
+        "gate1_index": 2,
+        "gate2_index": 2,
+        "gate1_voltage_v": 0.1,
+        "gate2_voltage_v": 0.1,
+    }
     assert saved_metadata["outputs_off_after_run"] is True
     assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
     assert saved_metadata["configured_gate1_smu"]["nplc"] == pytest.approx(1.0)
@@ -253,6 +276,23 @@ def test_dual_gate_lockin_acceptance_fails_output_cleanup_issue(tmp_path):
 
     assert acceptance.accepted is False
     assert any(issue.check == "gate1_output" for issue in acceptance.issues)
+
+
+def test_dual_gate_lockin_acceptance_fails_grid_signature_mismatch(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1_smu, gate2_smu, lockin)
+    run_dir = Path(metadata["run_dir"])
+    metadata_path = run_dir / "metadata.json"
+    saved_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    saved_metadata["planned_gate_grid"][0]["gate1_voltage_v"] = 0.123
+    metadata_path.write_text(json.dumps(saved_metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    acceptance = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=False)
+
+    assert acceptance.accepted is False
+    assert any(issue.check == "planned_gate_grid" for issue in acceptance.issues)
 
 
 def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):

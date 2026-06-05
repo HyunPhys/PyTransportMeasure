@@ -8,6 +8,7 @@ and wiring are smoke-tested.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import time
 from dataclasses import asdict, dataclass
@@ -122,6 +123,28 @@ class DualGateLockInRunWriter:
 
 def dual_gate_lockin_point_count(recipe: DualGateLockInRecipe) -> int:
     return len(gate_voltages_from_config(recipe.gate1_sweep)) * len(gate_voltages_from_config(recipe.gate2_sweep))
+
+
+def planned_dual_gate_lockin_grid(recipe: DualGateLockInRecipe) -> list[dict[str, float | int]]:
+    gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
+    gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
+    return [
+        {
+            "index": gate1_index * len(gate2_voltages) + gate2_index,
+            "gate1_index": gate1_index,
+            "gate2_index": gate2_index,
+            "gate1_voltage_v": float(gate1_voltage_v),
+            "gate2_voltage_v": float(gate2_voltage_v),
+        }
+        for gate1_index, gate1_voltage_v in enumerate(gate1_voltages)
+        for gate2_index, gate2_voltage_v in enumerate(gate2_voltages)
+    ]
+
+
+def dual_gate_lockin_grid_signature(recipe: DualGateLockInRecipe) -> str:
+    grid = planned_dual_gate_lockin_grid(recipe)
+    payload = json.dumps(grid, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def format_dual_gate_lockin_plan(
@@ -316,6 +339,9 @@ def run_dual_gate_lockin_sweep(
         "triggered_limit": None,
         "points_written": 0,
         "planned_points": total_points,
+        "planned_gate_grid": planned_dual_gate_lockin_grid(recipe),
+        "planned_gate_grid_signature": dual_gate_lockin_grid_signature(recipe),
+        "planned_gate_grid_signature_algorithm": "sha256_json_v1",
         "remaining_points": total_points,
         "last_completed_index": None,
         "last_completed_gate1_index": None,
