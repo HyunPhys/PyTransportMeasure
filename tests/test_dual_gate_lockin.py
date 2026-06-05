@@ -202,6 +202,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert saved_metadata["output_state"]["gate1"]["off_after_run"] is True
     assert saved_metadata["output_state"]["gate2"]["off_after_run"] is True
     assert saved_metadata["output_state"]["gate1"]["zero_before_off_succeeded"] is True
+    assert saved_metadata["output_state"]["gate1"]["last_commanded_voltage_before_zero_v"] == pytest.approx(0.1)
+    assert saved_metadata["output_state"]["gate2"]["last_commanded_voltage_before_zero_v"] == pytest.approx(0.1)
     assert gate1_smu.state.gate1_voltage_v == pytest.approx(0.0)
     assert gate2_smu.state.gate2_voltage_v == pytest.approx(0.0)
 

@@ -76,6 +76,7 @@ def test_fake_smu_dry_run_writes_csv_and_metadata(tmp_path):
     assert metadata["configured_smu_readback"]["source_current_limit"] == "1e-06"
     assert metadata["output_state"]["instrument"]["off_after_run"] is True
     assert metadata["output_state"]["instrument"]["zero_before_off_succeeded"] is True
+    assert metadata["output_state"]["instrument"]["voltage_command_count"] == 6
     csv_path = tmp_path / next(tmp_path.iterdir()).name / "points.csv"
     metadata_path = csv_path.with_name("metadata.json")
     assert csv_path.exists()
@@ -89,6 +90,8 @@ def test_fake_smu_dry_run_writes_csv_and_metadata(tmp_path):
     assert saved["configured_smu_readback"]["source_function"] == "VOLT"
     assert saved["output_state"]["instrument"]["enabled"] is False
     assert saved["output_state"]["instrument"]["zero_before_off_target_v"] == 0.0
+    assert saved["output_state"]["instrument"]["last_commanded_voltage_before_zero_v"] == 0.01
+    assert saved["output_state"]["instrument"]["last_commanded_voltage_v"] == 0.0
     assert saved["recipe_snapshot_path"].endswith("recipe_snapshot.yaml")
     assert saved["safety_snapshot_path"].endswith("safety_snapshot.yaml")
 

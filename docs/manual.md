@@ -957,6 +957,11 @@ Cleanup also attempts `set_voltage(0.0)` before output off and records
 active role has both `zero_before_off_succeeded: true` and
 `off_after_run: true`.
 
+Voltage commands are tracked in the same `output_state` block. Use
+`last_commanded_voltage_before_zero_v` to see the final measurement setpoint
+before cleanup, and `last_commanded_voltage_v` to confirm the final cleanup
+target. In a clean run, the latter should usually be `0.0`.
+
 For the first AC/lock-in hardware smoke test, use:
 
 ```powershell

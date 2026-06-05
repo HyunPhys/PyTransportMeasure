@@ -18,6 +18,7 @@ from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .output_state import (
+    command_voltage_with_state,
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
@@ -246,7 +247,7 @@ def run_ac_lockin_sweep(
         voltages = sweep_voltages(recipe.bias_sweep)
         delays = sweep_delays(recipe.bias_sweep)
         for index, (voltage_v, delay_s) in enumerate(zip(voltages, delays)):
-            source_smu.set_voltage(float(voltage_v))
+            command_voltage_with_state("source", source_smu, metadata, float(voltage_v))
             if delay_s:
                 time.sleep(delay_s)
             source_current_a, compliance_hit = source_smu.measure_current()

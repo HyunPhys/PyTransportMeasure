@@ -17,6 +17,7 @@ from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
 from .output_state import (
+    command_voltage_with_state,
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
@@ -215,7 +216,7 @@ def run_single_gate_sweep(
         total_points = len(gate_voltages) * len(drain_voltages)
         point_index = 0
         for gate_index, gate_voltage_v in enumerate(gate_voltages):
-            gate_smu.set_voltage(float(gate_voltage_v))
+            command_voltage_with_state("gate", gate_smu, metadata, float(gate_voltage_v))
             if recipe.gate_sweep.settle_s:
                 time.sleep(recipe.gate_sweep.settle_s)
             gate_current_a, gate_compliance_hit = gate_smu.measure_current()
@@ -223,7 +224,7 @@ def run_single_gate_sweep(
                 raise SafetyLimitError("Gate instrument compliance was reached", "gate_instrument_compliance")
             validate_point_current(gate_current_a, safety)
             for drain_index, (drain_voltage_v, delay_s) in enumerate(zip(drain_voltages, drain_delays)):
-                drain_smu.set_voltage(float(drain_voltage_v))
+                command_voltage_with_state("drain", drain_smu, metadata, float(drain_voltage_v))
                 if delay_s:
                     time.sleep(delay_s)
                 drain_current_a, drain_compliance_hit = drain_smu.measure_current()

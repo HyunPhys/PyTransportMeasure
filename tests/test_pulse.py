@@ -82,6 +82,8 @@ def test_pulse_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert saved_metadata["configured_source_smu"]["voltage_range_v"] == pytest.approx(0.2)
     assert saved_metadata["configured_source_smu_readback"]["source_current_limit"] == "1e-06"
     assert saved_metadata["output_state"]["source"]["off_after_run"] is True
+    assert saved_metadata["output_state"]["source"]["last_commanded_voltage_before_zero_v"] == pytest.approx(0.0)
+    assert saved_metadata["output_state"]["source"]["last_commanded_voltage_v"] == pytest.approx(0.0)
 
     summary = summarize_pulse_run(run_dir)
     assert summary.points == 5

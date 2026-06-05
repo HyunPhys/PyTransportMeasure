@@ -20,6 +20,7 @@ from .io import unique_run_dir
 from .output_state import (
     all_outputs_off_after_run,
     any_output_enabled,
+    command_voltage_with_state,
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
@@ -384,8 +385,8 @@ def run_dual_gate_lockin_active_gate_smoke(
         )
         raise_for_voltage_source_config_readback_mismatch("gate1", metadata["configured_gate1_smu_readback_check"])
         raise_for_voltage_source_config_readback_mismatch("gate2", metadata["configured_gate2_smu_readback_check"])
-        gate1_smu.set_voltage(float(gate1_voltage_v))
-        gate2_smu.set_voltage(float(gate2_voltage_v))
+        command_voltage_with_state("gate1", gate1_smu, metadata, float(gate1_voltage_v))
+        command_voltage_with_state("gate2", gate2_smu, metadata, float(gate2_voltage_v))
         output_on_with_state("gate1", gate1_smu, metadata)
         output_on_with_state("gate2", gate2_smu, metadata)
         metadata["gate_outputs_enabled"] = any_output_enabled(metadata)

@@ -524,6 +524,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm every active role has `zero_before_off_succeeded: true` with
   `zero_before_off_target_v: 0.0`. If not, review the saved error before
   repeating a gate scan.
+- [ ] For interrupted or partial scans, record
+  `last_commanded_voltage_before_zero_v` for each active gate/source role before
+  deciding whether to repeat or expand the scan.
 
 ## Pulse Measurement Dry-Run Checklist
 

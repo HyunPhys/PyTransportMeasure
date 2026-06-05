@@ -17,6 +17,7 @@ from .errors import SafetyLimitError
 from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
 from .output_state import (
+    command_voltage_with_state,
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
@@ -185,18 +186,18 @@ def run_pulse_measurement(
             source_config, metadata["configured_source_smu_readback"]
         )
         raise_for_voltage_source_config_readback_mismatch("source", metadata["configured_source_smu_readback_check"])
-        source_smu.set_voltage(float(pulse.base_v))
+        command_voltage_with_state("source", source_smu, metadata, float(pulse.base_v))
         output_on_with_state("source", source_smu, metadata)
         start = time.monotonic()
         for index in range(pulse.count):
-            source_smu.set_voltage(float(pulse.amplitude_v))
+            command_voltage_with_state("source", source_smu, metadata, float(pulse.amplitude_v))
             if sleep:
                 time.sleep(pulse.width_s)
             current_a, compliance_hit = source_smu.measure_current()
             if compliance_hit:
                 raise SafetyLimitError("Pulse source compliance was reached", "pulse_source_compliance")
             validate_point_current(current_a, safety)
-            source_smu.set_voltage(float(pulse.base_v))
+            command_voltage_with_state("source", source_smu, metadata, float(pulse.base_v))
             if sleep and pulse.period_s > pulse.width_s:
                 time.sleep(pulse.period_s - pulse.width_s)
             point = PulsePoint(
@@ -233,7 +234,7 @@ def run_pulse_measurement(
         return metadata
     finally:
         try:
-            source_smu.set_voltage(float(recipe.pulse.base_v))
+            command_voltage_with_state("source", source_smu, metadata, float(recipe.pulse.base_v))
         finally:
             zero_before_off_with_state("source", source_smu, metadata)
             output_off_with_state("source", source_smu, metadata)

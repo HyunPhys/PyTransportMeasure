@@ -12,6 +12,7 @@ from .instruments.base import SourceMeasureUnit
 from .io import RunWriter
 from .model import MeasurementPoint
 from .output_state import (
+    command_voltage_with_state,
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
@@ -89,7 +90,7 @@ def run_drain_iv(
         delays = sweep_delays(recipe.sweep)
         for index, (voltage_v, delay_s) in enumerate(zip(voltages, delays)):
             raise_if_stop_requested(stop_requested)
-            smu.set_voltage(float(voltage_v))
+            command_voltage_with_state("instrument", smu, metadata, float(voltage_v))
             sleep_with_stop_check(delay_s, stop_requested)
             raise_if_stop_requested(stop_requested)
             current_a, compliance_hit = smu.measure_current()

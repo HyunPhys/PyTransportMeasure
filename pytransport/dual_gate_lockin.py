@@ -25,6 +25,7 @@ from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .output_state import (
     all_outputs_off_after_run,
     any_output_enabled,
+    command_voltage_with_state,
     initialize_output_state,
     output_off_with_state,
     output_on_with_state,
@@ -376,7 +377,7 @@ def run_dual_gate_lockin_sweep(
         start = time.monotonic()
         point_index = 0
         for gate1_index, gate1_voltage_v in enumerate(gate1_voltages):
-            gate1_smu.set_voltage(float(gate1_voltage_v))
+            command_voltage_with_state("gate1", gate1_smu, metadata, float(gate1_voltage_v))
             if recipe.gate1_sweep.settle_s:
                 time.sleep(recipe.gate1_sweep.settle_s)
             gate1_current_a, gate1_compliance_hit = gate1_smu.measure_current()
@@ -384,7 +385,7 @@ def run_dual_gate_lockin_sweep(
                 raise SafetyLimitError("Gate1 instrument compliance was reached", "gate1_instrument_compliance")
             validate_point_current(gate1_current_a, safety)
             for gate2_index, gate2_voltage_v in enumerate(gate2_voltages):
-                gate2_smu.set_voltage(float(gate2_voltage_v))
+                command_voltage_with_state("gate2", gate2_smu, metadata, float(gate2_voltage_v))
                 if recipe.gate2_sweep.settle_s:
                     time.sleep(recipe.gate2_sweep.settle_s)
                 gate2_current_a, gate2_compliance_hit = gate2_smu.measure_current()

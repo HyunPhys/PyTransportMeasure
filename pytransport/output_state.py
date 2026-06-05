@@ -11,6 +11,9 @@ def initialize_output_state(metadata: dict[str, Any], roles: list[str]) -> None:
             "output_on_attempted": False,
             "enabled": False,
             "output_on_error": None,
+            "voltage_command_count": 0,
+            "last_commanded_voltage_v": None,
+            "last_voltage_command_error": None,
             "output_off_attempted": False,
             "zero_before_off_attempted": False,
             "zero_before_off_succeeded": False,
@@ -34,12 +37,26 @@ def output_on_with_state(role: str, smu: Any, metadata: dict[str, Any]) -> None:
     state["enabled"] = True
 
 
+def command_voltage_with_state(role: str, smu: Any, metadata: dict[str, Any], voltage_v: float) -> None:
+    state = _role_state(metadata, role)
+    target = float(voltage_v)
+    try:
+        smu.set_voltage(target)
+    except Exception as exc:
+        state["last_voltage_command_error"] = f"{type(exc).__name__}: {exc}"
+        raise
+    state["voltage_command_count"] = int(state.get("voltage_command_count") or 0) + 1
+    state["last_commanded_voltage_v"] = target
+    state["last_voltage_command_error"] = None
+
+
 def zero_before_off_with_state(role: str, smu: Any, metadata: dict[str, Any], voltage_v: float = 0.0) -> None:
     state = _role_state(metadata, role)
     state["zero_before_off_attempted"] = True
     state["zero_before_off_target_v"] = float(voltage_v)
+    state["last_commanded_voltage_before_zero_v"] = state.get("last_commanded_voltage_v")
     try:
-        smu.set_voltage(float(voltage_v))
+        command_voltage_with_state(role, smu, metadata, float(voltage_v))
     except Exception as exc:
         state["zero_before_off_error"] = f"{type(exc).__name__}: {exc}"
         return
@@ -76,6 +93,9 @@ def _role_state(metadata: dict[str, Any], role: str) -> dict[str, Any]:
             "output_on_attempted": False,
             "enabled": False,
             "output_on_error": None,
+            "voltage_command_count": 0,
+            "last_commanded_voltage_v": None,
+            "last_voltage_command_error": None,
             "output_off_attempted": False,
             "zero_before_off_attempted": False,
             "zero_before_off_succeeded": False,

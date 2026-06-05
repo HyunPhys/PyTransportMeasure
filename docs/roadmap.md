@@ -254,7 +254,12 @@ root.
   - attempt `set_voltage(0.0)` before output off for every active SMU role
   - save `zero_before_off_*` metadata in `output_state`
   - make fake dry-run cleanup mirror hardware cleanup intent
-- [ ] Phase 25t: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25t: Voltage command tracking
+  - route runner voltage commands through the output-state helper
+  - save command count, last commanded voltage, command error, and
+    pre-cleanup setpoint per SMU role
+  - use this for partial-run review before broader Hall-bar scans
+- [ ] Phase 25u: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory
