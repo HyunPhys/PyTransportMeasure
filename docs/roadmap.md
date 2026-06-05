@@ -524,7 +524,11 @@ root.
   - normalize Hall package audit manifest records for Keithley and SR860
   - add direct tests for manifest backward compatibility
   - document package manifest fields for external lab notebooks and scripts
-- [ ] Phase 25bw: Hall package manifest validator
+- [x] Phase 25bw: Keithley NPLC recipe range guard
+  - validate Keithley current-measurement NPLC at recipe load time
+  - expose the supported NPLC range in hardware parameter audit messages
+  - document NPLC as a deliberate measurement condition for Hall scans
+- [ ] Phase 25bx: Hall package manifest validator
   - add a dedicated command to validate package manifest schema and artifact
     paths without running the full workflow status report
   - report missing package files, audit files, and schema incompatibilities in

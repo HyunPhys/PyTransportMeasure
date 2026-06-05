@@ -1383,7 +1383,8 @@ ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml
 Keithley 2450 source blocks should explicitly set `voltage_range_v`,
 `current_range_a`, and `nplc`. NPLC controls current measurement integration
 time, while the ranges keep the hardware measurement condition traceable and
-avoid accidental autorange behavior:
+avoid accidental autorange behavior. Recipe validation accepts Keithley current
+NPLC values from `0.01` to `10`:
 
 ```yaml
 instrument:

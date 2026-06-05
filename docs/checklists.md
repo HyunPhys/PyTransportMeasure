@@ -528,6 +528,9 @@ remain point-guarded.
 - [ ] Open the adjustment review and confirm Gate1/Gate2 NPLC, Gate1/Gate2
   settle time, SR860 sensitivity/time constant, and SR860 read-settle settings
   match the lab decision before preflight or output.
+- [ ] Confirm every Keithley `nplc` value is deliberate and within the supported
+  recipe range `0.01` to `10`; keep it fixed across comparable Hall scans unless
+  the lab intentionally changes the noise/speed tradeoff.
 - [ ] Create a Hall-suite acquisition package for the lab laptop handoff.
   ```powershell
   ptm dual-gate-lockin-hall-suite-package configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxx.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_plus_b.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_zero_b.yaml --package-name <sample_lab_package> --chunk-size <N> --max-hardware-points <N> --acquisition-note "<lab handoff note>"

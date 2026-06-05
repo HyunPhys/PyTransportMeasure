@@ -136,6 +136,23 @@ def test_recipe_accepts_nonnegative_source_delay():
     assert recipe.instrument.source_delay_s == pytest.approx(0.05)
 
 
+@pytest.mark.parametrize("nplc", [0.009, 10.1])
+def test_recipe_rejects_keithley_nplc_outside_supported_range(nplc):
+    with pytest.raises(ValidationError):
+        DrainIVRecipe.model_validate(
+            {
+                "measurement_name": "bad_nplc",
+                "instrument": {"address": "FAKE", "nplc": nplc},
+                "sweep": {
+                    "start_v": -0.01,
+                    "stop_v": 0.01,
+                    "points": 3,
+                    "current_compliance_a": 1e-6,
+                },
+            }
+        )
+
+
 def test_recipe_rejects_negative_source_delay():
     with pytest.raises(ValidationError):
         DrainIVRecipe.model_validate(

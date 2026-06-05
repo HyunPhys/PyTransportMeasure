@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from .instrument_specs import KEITHLEY_2450_CURRENT_NPLC_MAX, KEITHLEY_2450_CURRENT_NPLC_MIN
+
 
 @dataclass(frozen=True)
 class MeasurementParameterIssue:
@@ -41,6 +43,7 @@ class KeithleyHardwareParameterSpec:
     parameter: str
     label: str
     reason: str
+    valid_range: tuple[float, float] | None = None
 
 
 def smu_instrument_roles(recipe: Any) -> tuple[tuple[str, Any], ...]:
@@ -83,6 +86,7 @@ REQUIRED_KEITHLEY_HARDWARE_PARAMETERS = (
         parameter="nplc",
         label="NPLC",
         reason="sets Keithley current integration time in power-line cycles",
+        valid_range=(KEITHLEY_2450_CURRENT_NPLC_MIN, KEITHLEY_2450_CURRENT_NPLC_MAX),
     ),
     KeithleyHardwareParameterSpec(
         parameter="voltage_range_v",
@@ -188,7 +192,7 @@ def format_smu_hardware_parameter_audit(audits: tuple[SMUHardwareParameterAudit,
             "",
             "Required for Keithley 2450 hardware output:",
             *[
-                f"- {spec.parameter}: {spec.label}; {spec.reason}."
+                f"- {spec.parameter}: {spec.label}; {spec.reason}{_format_valid_range(spec)}."
                 for spec in REQUIRED_KEITHLEY_HARDWARE_PARAMETERS
             ],
         ]
@@ -221,7 +225,10 @@ def missing_required_smu_hardware_parameters(
                     MeasurementParameterIssue(
                         role=role,
                         parameter=spec.parameter,
-                        message=f"{role} Keithley 2450 hardware runs require explicit {spec.label}; {spec.reason}",
+                        message=(
+                            f"{role} Keithley 2450 hardware runs require explicit {spec.label}; "
+                            f"{spec.reason}{_format_valid_range(spec)}"
+                        ),
                     )
                 )
     return tuple(issues)
@@ -234,7 +241,7 @@ def format_measurement_parameter_issues(issues: tuple[MeasurementParameterIssue,
     lines.append("Set the missing value in the recipe before enabling hardware output.")
     lines.append("Keithley 2450 hardware parameter policy:")
     for spec in REQUIRED_KEITHLEY_HARDWARE_PARAMETERS:
-        lines.append(f"- {spec.parameter}: {spec.label}; {spec.reason}.")
+        lines.append(f"- {spec.parameter}: {spec.label}; {spec.reason}{_format_valid_range(spec)}.")
     return "\n".join(lines)
 
 
@@ -256,3 +263,10 @@ def _optional_float(value: Any) -> float | None:
 
 def _fmt_optional(value: float | None) -> str:
     return "auto" if value is None else f"{value:.6g}"
+
+
+def _format_valid_range(spec: KeithleyHardwareParameterSpec) -> str:
+    if spec.valid_range is None:
+        return ""
+    low, high = spec.valid_range
+    return f"; valid recipe range {low:g} to {high:g}"

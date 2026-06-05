@@ -8,6 +8,8 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from .instrument_specs import KEITHLEY_2450_CURRENT_NPLC_MAX, KEITHLEY_2450_CURRENT_NPLC_MIN
+
 
 class InstrumentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -18,7 +20,11 @@ class InstrumentConfig(BaseModel):
     terminal: Literal["FRONT", "REAR"] | None = None
     voltage_range_v: float | None = Field(default=None, gt=0)
     current_range_a: float | None = Field(default=None, gt=0)
-    nplc: float | None = Field(default=None, gt=0)
+    nplc: float | None = Field(
+        default=None,
+        ge=KEITHLEY_2450_CURRENT_NPLC_MIN,
+        le=KEITHLEY_2450_CURRENT_NPLC_MAX,
+    )
     source_delay_s: float | None = Field(default=None, ge=0)
 
 

@@ -36,6 +36,7 @@ def test_missing_explicit_nplc_reports_keithley_roles(tmp_path: Path):
     text = format_measurement_parameter_issues(issues)
     assert "instrument.nplc" in text
     assert "sets Keithley current integration time" in text
+    assert "valid recipe range 0.01 to 10" in text
     assert "Keithley 2450 hardware parameter policy" in text
 
 
