@@ -38,6 +38,7 @@ from pytransport.gui_services import (
     scheme_plot_series,
     scheme_text_from_builder,
     validate_scheme_text,
+    write_gui_scheme_comparison_csv,
     format_scheme_plan_text,
     validate_recipe_text,
     run_gui_dry_run,
@@ -236,6 +237,22 @@ def test_gui_scheme_comparison_builds_step_stats_from_saved_schemes(tmp_path):
     assert comparison.rows[0]["runs"] == 1
     assert comparison.rows[0]["mean_fitted_resistance_ohm"] == pytest.approx(1000.0)
     assert comparison.rows[1]["mean_fitted_resistance_ohm"] == pytest.approx(2000.0)
+
+
+def test_gui_scheme_filters_and_comparison_csv_export(tmp_path):
+    scheme_a = write_saved_scheme_for_compare(tmp_path, "keep_scheme", 1000.0)
+    scheme_b = write_saved_scheme_for_compare(tmp_path, "drop_scheme", 2000.0)
+    comparison = compare_gui_schemes([scheme_a, scheme_b])
+    output = tmp_path / "exports" / "comparison.csv"
+
+    records = list_gui_schemes(tmp_path / "schemes", name_contains="keep", completed=True, dry_run=True, quality_status="PASS")
+    csv_path = write_gui_scheme_comparison_csv(comparison, output)
+
+    assert [record["scheme_name"] for record in records] == ["keep_scheme"]
+    text = csv_path.read_text(encoding="utf-8")
+    assert "scheme_name,step_label,started_at" in text
+    assert "keep_scheme,iv" in text
+    assert "drop_scheme,iv" in text
 
 
 def test_gui_scheme_plot_series_reads_plottable_saved_runs(tmp_path):

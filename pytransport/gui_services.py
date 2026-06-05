@@ -1473,7 +1473,14 @@ def list_gui_runs_from_directory(source_dir: str | Path | None) -> list[dict[str
     return records
 
 
-def list_gui_schemes(source_dir: str | Path = "data/schemes", limit: int = 100) -> list[dict[str, Any]]:
+def list_gui_schemes(
+    source_dir: str | Path = "data/schemes",
+    limit: int = 100,
+    name_contains: str | None = None,
+    completed: bool | None = None,
+    dry_run: bool | None = None,
+    quality_status: str | None = None,
+) -> list[dict[str, Any]]:
     root = Path(source_dir).expanduser()
     if not root.exists():
         return []
@@ -1491,24 +1498,44 @@ def list_gui_schemes(source_dir: str | Path = "data/schemes", limit: int = 100) 
             continue
         steps = data.get("steps") or []
         quality = data.get("quality") or {}
-        records.append(
-            {
-                "started_at": data.get("started_at"),
-                "finished_at": data.get("finished_at"),
-                "scheme_name": data.get("scheme_name") or summary_path.parent.name,
-                "completed": data.get("completed"),
-                "dry_run": data.get("dry_run"),
-                "quality_status": quality.get("status") or "n/a",
-                "step_count": len(steps),
-                "run_count": count_scheme_run_records(steps),
-                "scheme_dir": str(summary_path.parent),
-                "summary_path": str(summary_path),
-                "report_path": str(summary_path.parent / "scheme_report.md"),
-                "plot_path": str(summary_path.parent / "scheme_overlay.svg"),
-            }
-        )
+        record = {
+            "started_at": data.get("started_at"),
+            "finished_at": data.get("finished_at"),
+            "scheme_name": data.get("scheme_name") or summary_path.parent.name,
+            "completed": data.get("completed"),
+            "dry_run": data.get("dry_run"),
+            "quality_status": quality.get("status") or "n/a",
+            "step_count": len(steps),
+            "run_count": count_scheme_run_records(steps),
+            "scheme_dir": str(summary_path.parent),
+            "summary_path": str(summary_path),
+            "report_path": str(summary_path.parent / "scheme_report.md"),
+            "plot_path": str(summary_path.parent / "scheme_overlay.svg"),
+        }
+        if scheme_record_matches(record, name_contains, completed, dry_run, quality_status):
+            records.append(record)
     records.sort(key=lambda record: record.get("started_at") or "")
     return list(reversed(records[-limit:]))
+
+
+def scheme_record_matches(
+    record: dict[str, Any],
+    name_contains: str | None,
+    completed: bool | None,
+    dry_run: bool | None,
+    quality_status: str | None,
+) -> bool:
+    name_filter = blank_to_none(name_contains)
+    if name_filter and name_filter.lower() not in str(record.get("scheme_name") or "").lower():
+        return False
+    if completed is not None and record.get("completed") != completed:
+        return False
+    if dry_run is not None and record.get("dry_run") != dry_run:
+        return False
+    qc_filter = blank_to_none(quality_status)
+    if qc_filter and qc_filter.lower() != str(record.get("quality_status") or "").lower():
+        return False
+    return True
 
 
 def count_scheme_run_records(steps: list[dict[str, Any]]) -> int:
@@ -1626,6 +1653,35 @@ def compare_gui_schemes(paths: list[str | Path]) -> GuiSchemeComparison:
             rows.append(gui_scheme_comparison_row(review, stat))
     text_lines.extend(["", f"Comparison rows: {len(rows)}"])
     return GuiSchemeComparison(tuple(rows), "\n".join(text_lines))
+
+
+def write_gui_scheme_comparison_csv(comparison: GuiSchemeComparison, output_path: str | Path) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fieldnames = [
+        "scheme_name",
+        "step_label",
+        "started_at",
+        "completed",
+        "quality_status",
+        "dry_run",
+        "runs",
+        "completed_runs",
+        "qc_pass",
+        "qc_fail",
+        "mean_fitted_resistance_ohm",
+        "std_fitted_resistance_ohm",
+        "relative_std_percent",
+        "min_fitted_resistance_ohm",
+        "max_fitted_resistance_ohm",
+        "scheme_dir",
+    ]
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in comparison.rows:
+            writer.writerow({key: row.get(key) for key in fieldnames})
+    return path
 
 
 def scheme_plot_series(path: str | Path, max_series: int = 12) -> list[tuple[str, list[tuple[float, float]]]]:

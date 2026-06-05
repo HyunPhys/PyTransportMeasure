@@ -253,9 +253,12 @@ This roadmap tracks the large development phases. Completed items are checked.
   - add scheme overlay preview without SVG distortion
   - redraw saved `points.csv` data on the GUI canvas
   - keep report SVG export as a separate artifact path
-- [ ] Phase 24af: GUI scheme comparison export
+- [x] Phase 24af: GUI scheme comparison export
   - export the GUI comparison table as CSV
   - add optional saved scheme filters
+- [ ] Phase 24ag: GUI saved scheme table polish
+  - persist last selected scheme source folder
+  - improve saved table column sizing and filter ergonomics
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation

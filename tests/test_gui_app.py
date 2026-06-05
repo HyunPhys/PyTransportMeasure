@@ -310,12 +310,34 @@ def test_gui_scheme_compare_table_populates_rows(app):
     )
 
     window.populate_scheme_compare_table(rows)
+    window.last_scheme_comparison = type("Comparison", (), {"rows": rows})()
+    window.export_scheme_compare_button.setEnabled(bool(rows))
 
     assert window.scheme_compare_table.columnCount() == 15
     assert window.scheme_compare_table.rowCount() == 1
     assert window.scheme_compare_table.item(0, 0).text() == "scheme_a"
     assert window.scheme_compare_table.item(0, 10).text() == "1000"
     assert window.scheme_compare_table.item(0, 12).text() == "0.125"
+    assert window.export_scheme_compare_button.isEnabled()
+    window.close()
+
+
+def test_gui_scheme_filter_controls(app):
+    window = MainWindow()
+
+    window.scheme_filter_name.setText("sample")
+    window.scheme_filter_status.setCurrentText("Completed")
+    window.scheme_filter_qc.setCurrentText("PASS")
+    window.scheme_filter_dry.setCurrentText("Dry-run")
+
+    assert window.scheme_filter_kwargs() == {"completed": True, "dry_run": True, "quality_status": "PASS"}
+
+    window.clear_scheme_filters()
+
+    assert window.scheme_filter_name.text() == ""
+    assert window.scheme_filter_status.currentText() == "Any status"
+    assert window.scheme_filter_qc.currentText() == "Any QC"
+    assert window.scheme_filter_dry.currentText() == "Any dry-run"
     window.close()
 
 

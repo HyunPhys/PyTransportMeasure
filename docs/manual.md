@@ -495,12 +495,13 @@ Saved Scheme Browser workflow:
 
 1. Open `Schemes`.
 2. Set `Saved source` to `data/schemes` or another parent folder.
-3. Click `Refresh Saved`.
-4. Select a row in `Saved`.
-5. Click `Load Selected`.
-6. Inspect `Result` and `Report`.
-7. Use `Scheme Folder` to open the selected saved scheme directory.
-8. Use `Scheme Report` when the saved scheme has a `scheme_report.md` file.
+3. Optionally set saved filters by name, status, QC, or dry-run/hardware flag.
+4. Click `Refresh Saved`.
+5. Select a row in `Saved`.
+6. Click `Load Selected`.
+7. Inspect `Result` and `Report`.
+8. Use `Scheme Folder` to open the selected saved scheme directory.
+9. Use `Scheme Report` when the saved scheme has a `scheme_report.md` file.
 
 Scheme Comparison workflow:
 
@@ -510,7 +511,8 @@ Scheme Comparison workflow:
 4. Click `Compare Selected`.
 5. Open `Compare`.
 6. Sort the table by `Mean R`, `Rel Std %`, `QC FAIL`, or another column.
-7. Use the table to decide which scheme/step should be inspected in more
+7. Click `Export CSV` to save the current comparison rows.
+8. Use the table to decide which scheme/step should be inspected in more
    detail.
 
 Scheme Overlay workflow:
@@ -536,7 +538,8 @@ batch run counts when a linked batch summary is available. `Compare Selected`
 uses the same scheme statistics path as CLI review exports, so GUI comparison
 values stay consistent with `ptm scheme-stats`. `Overlay` redraws saved
 `points.csv` data directly on the GUI canvas instead of embedding
-`scheme_overlay.svg`.
+`scheme_overlay.svg`. `Export CSV` writes the comparison rows currently produced
+by the GUI comparison service.
 
 Hardware scheme execution remains a CLI workflow until separate lab smoke tests
 gate it:

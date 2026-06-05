@@ -65,6 +65,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   statistics.
 - [x] GUI Schemes workspace can preview saved scheme overlays from point data
   without embedding stretched SVG artifacts.
+- [x] GUI Schemes workspace can filter saved schemes and export comparison rows
+  as CSV.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -425,12 +427,15 @@ Use this checklist before pulse hardware work begins.
   `scheme_stats.csv`, and, when plottable, `scheme_overlay.svg`.
 - [ ] Click `Refresh Saved`.
 - [ ] Confirm the saved scheme appears in `Saved`.
+- [ ] Set saved filters by name, completion, QC, or dry-run state and confirm
+  `Refresh Saved` narrows the table.
 - [ ] Select the row and confirm `Load Selected` becomes enabled.
 - [ ] Click `Load Selected`.
 - [ ] Confirm `Result` and `Report` update to the selected saved scheme.
 - [ ] Select one or more rows in `Saved`.
 - [ ] Click `Compare Selected`.
 - [ ] Confirm `Compare` shows per-scheme/per-step statistics.
+- [ ] Click `Export CSV` and confirm the CSV contains the comparison rows.
 - [ ] Sort by `Mean R` or `Rel Std %` and confirm the rows reorder.
 - [ ] Click `Load Selected` on a scheme with Drain I-V-style runs.
 - [ ] Open `Overlay`.

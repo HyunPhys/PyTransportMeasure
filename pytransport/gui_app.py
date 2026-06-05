@@ -47,6 +47,7 @@ from .gui_services import (
     scheme_text_from_builder,
     validate_scheme_text,
     validate_recipe_text,
+    write_gui_scheme_comparison_csv,
 )
 
 
@@ -420,6 +421,7 @@ class MainWindow(QMainWindow):
         self.scheme_worker: SchemeDryRunWorker | None = None
         self.last_result: Any | None = None
         self.last_scheme_result: GuiSchemeRunResult | None = None
+        self.last_scheme_comparison: Any | None = None
         self._syncing_recipe_widgets = False
         self.workflow_state: dict[str, bool] = {
             "yaml_checked": False,
@@ -562,11 +564,24 @@ class MainWindow(QMainWindow):
         self.compare_schemes_button = QPushButton("Compare Selected")
         self.compare_schemes_button.clicked.connect(self.compare_selected_schemes)
         self.compare_schemes_button.setEnabled(False)
+        self.export_scheme_compare_button = QPushButton("Export CSV")
+        self.export_scheme_compare_button.clicked.connect(self.export_scheme_comparison_csv)
+        self.export_scheme_compare_button.setEnabled(False)
         self.scheme_source_dir = QLineEdit("data/schemes")
         self.scheme_source_dir.setPlaceholderText("scheme source folder")
         self.scheme_source_dir.setMinimumWidth(220)
         self.browse_scheme_source_button = QPushButton("Source Folder")
         self.browse_scheme_source_button.clicked.connect(self.browse_scheme_source_folder)
+        self.scheme_filter_name = QLineEdit()
+        self.scheme_filter_name.setPlaceholderText("scheme name")
+        self.scheme_filter_qc = QComboBox()
+        self.scheme_filter_qc.addItems(["Any QC", "PASS", "FAIL", "n/a"])
+        self.scheme_filter_status = QComboBox()
+        self.scheme_filter_status.addItems(["Any status", "Completed", "Incomplete"])
+        self.scheme_filter_dry = QComboBox()
+        self.scheme_filter_dry.addItems(["Any dry-run", "Dry-run", "Hardware"])
+        self.clear_scheme_filters_button = QPushButton("Clear Filters")
+        self.clear_scheme_filters_button.clicked.connect(self.clear_scheme_filters)
 
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -889,10 +904,19 @@ class MainWindow(QMainWindow):
         source_row.addWidget(self.refresh_schemes_button)
         source_row.addWidget(self.load_scheme_result_button)
         source_row.addWidget(self.compare_schemes_button)
+        source_row.addWidget(self.export_scheme_compare_button)
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Saved filters"))
+        filter_row.addWidget(self.scheme_filter_name)
+        filter_row.addWidget(self.scheme_filter_status)
+        filter_row.addWidget(self.scheme_filter_qc)
+        filter_row.addWidget(self.scheme_filter_dry)
+        filter_row.addWidget(self.clear_scheme_filters_button)
 
         controls_layout.addLayout(top_row)
         controls_layout.addLayout(action_row)
         controls_layout.addLayout(source_row)
+        controls_layout.addLayout(filter_row)
         layout.addWidget(controls)
         layout.addWidget(self.scheme_step_table, stretch=1)
 
@@ -1283,7 +1307,11 @@ class MainWindow(QMainWindow):
 
     def refresh_saved_schemes(self) -> None:
         try:
-            records = list_gui_schemes(self.scheme_source_dir.text())
+            records = list_gui_schemes(
+                self.scheme_source_dir.text(),
+                name_contains=self.scheme_filter_name.text(),
+                **self.scheme_filter_kwargs(),
+            )
         except Exception as exc:
             self.show_error(exc)
             return
@@ -1295,6 +1323,30 @@ class MainWindow(QMainWindow):
         self.update_selected_scheme_controls()
         self.status_label.setText(f"Loaded {len(records)} saved schemes")
         self.log_session(f"Saved schemes refreshed: {len(records)} records")
+
+    def scheme_filter_kwargs(self) -> dict[str, Any]:
+        kwargs: dict[str, Any] = {}
+        status = self.scheme_filter_status.currentText()
+        if status == "Completed":
+            kwargs["completed"] = True
+        elif status == "Incomplete":
+            kwargs["completed"] = False
+        dry = self.scheme_filter_dry.currentText()
+        if dry == "Dry-run":
+            kwargs["dry_run"] = True
+        elif dry == "Hardware":
+            kwargs["dry_run"] = False
+        qc = self.scheme_filter_qc.currentText()
+        if qc != "Any QC":
+            kwargs["quality_status"] = qc
+        return kwargs
+
+    def clear_scheme_filters(self) -> None:
+        self.scheme_filter_name.clear()
+        self.scheme_filter_qc.setCurrentIndex(0)
+        self.scheme_filter_status.setCurrentIndex(0)
+        self.scheme_filter_dry.setCurrentIndex(0)
+        self.refresh_saved_schemes()
 
     def add_scheme_record_to_table(self, record: dict[str, Any]) -> None:
         row = self.saved_scheme_table.rowCount()
@@ -1366,10 +1418,31 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.show_error(exc)
             return
+        self.last_scheme_comparison = comparison
         self.scheme_compare_text.setPlainText(comparison.text)
         self.populate_scheme_compare_table(comparison.rows)
+        self.export_scheme_compare_button.setEnabled(bool(comparison.rows))
         self.status_label.setText(f"Compared {len(paths)} saved schemes")
         self.log_session(f"Saved schemes compared: {len(paths)} selected, {len(comparison.rows)} rows")
+
+    def export_scheme_comparison_csv(self) -> None:
+        if self.last_scheme_comparison is None:
+            return
+        selected, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Scheme Comparison",
+            str(Path("results").resolve() / "scheme_comparison.csv"),
+            "CSV (*.csv)",
+        )
+        if not selected:
+            return
+        try:
+            path = write_gui_scheme_comparison_csv(self.last_scheme_comparison, selected)
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.status_label.setText(f"Scheme comparison CSV: {path}")
+        self.log_session(f"Scheme comparison CSV exported: {path}")
 
     def populate_scheme_compare_table(self, rows: tuple[dict[str, Any], ...]) -> None:
         self.scheme_compare_table.setSortingEnabled(False)
