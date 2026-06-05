@@ -153,6 +153,14 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert metadata["completed"] is True
     assert metadata["measurement_type"] == "dual_gate_lockin_sweep"
     assert metadata["points_written"] == 9
+    assert metadata["planned_points"] == 9
+    assert metadata["remaining_points"] == 0
+    assert metadata["abort_class"] == "completed"
+    assert metadata["last_completed_index"] == 8
+    assert metadata["last_completed_gate1_voltage_v"] == pytest.approx(0.1)
+    assert metadata["last_completed_gate2_voltage_v"] == pytest.approx(0.1)
+    assert metadata["next_point_index"] is None
+    assert metadata["recovery_recommendation"] == "run_completed_no_recovery_needed"
     assert gate1_smu.is_output_on is False
     assert gate2_smu.is_output_on is False
     assert lockin.connected is False
@@ -164,6 +172,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert rows[0]["gate2_voltage_v"] == "-0.1"
     assert float(rows[0]["lockin_r_v"]) > 0
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
+    assert saved_metadata["planned_points"] == 9
+    assert saved_metadata["outputs_off_after_run"] is True
 
     summary = summarize_dual_gate_lockin_run(run_dir)
     assert summary.points == 9
@@ -173,6 +183,7 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert write_dual_gate_lockin_stats_csv(run_dir).name == "dual_gate_lockin_stats.csv"
     assert write_dual_gate_lockin_heatmap_svg(run_dir).name == "dual_gate_lockin_heatmap.svg"
     assert write_dual_gate_lockin_report(run_dir).name == "dual_gate_lockin_report.md"
+    assert "## Recovery" in (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
 
 
 def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):
@@ -190,6 +201,14 @@ def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):
     assert metadata["completed"] is False
     assert metadata["error_type"] == "SafetyLimitError"
     assert metadata["triggered_limit"] == "gate1_instrument_compliance"
+    assert metadata["abort_class"] == "safety_stop"
+    assert metadata["planned_points"] == 9
+    assert metadata["points_written"] == 0
+    assert metadata["remaining_points"] == 9
+    assert metadata["last_completed_index"] is None
+    assert metadata["next_point_index"] == 0
+    assert metadata["recovery_recommendation"] == "do_not_resume_until_limit_cause_is_reviewed"
+    assert metadata["outputs_off_after_run"] is True
     assert gate1_smu.is_output_on is False
     assert gate2_smu.is_output_on is False
 

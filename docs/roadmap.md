@@ -194,10 +194,14 @@ root.
   - require successful active-gate smoke first
   - enable a tiny bounded gate1 x gate2 scan with strict current limits
   - keep broad scans blocked until interruption/resume policy exists
-- [ ] Phase 25j: Dual-gate lock-in interruption and resume policy
+- [x] Phase 25j: Dual-gate lock-in interruption and recovery policy
   - define whether interrupted active sweeps can resume or must restart
   - add operator-visible abort metadata and recovery checklist
   - keep broad scans blocked until this policy exists
+- [ ] Phase 25k: Dual-gate lock-in broader scan gate
+  - decide the first non-smoke grid size after lab feedback
+  - keep point-count guard and preflight mandatory
+  - consider manual restart tooling only after repeated interruption data exists
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -310,6 +310,32 @@ def format_dual_gate_lockin_report(run_dir: str | Path) -> str:
         )
     if (path / "dual_gate_lockin_heatmap.svg").exists():
         lines.extend(["", "## Heatmap", "", "![Dual-gate lock-in heatmap](dual_gate_lockin_heatmap.svg)"])
+    if "planned_points" in metadata or "abort_class" in metadata:
+        last_index = metadata.get("last_completed_index")
+        last_gate1 = metadata.get("last_completed_gate1_voltage_v")
+        last_gate2 = metadata.get("last_completed_gate2_voltage_v")
+        last_point = (
+            "none"
+            if last_index is None
+            else f"#{last_index}, Vg1={fmt(last_gate1, ' V')}, Vg2={fmt(last_gate2, ' V')}"
+        )
+        lines.extend(
+            [
+                "",
+                "## Recovery",
+                "",
+                f"- Abort class: {metadata.get('abort_class') or 'n/a'}",
+                f"- Planned points: {metadata.get('planned_points') or 'n/a'}",
+                f"- Points written: {metadata.get('points_written') or 0}",
+                f"- Remaining points: {metadata.get('remaining_points') if metadata.get('remaining_points') is not None else 'n/a'}",
+                f"- Last completed point: {last_point}",
+                f"- Next point index: {metadata.get('next_point_index') if metadata.get('next_point_index') is not None else 'n/a'}",
+                f"- Triggered limit: {metadata.get('triggered_limit') or 'none'}",
+                f"- Outputs off after run: {metadata.get('outputs_off_after_run')}",
+                f"- Resume policy: {metadata.get('resume_policy') or 'n/a'}",
+                f"- Recommendation: {metadata.get('recovery_recommendation') or 'n/a'}",
+            ]
+        )
     if summary.error_type:
         lines.extend(["", "## Error", "", f"- Type: {summary.error_type}", f"- Message: {summary.error_message}"])
     return "\n".join(lines) + "\n"

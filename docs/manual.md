@@ -71,7 +71,7 @@ Important modules:
 | Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
-| Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; SR860 readout smoke available; active gate sweep blocked | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin-smoke`, `ptm dual-gate-lockin --dry-run` |
+| Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; SR860 readout smoke, active-gate smoke, and guarded tiny active sweep available | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin-smoke`, `ptm dual-gate-lockin --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
@@ -416,15 +416,23 @@ The limited active sweep command enables the full gate1 x gate2 runner only when
 for the first guarded 2x2 sweep. The broader dry-run recipe is intentionally
 blocked by the default point guard in hardware mode.
 
-Hardware output is intentionally blocked:
+Dual-gate lock-in active sweep metadata includes recovery checkpoints:
+`planned_points`, `points_written`, `remaining_points`, `abort_class`,
+`last_completed_index`, last completed gate voltages, `next_point_index`,
+`outputs_off_after_run`, and `recovery_recommendation`. Current policy is
+manual review plus restart from the beginning, not automatic resume. If
+`abort_class` is `safety_stop`, do not resume until the leakage/compliance cause
+has been reviewed.
+
+Broad hardware scans are intentionally blocked by default:
 
 ```powershell
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml
 ```
 
 The blocked hardware command prints the same preflight report before returning.
-Before this becomes an active hardware sweep, SR860 excitation and Hall bar
-wiring assumptions still need to be explicitly smoke-tested.
+Use the limited active recipe first, and only raise `--max-hardware-points`
+after the lab smoke checklist and saved recovery metadata look correct.
 
 ## Campaign
 

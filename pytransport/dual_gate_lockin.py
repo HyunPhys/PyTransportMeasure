@@ -190,16 +190,30 @@ def run_dual_gate_lockin_sweep(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
+    gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
+    gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
+    total_points = len(gate1_voltages) * len(gate2_voltages)
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "measurement_type": "dual_gate_lockin_sweep",
         "started_at": datetime.now().isoformat(timespec="seconds"),
         "completed": False,
         "interrupted": False,
+        "abort_class": None,
         "error_type": None,
         "error_message": None,
         "triggered_limit": None,
         "points_written": 0,
+        "planned_points": total_points,
+        "remaining_points": total_points,
+        "last_completed_index": None,
+        "last_completed_gate1_index": None,
+        "last_completed_gate2_index": None,
+        "last_completed_gate1_voltage_v": None,
+        "last_completed_gate2_voltage_v": None,
+        "next_point_index": 0,
+        "resume_policy": "manual_review_required_restart_from_beginning",
+        "recovery_recommendation": "run_not_completed_review_metadata_and_restart_from_beginning",
         "gate_outputs_enabled": False,
         "outputs_off_after_run": False,
         "recipe": recipe.model_dump(mode="json"),
@@ -245,9 +259,6 @@ def run_dual_gate_lockin_sweep(
         metadata["gate_outputs_enabled"] = True
 
         start = time.monotonic()
-        gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
-        gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
-        total_points = len(gate1_voltages) * len(gate2_voltages)
         point_index = 0
         for gate1_index, gate1_voltage_v in enumerate(gate1_voltages):
             gate1_smu.set_voltage(float(gate1_voltage_v))
@@ -284,25 +295,38 @@ def run_dual_gate_lockin_sweep(
                 )
                 writer.write_point(point)
                 points_written += 1
+                metadata["last_completed_index"] = point.index
+                metadata["last_completed_gate1_index"] = point.gate1_index
+                metadata["last_completed_gate2_index"] = point.gate2_index
+                metadata["last_completed_gate1_voltage_v"] = point.gate1_voltage_v
+                metadata["last_completed_gate2_voltage_v"] = point.gate2_voltage_v
                 point_index += 1
                 if progress_callback is not None:
                     progress_callback(point, total_points)
 
         metadata["completed"] = True
+        metadata["abort_class"] = "completed"
+        metadata["recovery_recommendation"] = "run_completed_no_recovery_needed"
         return metadata
     except SafetyLimitError as exc:
+        metadata["abort_class"] = "safety_stop"
         metadata["error_type"] = type(exc).__name__
         metadata["error_message"] = str(exc)
         metadata["triggered_limit"] = exc.triggered_limit
+        metadata["recovery_recommendation"] = "do_not_resume_until_limit_cause_is_reviewed"
         return metadata
     except KeyboardInterrupt:
         metadata["interrupted"] = True
+        metadata["abort_class"] = "interrupted"
         metadata["error_type"] = "KeyboardInterrupt"
         metadata["error_message"] = "Measurement interrupted by user"
+        metadata["recovery_recommendation"] = "manual_review_required_restart_from_beginning_recommended"
         return metadata
     except Exception as exc:
+        metadata["abort_class"] = "exception"
         metadata["error_type"] = type(exc).__name__
         metadata["error_message"] = str(exc)
+        metadata["recovery_recommendation"] = "manual_review_required_before_restart"
         return metadata
     finally:
         try:
@@ -318,5 +342,7 @@ def run_dual_gate_lockin_sweep(
                 lockin.close()
                 metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
                 metadata["points_written"] = points_written
+                metadata["remaining_points"] = max(0, total_points - points_written)
+                metadata["next_point_index"] = None if metadata["completed"] else points_written
                 writer.write_metadata(metadata)
                 writer.close()

@@ -16,6 +16,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.
+- [x] Dual-gate lock-in limited active sweep records recovery metadata for
+  completion, interruption, exception, and safety-stop review.
 - [x] Keithley/SR860 AC lock-in preflight checks both resources before hardware
   output is enabled.
 - [x] Pulse measurement is dry-run verified; hardware output is intentionally
@@ -369,6 +371,16 @@ preflight is available.
   unless `--yes` is explicitly used.
 - [ ] Confirm metadata has `outputs_off_after_run: true` and
   `gate_outputs_enabled: false` after the sweep.
+- [ ] Confirm metadata has `planned_points`, `points_written`,
+  `remaining_points`, `abort_class`, `last_completed_index`,
+  `next_point_index`, and `recovery_recommendation`.
+- [ ] Confirm the generated `dual_gate_lockin_report.md` contains a `Recovery`
+  section.
+- [ ] For a normal 2x2 sweep, confirm `abort_class: completed`,
+  `planned_points: 4`, `points_written: 4`, and `remaining_points: 0`.
+- [ ] If a safety stop occurs, confirm `abort_class: safety_stop`,
+  `outputs_off_after_run: true`, and do not resume until leakage/compliance
+  cause is reviewed.
 - [ ] Confirm the broader dry-run recipe is blocked by the point guard in
   hardware mode.
   ```powershell
