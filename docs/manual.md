@@ -1699,6 +1699,11 @@ If this check fails, treat it as measurement-condition drift. Review NPLC,
 voltage/current ranges, compliance, source delay, and SR860 settings before
 regenerating the audit JSON.
 
+When a guarded lock-in hardware command receives `--measurement-audit-json` or
+`--sr860-configure-json`, the saved run metadata includes a top-level
+`hardware_evidence` block with the evidence file paths and a flag that preflight
+was rerun after the evidence check. Dry-runs omit this block.
+
 To review the exact SR860 setting commands implied by a lock-in recipe, use:
 
 ```powershell

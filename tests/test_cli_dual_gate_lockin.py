@@ -45,6 +45,7 @@ lockin:
   voltage_input_range_v: 0.01
   sensitivity_index: 18
   time_constant_index: 10
+  settle_time_constants: 3.0
   filter_slope_db_per_oct: 24
   synchronous_filter: false
 topology:
@@ -370,6 +371,8 @@ def test_cli_dual_gate_lockin_hardware_run_is_blocked(tmp_path, monkeypatch):
 
 def test_cli_dual_gate_lockin_active_sweep_hardware_path_with_guards(tmp_path, monkeypatch):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    audit_json = tmp_path / "measurement_audit.json"
+    assert cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe), "--json-output", str(audit_json)]) == 0
     state = DualGateFakeDeviceState(gate1_leak_resistance_ohm=1_000_000_000.0, gate2_leak_resistance_ohm=1_000_000_000.0)
     gate1 = DualGateFakeSMU("gate1", state)
     gate2 = DualGateFakeSMU("gate2", state)
@@ -401,6 +404,8 @@ def test_cli_dual_gate_lockin_active_sweep_hardware_path_with_guards(tmp_path, m
             "--max-hardware-points",
             "4",
             "--yes",
+            "--measurement-audit-json",
+            str(audit_json),
             "--gate-stats",
             "--plot",
             "--report",
@@ -422,6 +427,9 @@ def test_cli_dual_gate_lockin_active_sweep_hardware_path_with_guards(tmp_path, m
     assert metadata["hardware_guard"]["default_max_hardware_points"] == 9
     assert metadata["hardware_guard"]["requested_max_hardware_points"] == 4
     assert metadata["hardware_guard"]["raised_above_default"] is False
+    assert metadata["hardware_evidence"]["measurement_audit_json"] == str(audit_json)
+    assert metadata["hardware_evidence"]["measurement_audit_evidence_passed"] is True
+    assert metadata["hardware_evidence"]["preflight_reran_after_evidence_check"] is True
     assert (run_dirs[0] / "dual_gate_lockin_heatmap.svg").exists()
 
 

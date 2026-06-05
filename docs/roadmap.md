@@ -877,6 +877,11 @@ root.
     recipe before hardware preflight
   - add optional `--measurement-audit-json` gates to guarded AC/dual-gate
     lock-in preflight and hardware commands
+- [x] Phase 25dao: Hardware evidence metadata
+  - record supplied measurement-audit and SR860-configure evidence paths in
+    hardware run metadata
+  - keep evidence provenance separate from point-count/approval hardware guards
+  - ensure dry-runs do not claim hardware evidence checks
 
 ## Next GUI
 

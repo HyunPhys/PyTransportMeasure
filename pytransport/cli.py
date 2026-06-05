@@ -292,6 +292,29 @@ def read_metadata_file(metadata_path: Path) -> dict:
     return data
 
 
+def hardware_evidence_from_args(args: argparse.Namespace) -> dict | None:
+    measurement_audit_json = getattr(args, "measurement_audit_json", None)
+    sr860_configure_json = getattr(args, "sr860_configure_json", None)
+    if measurement_audit_json is None and sr860_configure_json is None:
+        return None
+    return {
+        "schema": "pytransport.hardware_evidence.v1",
+        "measurement_audit_json": str(measurement_audit_json) if measurement_audit_json else None,
+        "measurement_audit_evidence_passed": measurement_audit_json is not None,
+        "sr860_configure_json": str(sr860_configure_json) if sr860_configure_json else None,
+        "sr860_configure_evidence_passed": sr860_configure_json is not None,
+        "preflight_reran_after_evidence_check": True,
+    }
+
+
+def save_hardware_evidence_if_present(args: argparse.Namespace, metadata_path: str | Path, *, dry_run: bool) -> None:
+    if dry_run:
+        return
+    evidence = hardware_evidence_from_args(args)
+    if evidence is not None:
+        update_metadata_file(Path(metadata_path), {"hardware_evidence": evidence})
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ptm")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2009,6 +2032,7 @@ def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
     print(f"CSV: {metadata['csv_path']}")
     print(f"Metadata: {metadata['metadata_path']}")
     print(f"Metadata completed: {metadata['completed']}")
+    save_hardware_evidence_if_present(args, metadata["metadata_path"], dry_run=args.dry_run)
     indexed_metadata = read_metadata_file(Path(metadata["metadata_path"]))
     written_index_path = append_run_index(indexed_metadata, args.index_path)
     print(f"Index: {written_index_path}")
@@ -2087,6 +2111,7 @@ def command_dual_gate_lockin_active_smoke(args: argparse.Namespace) -> int:
     print(f"CSV: {metadata['csv_path']}")
     print(f"Metadata: {metadata['metadata_path']}")
     print(f"Metadata completed: {metadata['completed']}")
+    save_hardware_evidence_if_present(args, metadata["metadata_path"], dry_run=args.dry_run)
     indexed_metadata = read_metadata_file(Path(metadata["metadata_path"]))
     written_index_path = append_run_index(indexed_metadata, args.index_path)
     print(f"Index: {written_index_path}")
@@ -2279,6 +2304,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                 }
             },
         )
+        save_hardware_evidence_if_present(args, metadata["metadata_path"], dry_run=args.dry_run)
     if args.gate_stats and metadata["points_written"] > 0:
         stats_path = write_dual_gate_lockin_stats_csv(run_dir)
         update_metadata_file(Path(metadata["metadata_path"]), {"dual_gate_lockin_stats_path": str(stats_path)})
@@ -3139,6 +3165,7 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
     print(f"CSV: {metadata['csv_path']}")
     print(f"Metadata: {metadata['metadata_path']}")
     print(f"Metadata completed: {metadata['completed']}")
+    save_hardware_evidence_if_present(args, metadata["metadata_path"], dry_run=args.dry_run)
     if args.plot and metadata["points_written"] > 0:
         plot_path = write_ac_lockin_plot_svg(run_dir)
         update_metadata_file(Path(metadata["metadata_path"]), {"ac_lockin_plot_path": str(plot_path)})

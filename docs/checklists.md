@@ -184,6 +184,9 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Pass the same saved audit to guarded lock-in preflight or hardware
   commands with `--measurement-audit-json`; if it fails, inspect NPLC, ranges,
   compliance, source delay, and SR860 settings before regenerating the audit.
+- [ ] After a guarded lock-in hardware run, open `metadata.json` and confirm
+  `hardware_evidence.measurement_audit_json` and/or
+  `hardware_evidence.sr860_configure_json` record the evidence files used.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

@@ -72,8 +72,19 @@ lockin:
   timeout_ms: 10000
   channels: [x, y, r, theta]
   read_timing: after_dc_settle
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
   input_mode: voltage
   voltage_input: a-b
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  settle_time_constants: 3.0
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
 topology:
   source_contact: S
   drain_contact: D
@@ -251,6 +262,8 @@ def test_cli_ac_lockin_four_terminal_hardware_blocks_too_many_points(tmp_path, m
 
 def test_cli_ac_lockin_four_terminal_hardware_guard_saved_to_metadata(tmp_path, monkeypatch):
     recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+    audit_json = tmp_path / "measurement_audit.json"
+    assert cli.main(["measurement-parameter-audit", "ac_lockin_sweep", str(recipe), "--json-output", str(audit_json)]) == 0
     source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
     lockin = FakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0)
 
@@ -268,6 +281,8 @@ def test_cli_ac_lockin_four_terminal_hardware_guard_saved_to_metadata(tmp_path, 
             "--max-hardware-points",
             "3",
             "--yes",
+            "--measurement-audit-json",
+            str(audit_json),
             "--index-path",
             str(tmp_path / "index.jsonl"),
         ]
@@ -280,6 +295,9 @@ def test_cli_ac_lockin_four_terminal_hardware_guard_saved_to_metadata(tmp_path, 
     assert metadata["hardware_guard"]["hardware_approval_note"] == "fixture checked; SR860 A-B contacts verified"
     assert metadata["hardware_guard"]["point_count"] == 3
     assert metadata["hardware_guard"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert metadata["hardware_evidence"]["measurement_audit_json"] == str(audit_json)
+    assert metadata["hardware_evidence"]["measurement_audit_evidence_passed"] is True
+    assert metadata["hardware_evidence"]["preflight_reran_after_evidence_check"] is True
     assert metadata["configured_source_smu"]["nplc"] == 1.0
 
 
@@ -302,6 +320,7 @@ def test_cli_ac_lockin_four_terminal_dry_run_does_not_require_hardware_guard(tmp
     run_dir = list((tmp_path / "raw").glob("*ac_lockin_four_terminal_cli_hardware"))[0]
     metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["hardware_guard"] is None
+    assert "hardware_evidence" not in metadata
 
 
 def test_cli_ac_lockin_lab_smoke_intake_outputs_text_and_json(tmp_path, monkeypatch, capsys):
