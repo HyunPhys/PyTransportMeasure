@@ -108,6 +108,17 @@ DEFAULT_RECIPES = {
     "pulse_measurement": "configs/recipes/pulse_dry_run.yaml",
 }
 
+PREFLIGHT_METHODS = {"drain_iv", "single_gate_sweep"}
+HARDWARE_RUN_METHODS = {"drain_iv"}
+
+
+def supports_preflight(method: str) -> bool:
+    return method in PREFLIGHT_METHODS
+
+
+def supports_hardware_run(method: str) -> bool:
+    return method in HARDWARE_RUN_METHODS
+
 
 if QTableWidgetItem is not None:
     class SortableTableWidgetItem(QTableWidgetItem):
@@ -1145,11 +1156,11 @@ class MainWindow(QMainWindow):
             finally:
                 self._syncing_recipe_widgets = False
         if hasattr(self, "load_form_button"):
-            is_drain_iv = self.current_method() == "drain_iv"
+            method = self.current_method()
             self.load_form_button.setEnabled(True)
             self.apply_form_button.setEnabled(True)
-            self.preflight_button.setEnabled(is_drain_iv)
-            self.hardware_run_button.setEnabled(is_drain_iv)
+            self.preflight_button.setEnabled(supports_preflight(method))
+            self.hardware_run_button.setEnabled(supports_hardware_run(method))
         if hasattr(self, "workflow_text"):
             self.reset_workflow_after_recipe_change("Default recipe loaded. Click Check YAML.")
 
@@ -1927,7 +1938,7 @@ class MainWindow(QMainWindow):
 
     def handle_preflight_result(self, text: str) -> None:
         self.preflight_text.setPlainText(text)
-        passed = "Preflight OK: True" in text
+        passed = "Preflight OK: True" in text or "Single-gate preflight OK: True" in text
         status = "Preflight passed" if passed else "Preflight failed"
         self.status_label.setText(status)
         self.mark_workflow(
@@ -1983,36 +1994,36 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def set_running(self, running: bool) -> None:
-        is_drain_iv = self.current_method() == "drain_iv"
+        method = self.current_method()
         self.run_button.setEnabled(not running)
         self.stop_run_button.setEnabled(running)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
-        self.preflight_button.setEnabled(is_drain_iv and not running)
-        self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        self.preflight_button.setEnabled(supports_preflight(method) and not running)
+        self.hardware_run_button.setEnabled(supports_hardware_run(method) and not running)
         if running:
             self.status_label.setText("Running dry-run...")
 
     def set_preflighting(self, running: bool) -> None:
-        is_drain_iv = self.current_method() == "drain_iv"
+        method = self.current_method()
         self.stop_run_button.setEnabled(False)
-        self.preflight_button.setEnabled(is_drain_iv and not running)
+        self.preflight_button.setEnabled(supports_preflight(method) and not running)
         self.plan_button.setEnabled(not running)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
         self.run_button.setEnabled(not running)
-        self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        self.hardware_run_button.setEnabled(supports_hardware_run(method) and not running)
         if running:
             self.status_label.setText("Running preflight...")
 
     def set_hardware_running(self, running: bool) -> None:
-        is_drain_iv = self.current_method() == "drain_iv"
-        self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        method = self.current_method()
+        self.hardware_run_button.setEnabled(supports_hardware_run(method) and not running)
         self.stop_run_button.setEnabled(running)
-        self.preflight_button.setEnabled(is_drain_iv and not running)
+        self.preflight_button.setEnabled(supports_preflight(method) and not running)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
@@ -2022,13 +2033,13 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Running hardware measurement...")
 
     def set_doctor_running(self, running: bool) -> None:
-        is_drain_iv = self.current_method() == "drain_iv"
+        method = self.current_method()
         self.stop_run_button.setEnabled(False)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
-        self.preflight_button.setEnabled(is_drain_iv and not running)
-        self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        self.preflight_button.setEnabled(supports_preflight(method) and not running)
+        self.hardware_run_button.setEnabled(supports_hardware_run(method) and not running)
         self.run_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         if running:

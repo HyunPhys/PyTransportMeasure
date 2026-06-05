@@ -46,7 +46,14 @@ from .instruments.keithley_2450 import Keithley2450
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
 from .model import MeasurementPoint
 from .plot import write_iv_svg
-from .preflight import format_preflight_report, run_preflight, run_preflight_for_recipe
+from .preflight import (
+    format_preflight_report,
+    format_single_gate_preflight_report,
+    run_preflight,
+    run_preflight_for_recipe,
+    run_single_gate_preflight,
+    run_single_gate_preflight_for_recipe,
+)
 from .pulse import run_pulse_measurement
 from .pulse_review import write_pulse_plot_svg, write_pulse_report
 from .quality import evaluate_run_quality, format_quality_report, quality_report_to_dict
@@ -145,6 +152,13 @@ def build_parser() -> argparse.ArgumentParser:
     single_gate_plan.add_argument("recipe", type=Path)
     single_gate_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     single_gate_plan.add_argument("--preview-points", type=int, default=5)
+
+    single_gate_preflight = subparsers.add_parser(
+        "single-gate-preflight",
+        help="Validate a single-gate recipe, find both VISA addresses, and probe both Keithleys.",
+    )
+    single_gate_preflight.add_argument("recipe", type=Path)
+    single_gate_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
 
     single_gate = subparsers.add_parser("single-gate", help="Run a single-gate sweep recipe.")
     single_gate.add_argument("recipe", type=Path)
@@ -522,6 +536,12 @@ def command_single_gate_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_single_gate_preflight(args: argparse.Namespace) -> int:
+    report = run_single_gate_preflight(args.recipe, args.safety_dir)
+    print(format_single_gate_preflight_report(report))
+    return 0 if report.ok else 2
+
+
 def command_single_gate(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type("single_gate_sweep")
     recipe = method.load_recipe(args.recipe)
@@ -540,7 +560,7 @@ def command_single_gate(args: argparse.Namespace) -> int:
         if recipe.drain_instrument.address == recipe.gate_instrument.address:
             print("Single-gate hardware run requires separate drain and gate instrument addresses.", file=sys.stderr)
             return 2
-        if not single_gate_hardware_preflight_ok(recipe):
+        if not single_gate_hardware_preflight_ok(recipe, args.recipe, args.safety_dir):
             return 2
         if should_confirm_hardware_run(args.dry_run, args.yes) and not confirm_hardware_run(
             lambda prompt: input(prompt.replace("hardware output and sweep", "single-gate hardware output and sweep"))
@@ -701,36 +721,16 @@ def command_pulse(args: argparse.Namespace) -> int:
     return exit_code_for_metadata(metadata)
 
 
-def single_gate_hardware_preflight_ok(recipe) -> bool:
-    resources = tuple(list_resources())
-    print("VISA resources:")
-    if resources:
-        for resource in resources:
-            print(f"- {resource}")
-    else:
-        print("- none")
-    ok = True
-    for label, instrument in [("drain", recipe.drain_instrument), ("gate", recipe.gate_instrument)]:
-        found = instrument.address in resources
-        print(f"{label.capitalize()} address found: {found} ({instrument.address})")
-        if not found:
-            ok = False
-            continue
-        smu = Keithley2450(instrument.address, instrument.timeout_ms)
-        try:
-            smu.connect()
-            probe = smu.probe()
-            print(f"{label.capitalize()} probe:")
-            for key, value in probe.items():
-                print(f"- {key}: {value}")
-        except Exception as exc:
-            ok = False
-            print(f"{label.capitalize()} probe error: {type(exc).__name__}: {exc}", file=sys.stderr)
-        finally:
-            smu.close()
-    if not ok:
+def single_gate_hardware_preflight_ok(
+    recipe,
+    recipe_path: str | Path,
+    safety_dir: str | Path = "configs/safety",
+) -> bool:
+    report = run_single_gate_preflight_for_recipe(recipe, recipe_path, safety_dir)
+    print(format_single_gate_preflight_report(report))
+    if not report.ok:
         print("Single-gate run blocked because preflight did not pass.", file=sys.stderr)
-    return ok
+    return report.ok
 
 
 def execute_recipe_measurement(
@@ -1157,12 +1157,10 @@ def preflight_scheme_steps(steps, safety_dir: Path) -> bool:
         elif step.type == "single_gate":
             recipe = load_scheme_step_single_gate_recipe(step)
             print(f"Preflight for scheme step {step.label}: {step.path}")
-            validate_single_gate_recipe_against_safety(recipe, load_named_safety_preset(recipe.safety_preset, safety_dir))
-            if recipe.drain_instrument.address == recipe.gate_instrument.address:
-                print("Single-gate preflight failed: drain and gate addresses are identical.", file=sys.stderr)
-                ok = False
-                continue
-            if not single_gate_hardware_preflight_ok(recipe):
+            report = run_single_gate_preflight_for_recipe(recipe, step.path, safety_dir)
+            print(format_single_gate_preflight_report(report))
+            print()
+            if not report.ok:
                 ok = False
         else:
             batch = load_batch(step.path)
@@ -1659,6 +1657,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_run(args)
     if args.command == "single-gate-plan":
         return command_single_gate_plan(args)
+    if args.command == "single-gate-preflight":
+        return command_single_gate_preflight(args)
     if args.command == "single-gate":
         return command_single_gate(args)
     if args.command == "ac-lockin-plan":

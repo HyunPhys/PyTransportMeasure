@@ -250,6 +250,12 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ```powershell
   ptm single-gate-plan configs/recipes/single_gate_hardware_smoke.yaml
   ```
+- [ ] Run the two-SMU preflight and confirm both instruments pass.
+  ```powershell
+  ptm single-gate-preflight configs/recipes/single_gate_hardware_smoke.yaml
+  ```
+  Confirm `Drain/gate addresses distinct: True`, both `address found: True`,
+  and `Single-gate preflight OK: True`.
 - [ ] Dry-run the recipe and artifacts.
   ```powershell
   ptm single-gate configs/recipes/single_gate_hardware_smoke.yaml --dry-run --summary --plot --report --gate-stats --fake-channel-resistance-ohm 1000000 --fake-gate-leak-resistance-ohm 1000000000 --fake-noise-std-a 0

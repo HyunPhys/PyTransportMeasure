@@ -303,12 +303,15 @@ For the first two-SMU hardware smoke test, start from the conservative recipe:
 
 ```powershell
 ptm single-gate-plan configs/recipes/single_gate_hardware_smoke.yaml
+ptm single-gate-preflight configs/recipes/single_gate_hardware_smoke.yaml
 ptm single-gate configs/recipes/single_gate_hardware_smoke.yaml --dry-run --summary --plot --report --gate-stats --fake-channel-resistance-ohm 1000000 --fake-gate-leak-resistance-ohm 1000000000 --fake-noise-std-a 0
 ptm single-gate configs/recipes/single_gate_hardware_smoke.yaml --progress --summary --plot --report --gate-stats
 ```
 
 Before the hardware command, edit the recipe so `drain_instrument.address` and
 `gate_instrument.address` match the two actual Keithleys and are not identical.
+The preflight must report `Drain/gate addresses distinct: True`, both
+instrument addresses found, and `Single-gate preflight OK: True`.
 
 ## Campaign
 

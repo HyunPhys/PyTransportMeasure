@@ -31,7 +31,12 @@ from .inspect import read_run_metadata
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .instruments.keithley_2450 import Keithley2450
 from .method_registry import handler_for_measurement_type
-from .preflight import format_preflight_report, run_preflight_for_recipe
+from .preflight import (
+    format_preflight_report,
+    format_single_gate_preflight_report,
+    run_preflight_for_recipe,
+    run_single_gate_preflight_for_recipe,
+)
 from .pulse import run_pulse_measurement
 from .quality import evaluate_run_quality, quality_report_to_dict
 from .recipes import load_named_safety_preset, load_recipe, sweep_voltages
@@ -871,8 +876,6 @@ def run_gui_preflight_text(
     probe_factory=None,
     draft_dir: str | Path = "data/gui_drafts",
 ) -> str:
-    if measurement_type != "drain_iv":
-        raise ValueError("GUI preflight currently supports Drain I-V recipes only")
     recipe = load_recipe_from_text(measurement_type, text)
     draft_path = write_gui_draft_recipe(measurement_type, recipe.measurement_name, text, draft_dir)
     kwargs = {}
@@ -880,8 +883,13 @@ def run_gui_preflight_text(
         kwargs["resource_lister"] = resource_lister
     if probe_factory is not None:
         kwargs["probe_factory"] = probe_factory
-    report = run_preflight_for_recipe(recipe, draft_path, safety_dir=safety_dir, **kwargs)
-    return format_preflight_report(report)
+    if measurement_type == "drain_iv":
+        report = run_preflight_for_recipe(recipe, draft_path, safety_dir=safety_dir, **kwargs)
+        return format_preflight_report(report)
+    if measurement_type == "single_gate_sweep":
+        report = run_single_gate_preflight_for_recipe(recipe, draft_path, safety_dir=safety_dir, **kwargs)
+        return format_single_gate_preflight_report(report)
+    raise ValueError("GUI preflight currently supports Drain I-V and single-gate recipes only")
 
 
 def run_gui_doctor_text(

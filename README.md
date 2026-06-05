@@ -134,6 +134,7 @@ ptm single-gate-plan configs/recipes/single_gate_dry_run.yaml
 ptm single-gate configs/recipes/single_gate_dry_run.yaml --dry-run --progress --fake-channel-resistance-ohm 1000000 --fake-noise-std-a 0
 ptm single-gate configs/recipes/single_gate_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-channel-resistance-ohm 1000000 --fake-noise-std-a 0
 ptm single-gate-plan configs/recipes/single_gate_hardware_smoke.yaml
+ptm single-gate-preflight configs/recipes/single_gate_hardware_smoke.yaml
 ptm single-gate configs/recipes/single_gate_hardware_smoke.yaml --dry-run --summary --plot --report --gate-stats --fake-channel-resistance-ohm 1000000 --fake-gate-leak-resistance-ohm 1000000000 --fake-noise-std-a 0
 ptm ac-lockin-plan configs/recipes/ac_lockin_dry_run.yaml
 ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0
@@ -208,6 +209,7 @@ ptm run configs/recipes/drain_iv_1k_resistor.yaml --dry-run --fake-resistance-oh
 ptm single-gate-plan configs/recipes/single_gate_dry_run.yaml
 ptm single-gate configs/recipes/single_gate_dry_run.yaml --dry-run --progress --fake-channel-resistance-ohm 1000000 --fake-noise-std-a 0
 ptm single-gate configs/recipes/single_gate_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-channel-resistance-ohm 1000000 --fake-noise-std-a 0
+ptm single-gate-preflight configs/recipes/single_gate_hardware_smoke.yaml
 ptm ac-lockin-plan configs/recipes/ac_lockin_dry_run.yaml
 ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0
 ptm pulse-plan configs/recipes/pulse_dry_run.yaml

@@ -832,6 +832,31 @@ def test_gui_preflight_text_uses_unsaved_editor_yaml(tmp_path):
     assert (tmp_path / "drafts" / "drain_iv_unsaved_gui_preflight.yaml").exists()
 
 
+def test_gui_preflight_text_supports_single_gate_editor_yaml(tmp_path):
+    text = Path("configs/recipes/single_gate_hardware_smoke.yaml").read_text(encoding="utf-8").replace(
+        "single_gate_hardware_smoke",
+        "gui_single_gate_preflight",
+    )
+
+    report = run_gui_preflight_text(
+        "single_gate_sweep",
+        text,
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::3::INSTR"),
+        probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": f"KEITHLEY INSTRUMENTS,MODEL 2450,{address},1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        draft_dir=tmp_path / "drafts",
+    )
+
+    assert "gui_single_gate_preflight" in report
+    assert "Drain/gate addresses distinct: True" in report
+    assert "Single-gate preflight OK: True" in report
+    assert (tmp_path / "drafts" / "single_gate_sweep_gui_single_gate_preflight.yaml").exists()
+
+
 def test_gui_doctor_text_uses_drain_iv_editor_address(tmp_path):
     values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
     values["address"] = "GPIB0::8::INSTR"
@@ -868,10 +893,10 @@ def test_gui_doctor_text_can_run_without_method_address():
     assert "Requested address" not in report
 
 
-def test_gui_preflight_text_rejects_non_drain_method():
+def test_gui_preflight_text_rejects_unsupported_method():
     text = Path("configs/recipes/pulse_dry_run.yaml").read_text(encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Drain I-V"):
+    with pytest.raises(ValueError, match="Drain I-V and single-gate"):
         run_gui_preflight_text("pulse_measurement", text)
 
 

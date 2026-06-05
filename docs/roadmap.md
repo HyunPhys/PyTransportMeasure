@@ -2,6 +2,22 @@
 
 This roadmap tracks the large development phases. Completed items are checked.
 
+## Measurement Target
+
+The long-term target is Hall-bar graphene transport measurement with dual-gate
+scans. The measurement stack should grow in this order:
+
+- two-terminal DC measurement with Keithley 2450
+- four-terminal DC measurement with 2450 remote sense or separate voltage readout
+- two-terminal AC measurement with Keithley bias plus SR860 lock-in readout
+- four-terminal AC measurement with lock-in voltage/current geometry
+- single-gate and dual-gate scans that compose the verified inner measurement
+  methods
+
+Current hardware on hand: two Keithley 2450 source meters and one SRS SR860
+lock-in amplifier. SR860 command work must reference `SR860m.pdf` in the project
+root.
+
 ## Completed
 
 - [x] Phase 0: New package skeleton
@@ -105,6 +121,12 @@ This roadmap tracks the large development phases. Completed items are checked.
   - [x] add fake pulse traces with tests
   - [x] add conservative dry-run recipe
   - [x] document pulse user workflow and hardware block policy
+- [x] Phase 21a: Single-gate/two-SMU preflight gate
+  - add `ptm single-gate-preflight`
+  - probe drain and gate Keithley addresses before any two-SMU hardware run
+  - block identical or missing drain/gate resources
+  - expose single-gate preflight in GUI while keeping GUI hardware output
+    conservative
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -114,15 +136,27 @@ This roadmap tracks the large development phases. Completed items are checked.
   - summary, metadata, report, recent run, and artifact-open views
 
 ## Next
-- [ ] Phase 21: Single-gate hardware smoke validation
+- [ ] Phase 21b: Single-gate hardware smoke validation
   - confirm two Keithley addresses
   - verify drain/gate output-off behavior on real instruments
   - save first two-SMU smoke-test artifacts
 - [ ] Phase 22: SR860 hardware smoke preparation
-  - confirm SR860 SCPI command subset
-  - add identify/probe path if needed
+  - read `SR860m.pdf` and document the exact SCPI command subset
+  - add SR860 identify/probe path
   - add conservative hardware smoke-test checklist
   - keep full hardware acquisition blocked until smoke test passes
+- [ ] Phase 23b: Two-terminal AC hardware smoke
+  - Keithley DC bias or zero-bias source setup
+  - SR860 X/Y/R/theta readout
+  - point CSV and metadata with lock-in settings
+- [ ] Phase 24b: Terminal geometry abstraction
+  - represent 2-terminal and 4-terminal geometry in recipes and metadata
+  - add 2450 4-wire/remote-sense TODO implementation hook
+  - keep SCPI selection explicit in plan/preflight before enabling output
+- [ ] Phase 25b: Dual-gate scan composition
+  - compose verified inner measurement methods under gate sweeps
+  - support Hall-bar graphene dual-gate scan recipes
+  - keep DC/AC and 2-terminal/4-terminal method selection explicit
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
