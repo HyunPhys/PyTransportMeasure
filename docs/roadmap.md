@@ -303,7 +303,12 @@ root.
   - run strict acceptance and scale-up compatibility checks without hardware
     output
   - use this as the final dry gate before a raised-point hardware run
-- [ ] Phase 25ad: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ad: Accepted-run scale-up recipe template
+  - add `ptm dual-gate-lockin-scale-up-template`
+  - copy accepted run topology, SR860 settings, Keithley settings, compliance,
+    and metadata structure into a candidate recipe
+  - change only the requested gate grid and immediately run scale-up pre-check
+- [ ] Phase 25ae: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

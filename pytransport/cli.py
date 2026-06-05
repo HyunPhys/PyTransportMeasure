@@ -48,6 +48,7 @@ from .dual_gate_review import (
     write_dual_gate_stats_csv,
 )
 from .dual_gate_lockin import dual_gate_lockin_point_count, run_dual_gate_lockin_sweep
+from .dual_gate_lockin_scaleup import write_dual_gate_lockin_scale_up_recipe
 from .dual_gate_lockin_smoke import (
     format_dual_gate_lockin_active_smoke_plan,
     format_dual_gate_lockin_smoke_plan,
@@ -360,6 +361,22 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_scale_up_check.add_argument("accepted_run_dir", type=Path)
     dual_gate_lockin_scale_up_check.add_argument("candidate_recipe", type=Path)
+
+    dual_gate_lockin_scale_up_template = subparsers.add_parser(
+        "dual-gate-lockin-scale-up-template",
+        help="Create a broader candidate dual-gate lock-in recipe from an accepted run without hardware.",
+    )
+    dual_gate_lockin_scale_up_template.add_argument("accepted_run_dir", type=Path)
+    dual_gate_lockin_scale_up_template.add_argument("output_recipe", type=Path)
+    dual_gate_lockin_scale_up_template.add_argument("--gate1-start-v", type=float, required=True)
+    dual_gate_lockin_scale_up_template.add_argument("--gate1-stop-v", type=float, required=True)
+    dual_gate_lockin_scale_up_template.add_argument("--gate1-points", type=int, required=True)
+    dual_gate_lockin_scale_up_template.add_argument("--gate2-start-v", type=float, required=True)
+    dual_gate_lockin_scale_up_template.add_argument("--gate2-stop-v", type=float, required=True)
+    dual_gate_lockin_scale_up_template.add_argument("--gate2-points", type=int, required=True)
+    dual_gate_lockin_scale_up_template.add_argument("--measurement-name")
+    dual_gate_lockin_scale_up_template.add_argument("--output-directory", type=Path)
+    dual_gate_lockin_scale_up_template.add_argument("--overwrite", action="store_true")
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
@@ -1246,6 +1263,29 @@ def command_dual_gate_lockin_scale_up_check(args: argparse.Namespace) -> int:
         )
         return 2
     return 0
+
+
+def command_dual_gate_lockin_scale_up_template(args: argparse.Namespace) -> int:
+    output_path = write_dual_gate_lockin_scale_up_recipe(
+        args.accepted_run_dir,
+        args.output_recipe,
+        args.gate1_start_v,
+        args.gate1_stop_v,
+        args.gate1_points,
+        args.gate2_start_v,
+        args.gate2_stop_v,
+        args.gate2_points,
+        measurement_name=args.measurement_name,
+        output_directory=args.output_directory,
+        overwrite=args.overwrite,
+    )
+    print(f"Candidate recipe: {output_path}")
+    print()
+    check_args = argparse.Namespace(
+        accepted_run_dir=args.accepted_run_dir,
+        candidate_recipe=output_path,
+    )
+    return command_dual_gate_lockin_scale_up_check(check_args)
 
 
 def command_ac_lockin_plan(args: argparse.Namespace) -> int:
@@ -2464,6 +2504,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_audit(args)
     if args.command == "dual-gate-lockin-scale-up-check":
         return command_dual_gate_lockin_scale_up_check(args)
+    if args.command == "dual-gate-lockin-scale-up-template":
+        return command_dual_gate_lockin_scale_up_template(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
     if args.command == "ac-lockin-preflight":

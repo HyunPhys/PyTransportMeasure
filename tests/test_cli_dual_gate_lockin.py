@@ -407,6 +407,69 @@ def test_cli_dual_gate_lockin_scale_up_check_fails_for_incompatible_candidate(tm
     assert code == 2
 
 
+def test_cli_dual_gate_lockin_scale_up_template_writes_compatible_candidate(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    output_recipe = tmp_path / "candidate_broader.yaml"
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-scale-up-template",
+            str(previous_run),
+            str(output_recipe),
+            "--gate1-start-v",
+            "-0.1",
+            "--gate1-stop-v",
+            "0.1",
+            "--gate1-points",
+            "3",
+            "--gate2-start-v",
+            "-0.1",
+            "--gate2-stop-v",
+            "0.1",
+            "--gate2-points",
+            "3",
+            "--measurement-name",
+            "broader_candidate",
+            "--output-directory",
+            str(tmp_path / "raw_broader"),
+        ]
+    )
+
+    assert code == 0
+    text = output_recipe.read_text(encoding="utf-8")
+    assert "measurement_name: broader_candidate" in text
+    assert "directory: " in text
+    assert "points: 3" in text
+
+
+def test_cli_dual_gate_lockin_scale_up_template_fails_when_grid_does_not_include_previous(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    output_recipe = tmp_path / "candidate_bad.yaml"
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-scale-up-template",
+            str(previous_run),
+            str(output_recipe),
+            "--gate1-start-v",
+            "-0.2",
+            "--gate1-stop-v",
+            "0.2",
+            "--gate1-points",
+            "3",
+            "--gate2-start-v",
+            "-0.2",
+            "--gate2-stop-v",
+            "0.2",
+            "--gate2-points",
+            "3",
+        ]
+    )
+
+    assert code == 2
+    assert output_recipe.exists()
+
+
 def test_cli_dual_gate_lockin_active_sweep_blocks_when_too_many_points(tmp_path, monkeypatch):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 

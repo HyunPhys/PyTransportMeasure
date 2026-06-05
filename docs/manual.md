@@ -465,6 +465,16 @@ The command must print both `Dual-gate lock-in acceptance: PASS` and
 `Dual-gate lock-in scale-up compatibility: PASS` before the candidate recipe is
 used for a raised-point hardware run.
 
+To reduce manual copy errors, generate a candidate broader recipe from the
+accepted run metadata and only change the gate grid:
+
+```powershell
+ptm dual-gate-lockin-scale-up-template data\raw\<accepted_limited_run_folder> configs/recipes/dual_gate_lockin_3x3_candidate.yaml --gate1-start-v -0.1 --gate1-stop-v 0.1 --gate1-points 3 --gate2-start-v -0.1 --gate2-stop-v 0.1 --gate2-points 3 --measurement-name dual_gate_lockin_3x3_candidate
+```
+
+The template command writes the candidate recipe and immediately runs the same
+hardware-free scale-up check.
+
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,
 `last_completed_index`, last completed gate voltages, `next_point_index`,
