@@ -651,6 +651,10 @@ remain point-guarded.
 - [ ] Confirm intake prints `Hall suite result intake: PASS`.
 - [ ] Confirm `result_intake_report.md` and `result_intake.json` are written in
   the package folder.
+- [ ] Confirm `result_intake_report.md` includes `Returned Run Topology` and
+  the Vxx/Vxy contact roles match the lab notebook.
+- [ ] Confirm `result_intake.json` records `runs.<role>.topology` for each
+  returned run.
 - [ ] Write the lab-return manifest after intake PASS.
   ```powershell
   ptm dual-gate-lockin-hall-suite-lab-return-manifest data\hall_packages\<sample_lab_package> --operator-note "<lab notebook reference>" --overwrite

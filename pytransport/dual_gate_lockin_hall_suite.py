@@ -591,6 +591,7 @@ def write_dual_gate_lockin_hall_suite_result_intake(
         if isinstance(plus_b, (int, float)) and isinstance(minus_b, (int, float)):
             if plus_b <= 0 or minus_b >= 0 or abs(plus_b + minus_b) > max(1e-12, abs(plus_b) * 1e-9):
                 issues.append(HallSuiteResultIntakeIssue("error", "run_magnetic_field", "+B and -B runs do not have equal-magnitude opposite fields"))
+    run_topologies = {key: _run_topology_summary(run_dirs[key]) for key in run_audits}
 
     errors = [issue for issue in issues if issue.severity == "error"]
     accepted = not errors
@@ -599,6 +600,7 @@ def write_dual_gate_lockin_hall_suite_result_intake(
         manifest,
         suite_audit,
         run_audits,
+        run_topologies,
         issues,
         accepted=accepted,
     )
@@ -621,6 +623,7 @@ def write_dual_gate_lockin_hall_suite_result_intake(
                 "points_written": audit.points_written,
                 "planned_points": audit.planned_points,
                 "remaining_points": audit.remaining_points,
+                "topology": run_topologies.get(key),
             }
             for key, audit in run_audits.items()
         },
@@ -1369,6 +1372,7 @@ def format_dual_gate_lockin_hall_suite_result_intake(
     manifest: dict[str, Any],
     suite_audit: HallSuiteAudit,
     run_audits: dict[str, Any],
+    run_topologies: dict[str, dict[str, Any]],
     issues: list[HallSuiteResultIntakeIssue],
     *,
     accepted: bool,
@@ -1401,7 +1405,28 @@ def format_dual_gate_lockin_hall_suite_result_intake(
                 "",
             ]
         )
-    lines.extend(["## Intake Issues", ""])
+    lines.extend(
+        [
+            "## Returned Run Topology",
+            "",
+            "| Run | Role | B (T) | Excitation contacts | SR860 voltage contacts | Channel L (m) | Channel W (m) | Layout |",
+            "| --- | --- | ---: | --- | --- | ---: | ---: | --- |",
+        ]
+    )
+    for key in run_audits:
+        topology = run_topologies.get(key, {})
+        lines.append(
+            "| "
+            f"{key} | "
+            f"{_fmt_optional(topology.get('voltage_probe_role'))} | "
+            f"{_fmt_optional(topology.get('magnetic_field_t'))} | "
+            f"{_fmt_contact_list(topology.get('excitation_contacts'))} | "
+            f"{_fmt_contact_list(topology.get('lockin_input_contacts'))} | "
+            f"{_fmt_optional(topology.get('channel_length_m'))} | "
+            f"{_fmt_optional(topology.get('channel_width_m'))} | "
+            f"{_fmt_optional(topology.get('topology_layout'))} |"
+        )
+    lines.extend(["", "## Intake Issues", ""])
     if issues:
         for issue in issues:
             lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
@@ -3389,6 +3414,12 @@ def _run_role_fields(run_dirs: dict[str, Path]) -> dict[str, dict[str, Any]]:
             "measurement_name": metadata.get("measurement_name"),
         }
     return fields
+
+
+def _run_topology_summary(run_dir: Path) -> dict[str, Any]:
+    metadata = read_dual_gate_lockin_metadata(run_dir)
+    recipe = metadata.get("recipe") if isinstance(metadata.get("recipe"), dict) else {}
+    return _condition_snapshot_topology(recipe)
 
 
 def _check_intake_roles(

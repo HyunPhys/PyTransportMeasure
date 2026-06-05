@@ -454,6 +454,10 @@ root.
   - inspect a completed package session from the lab laptop
   - verify Vxx/+B/-B/0B run folders against the packaged recipes and manifest
   - produce a one-command post-run audit before Hall analysis
+- [x] Phase 25bhb: Hall intake topology summary
+  - include returned-run Hall-bar topology summaries in `result_intake.json`
+  - print Vxx/Vxy contact roles in the intake report before condition snapshot
+    and drift audits
 - [x] Phase 25bi: Hall-suite analysis orchestration
   - add `ptm dual-gate-lockin-hall-suite-analyze`
   - run accepted suite outputs through antisymmetry, optional zero-field

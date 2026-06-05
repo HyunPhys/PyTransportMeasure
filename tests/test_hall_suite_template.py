@@ -717,10 +717,17 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert code == 0
     report = package_dir / "result_intake_report.md"
     payload = json.loads((package_dir / "result_intake.json").read_text(encoding="utf-8"))
+    report_text = report.read_text(encoding="utf-8")
     assert report.exists()
-    assert "Accepted for Hall analysis: True" in report.read_text(encoding="utf-8")
+    assert "Accepted for Hall analysis: True" in report_text
     assert payload["accepted"] is True
     assert payload["runs"]["longitudinal"]["points_written"] == 4
+    assert payload["runs"]["longitudinal"]["topology"]["voltage_probe_role"] == "longitudinal"
+    assert payload["runs"]["plus"]["topology"]["voltage_probe_role"] == "hall"
+    assert payload["runs"]["plus"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert "## Returned Run Topology" in report_text
+    assert "| longitudinal | longitudinal |" in report_text
+    assert "| plus | hall |" in report_text
     snapshot_json = tmp_path / "condition_snapshot.json"
     snapshot_md = tmp_path / "condition_snapshot.md"
     snapshot_code = main(
