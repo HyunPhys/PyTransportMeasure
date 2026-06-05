@@ -530,6 +530,18 @@ Keithley audit artifacts, SR860 audit artifacts, and the normalized
 `measurement_condition_audits` block. It exits with nonzero status if any
 required lab-handoff file is missing or the manifest schema is incompatible.
 
+Then generate a lab-laptop smoke checklist from the validated package:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-lab-smoke-bundle data\hall_packages\sampleA_cd1_lab1 --overwrite
+```
+
+This writes `lab_smoke/lab_smoke_checklist.md`,
+`lab_smoke/lab_smoke_bundle.json`, and a saved package validation JSON. The
+checklist contains exact `list-resources`, `identify`, `probe`,
+suite-check/plan, and per-recipe `dual-gate-lockin-preflight` commands for the
+two Keithleys and SR860 declared by the packaged recipes.
+
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:
 

@@ -12,6 +12,7 @@ from pytransport.hall_workflow import (
     inspect_dual_gate_lockin_hall_suite_workflow_status,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
+    write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
 )
 
 
@@ -182,6 +183,26 @@ def test_hall_package_validator_reports_missing_audit_artifact(tmp_path):
     assert payload["valid"] is False
     assert any(issue["code"] == "missing_audit_record_json" for issue in payload["issues"])
     assert any(issue["path"] == str(missing) for issue in payload["issues"])
+
+
+def test_hall_lab_smoke_bundle_writes_identify_probe_and_preflight_commands(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+
+    payload = write_dual_gate_lockin_hall_suite_lab_smoke_bundle(package.package_dir)
+
+    smoke_dir = package.package_dir / "lab_smoke"
+    checklist = (smoke_dir / "lab_smoke_checklist.md").read_text(encoding="utf-8")
+    saved = json.loads((smoke_dir / "lab_smoke_bundle.json").read_text(encoding="utf-8"))
+    assert payload["completed"] is True
+    assert payload["instrument_count"] == 3
+    assert (smoke_dir / "package_validation.json").exists()
+    assert len(saved["commands"]["identify"]) == 3
+    assert len(saved["commands"]["probe"]) == 3
+    assert len(saved["commands"]["preflight"]) == 4
+    assert any("--instrument keithley_2450" in command for command in saved["commands"]["identify"])
+    assert any("--instrument srs_sr860" in command for command in saved["commands"]["probe"])
+    assert "ptm list-resources" in checklist
+    assert "Every dual-gate lock-in preflight reports OK" in checklist
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

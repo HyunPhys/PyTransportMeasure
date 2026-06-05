@@ -199,6 +199,144 @@ def format_dual_gate_lockin_hall_suite_package_validation(payload: dict) -> str:
     return "\n".join(lines)
 
 
+def write_dual_gate_lockin_hall_suite_lab_smoke_bundle(
+    package_manifest_or_dir: Path,
+    *,
+    output_dir: Path | None = None,
+    safety_dir: Path = Path("configs/safety"),
+    overwrite: bool = False,
+) -> dict:
+    validation = validate_dual_gate_lockin_hall_suite_package_manifest(package_manifest_or_dir)
+    if not validation["valid"]:
+        raise ValueError("package validation failed; run validate-package and fix issues before smoke bundle generation")
+    package_dir = Path(validation["package_dir"])
+    manifest_path = Path(validation["package_manifest"])
+    manifest = _load_json_object(manifest_path)
+    recipe_paths = _package_recipe_paths(manifest, package_dir)
+    recipes = {key: load_dual_gate_lockin_recipe(path) for key, path in recipe_paths.items()}
+    out = output_dir or package_dir / "lab_smoke"
+    if out.exists() and not overwrite:
+        raise FileExistsError(f"Lab smoke bundle already exists: {out}")
+    out.mkdir(parents=True, exist_ok=True)
+
+    instruments = _hall_suite_smoke_instrument_records(recipes)
+    commands = {
+        "package_validation": [
+            f"ptm dual-gate-lockin-hall-suite-validate-package {package_dir} --json-output {out / 'package_validation.json'}"
+        ],
+        "visa_discovery": ["ptm list-resources"],
+        "identify": [
+            f"ptm identify --instrument {record['instrument']} --address \"{record['address']}\""
+            for record in instruments
+        ],
+        "probe": [
+            f"ptm probe --instrument {record['instrument']} --address \"{record['address']}\""
+            for record in instruments
+        ],
+        "preflight": [
+            f"ptm dual-gate-lockin-preflight {path} --safety-dir {safety_dir}"
+            for path in recipe_paths.values()
+        ],
+        "suite_checks": [
+            _hall_suite_check_command(recipe_paths),
+            _hall_suite_plan_command(recipe_paths),
+        ],
+    }
+    payload = {
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "package_name": manifest.get("package_name"),
+        "output_dir": str(out),
+        "safety_dir": str(safety_dir),
+        "instrument_count": len(instruments),
+        "instruments": instruments,
+        "recipe_paths": {key: str(path) for key, path in recipe_paths.items()},
+        "commands": commands,
+        "completed": True,
+    }
+    json_path = out / "lab_smoke_bundle.json"
+    report_path = out / "lab_smoke_checklist.md"
+    validation_json_path = out / "package_validation.json"
+    validation_json_path.write_text(json.dumps(validation, indent=2, sort_keys=True), encoding="utf-8")
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload), encoding="utf-8")
+    payload["json_path"] = str(json_path)
+    payload["report_path"] = str(report_path)
+    payload["package_validation_json_path"] = str(validation_json_path)
+    return payload
+
+
+def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
+    commands = payload.get("commands", {})
+    return "\n".join(
+        [
+            "# Hall Suite Lab Handoff Smoke Checklist",
+            "",
+            f"- Package: `{payload.get('package_dir')}`",
+            f"- Manifest: `{payload.get('package_manifest')}`",
+            f"- Safety dir: `{payload.get('safety_dir')}`",
+            "",
+            "## Instruments",
+            "",
+            "| Role | Instrument | Address | Recipes |",
+            "| --- | --- | --- | --- |",
+            *[
+                (
+                    f"| {record.get('role')} | {record.get('instrument')} | "
+                    f"`{record.get('address')}` | {', '.join(record.get('recipe_keys', []))} |"
+                )
+                for record in payload.get("instruments", [])
+            ],
+            "",
+            "## 1. Package Validation",
+            "",
+            "```powershell",
+            *commands.get("package_validation", []),
+            "```",
+            "",
+            "## 2. VISA Discovery",
+            "",
+            "```powershell",
+            *commands.get("visa_discovery", []),
+            "```",
+            "",
+            "## 3. Read-Only Identify",
+            "",
+            "```powershell",
+            *commands.get("identify", []),
+            "```",
+            "",
+            "## 4. Read-Only Probe",
+            "",
+            "```powershell",
+            *commands.get("probe", []),
+            "```",
+            "",
+            "## 5. Suite Checks",
+            "",
+            "```powershell",
+            *commands.get("suite_checks", []),
+            "```",
+            "",
+            "## 6. Per-Recipe Preflight",
+            "",
+            "```powershell",
+            *commands.get("preflight", []),
+            "```",
+            "",
+            "## Pass Criteria",
+            "",
+            "- Package validation prints `Valid for lab handoff: True`.",
+            "- `ptm list-resources` shows the two Keithley addresses and SR860 address.",
+            "- Every Keithley identify response contains `MODEL 2450`.",
+            "- SR860 identify response contains `SR860`.",
+            "- Every probe completes without communication errors.",
+            "- Every dual-gate lock-in preflight reports OK before any hardware output command is run.",
+            "",
+        ]
+    )
+
+
 def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
     manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
     package_dir = manifest_path.parent
@@ -788,6 +926,44 @@ def _validate_legacy_audit_block(
                 code=f"missing_{block_key}_{field}",
                 required=True,
             )
+
+
+def _hall_suite_smoke_instrument_records(recipes: dict[str, object]) -> list[dict]:
+    by_key: dict[tuple[str, str, str], dict] = {}
+    for recipe_key, recipe in recipes.items():
+        for role, instrument, address in [
+            ("gate1", "keithley_2450", recipe.gate1_instrument.address),
+            ("gate2", "keithley_2450", recipe.gate2_instrument.address),
+            ("lockin", "srs_sr860", recipe.lockin.address),
+        ]:
+            key = (role, instrument, str(address))
+            record = by_key.setdefault(
+                key,
+                {
+                    "role": role,
+                    "instrument": instrument,
+                    "address": str(address),
+                    "recipe_keys": [],
+                },
+            )
+            record["recipe_keys"].append(recipe_key)
+    return sorted(by_key.values(), key=lambda record: (record["instrument"], record["role"], record["address"]))
+
+
+def _hall_suite_check_command(recipe_paths: dict[str, Path]) -> str:
+    zero_arg = f" --zero-field-recipe {recipe_paths['zero']}" if "zero" in recipe_paths else ""
+    return (
+        f"ptm dual-gate-lockin-hall-suite-check {recipe_paths['longitudinal']} "
+        f"{recipe_paths['plus']} {recipe_paths['minus']}{zero_arg}"
+    )
+
+
+def _hall_suite_plan_command(recipe_paths: dict[str, Path]) -> str:
+    zero_arg = f" --zero-field-recipe {recipe_paths['zero']}" if "zero" in recipe_paths else ""
+    return (
+        f"ptm dual-gate-lockin-hall-suite-plan {recipe_paths['longitudinal']} "
+        f"{recipe_paths['plus']} {recipe_paths['minus']}{zero_arg}"
+    )
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: Path) -> Path:

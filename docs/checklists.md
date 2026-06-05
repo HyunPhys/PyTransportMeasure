@@ -554,6 +554,13 @@ remain point-guarded.
   ```
 - [ ] Confirm the validator prints `Valid for lab handoff: True` and the JSON
   has `"valid": true`.
+- [ ] Generate the package-local lab smoke checklist.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lab-smoke-bundle data\hall_packages\<sample_lab_package> --overwrite
+  ```
+- [ ] Confirm `lab_smoke/lab_smoke_checklist.md` lists `ptm list-resources`,
+  identify/probe commands for both Keithleys and SR860, and one preflight command
+  per packaged recipe.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.
