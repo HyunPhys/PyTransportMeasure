@@ -1596,6 +1596,19 @@ records the contact map, `dc_sense_mode`, NPLC/ranges/compliance, and planned
 remote-sense SCPI commands. Running the same command without `--dry-run` is
 blocked because active Keithley remote-sense output is not implemented yet.
 
+Before implementing or enabling a real remote-sense hardware runner, review the
+planned SCPI sequence:
+
+```powershell
+ptm four-terminal-dc-command-review configs\recipes\four_terminal_dc_schema_draft.yaml
+ptm four-terminal-dc-command-review configs\recipes\four_terminal_dc_schema_draft.yaml --preflight-json docs\four_terminal_dc_preflight.json --dry-run-metadata data\raw\<run>\metadata.json --json-output docs\four_terminal_dc_command_review.json
+```
+
+The command review is still non-executing. It lists the intended setup,
+blocking readbacks, `:SENS:CURR:RSEN ON`, `:OUTP ON`, acquisition, zero-before
+off, output-off, and `:SENS:CURR:RSEN OFF` cleanup order while keeping
+`Active hardware run allowed: False`.
+
 Keithley source blocks may also set an instrument voltage-source delay:
 
 ```yaml

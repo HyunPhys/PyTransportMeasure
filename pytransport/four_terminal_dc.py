@@ -88,6 +88,41 @@ class FourTerminalDCPreflightReport:
         return payload
 
 
+@dataclass(frozen=True)
+class FourTerminalDCCommandStep:
+    order: int
+    phase: str
+    command: str
+    purpose: str
+    required_readback: str | None = None
+    blocks_output_until_pass: bool = False
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FourTerminalDCCommandReview:
+    recipe_path: str
+    measurement_name: str
+    active_hardware_run_allowed: bool
+    active_runner_ready: bool
+    evidence_passed: bool
+    required_preflight_json: str | None
+    required_dry_run_metadata: str | None
+    command_steps: tuple[FourTerminalDCCommandStep, ...]
+    approval_gates: tuple[str, ...]
+    evidence_checks: tuple[FourTerminalDCPreflightCheck, ...]
+    issues: tuple[FourTerminalDCDesignIssue, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["command_steps"] = [step.to_dict() for step in self.command_steps]
+        payload["evidence_checks"] = [check.to_dict() for check in self.evidence_checks]
+        payload["issues"] = [issue.to_dict() for issue in self.issues]
+        return payload
+
+
 PROPOSED_RECIPE_FIELDS = (
     "measurement_geometry.method: four_terminal",
     "measurement_geometry.terminal_count: 4",
@@ -554,6 +589,98 @@ def format_four_terminal_dc_dry_run_result(metadata: dict[str, Any]) -> str:
     )
 
 
+def review_four_terminal_dc_active_run_commands(
+    recipe_path: str | Path,
+    *,
+    preflight_json: str | Path | None = None,
+    dry_run_metadata: str | Path | None = None,
+) -> FourTerminalDCCommandReview:
+    recipe_path = Path(recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    evidence_checks = _active_command_evidence_checks(
+        recipe,
+        preflight_json=preflight_json,
+        dry_run_metadata=dry_run_metadata,
+    )
+    issues = [
+        FourTerminalDCDesignIssue(
+            severity="blocker",
+            field="active_runner",
+            message="Active four-terminal DC hardware runner is still disabled; this command review is not an output path.",
+        )
+    ]
+    if preflight_json is None:
+        issues.append(
+            FourTerminalDCDesignIssue(
+                severity="warning",
+                field="preflight_json",
+                message="Attach a passing hardware four-terminal-dc-preflight JSON before implementing active output.",
+            )
+        )
+    if dry_run_metadata is None:
+        issues.append(
+            FourTerminalDCDesignIssue(
+                severity="warning",
+                field="dry_run_metadata",
+                message="Attach completed four-terminal-dc dry-run metadata before implementing active output.",
+            )
+        )
+    return FourTerminalDCCommandReview(
+        recipe_path=str(recipe_path),
+        measurement_name=recipe.measurement_name,
+        active_hardware_run_allowed=False,
+        active_runner_ready=False,
+        evidence_passed=all(check.ok for check in evidence_checks),
+        required_preflight_json=None if preflight_json is None else str(Path(preflight_json)),
+        required_dry_run_metadata=None if dry_run_metadata is None else str(Path(dry_run_metadata)),
+        command_steps=_four_terminal_dc_active_command_steps(recipe),
+        approval_gates=FOUR_TERMINAL_DC_ACTIVE_APPROVAL_GATES,
+        evidence_checks=tuple(evidence_checks),
+        issues=tuple(issues),
+    )
+
+
+def format_four_terminal_dc_command_review(report: FourTerminalDCCommandReview) -> str:
+    lines = [
+        "Four-terminal DC active-run command review",
+        f"Recipe: {report.recipe_path}",
+        f"Measurement name: {report.measurement_name}",
+        f"Evidence passed: {report.evidence_passed}",
+        f"Active runner ready: {report.active_runner_ready}",
+        f"Active hardware run allowed: {report.active_hardware_run_allowed}",
+        "",
+        "Approval gates:",
+        *[f"- {gate}" for gate in report.approval_gates],
+        "",
+        "| # | Phase | Command | Required readback | Blocks output |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for step in report.command_steps:
+        lines.append(
+            f"| {step.order} | {step.phase} | `{step.command}` | "
+            f"{step.required_readback or ''} | {step.blocks_output_until_pass} |"
+        )
+    lines.extend(["", "Evidence checks:"])
+    for check in report.evidence_checks:
+        status = "PASS" if check.ok else "FAIL"
+        lines.append(f"- [{status}] {check.name}: {check.message or check.actual or ''}")
+    if report.issues:
+        lines.extend(["", "Issues:"])
+        for issue in report.issues:
+            lines.append(f"- [{issue.severity}] {issue.field}: {issue.message}")
+    return "\n".join(lines)
+
+
+def write_four_terminal_dc_command_review_json(
+    report: FourTerminalDCCommandReview,
+    output_path: str | Path,
+) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def _recipe_preflight_checks(recipe: FourTerminalDCRecipe) -> list[FourTerminalDCPreflightCheck]:
     return [
         FourTerminalDCPreflightCheck(
@@ -700,3 +827,152 @@ def _validate_four_terminal_dc_against_safety(recipe: FourTerminalDCRecipe, safe
             ),
             triggered_limit="max_abs_current_a",
         )
+
+
+FOUR_TERMINAL_DC_ACTIVE_APPROVAL_GATES = (
+    "four-terminal-dc-validate passes for the exact recipe",
+    "four-terminal-dc-preflight hardware JSON exists and passed with SCPI mode",
+    "remote-sense readback query :SENS:CURR:RSEN? was readable on the lab Keithley",
+    "four-terminal-dc --dry-run completed and metadata NPLC/ranges/compliance match the recipe",
+    "operator confirms force/sense contacts and terminal plane before any output",
+    "active runner still performs output-off and zero-before-off cleanup in finally",
+)
+
+
+def _four_terminal_dc_active_command_steps(recipe: FourTerminalDCRecipe) -> tuple[FourTerminalDCCommandStep, ...]:
+    source_delay = 0 if recipe.instrument.source_delay_s is None else recipe.instrument.source_delay_s
+    return (
+        FourTerminalDCCommandStep(1, "connect", "*IDN?", "identify the connected instrument", "MODEL 2450", True),
+        FourTerminalDCCommandStep(2, "connect", "*LANG?", "require Keithley SCPI command set", "SCPI", True),
+        FourTerminalDCCommandStep(3, "safe_start", ":OUTP OFF", "force output off before configuration"),
+        FourTerminalDCCommandStep(4, "safe_start", "*RST", "reset known instrument state before four-terminal setup"),
+        FourTerminalDCCommandStep(5, "safe_start", "*CLS", "clear stale command errors before checked writes"),
+        FourTerminalDCCommandStep(6, "configure", f":ROUT:TERM {recipe.contacts.terminal_plane}", "select declared terminal plane", ":ROUT:TERM?", True),
+        FourTerminalDCCommandStep(7, "configure", ':SENS:FUNC "CURR"', "measure current during Drain I-V", ":SENS:FUNC?", True),
+        FourTerminalDCCommandStep(8, "configure", f":SENS:CURR:NPLC {recipe.instrument.nplc}", "set deliberate current integration time", ":SENS:CURR:NPLC?", True),
+        FourTerminalDCCommandStep(9, "configure", f":SENS:CURR:RANG {recipe.instrument.current_range_a}", "set explicit current range", ":SENS:CURR:RANG?", True),
+        FourTerminalDCCommandStep(10, "configure", ":SENS:CURR:RSEN ON", "enable current remote sense only after contact approval", ":SENS:CURR:RSEN?", True),
+        FourTerminalDCCommandStep(11, "configure", ":SOUR:FUNC VOLT", "source drain voltage", ":SOUR:FUNC?", True),
+        FourTerminalDCCommandStep(12, "configure", f":SOUR:VOLT:RANG {recipe.instrument.voltage_range_v}", "set explicit voltage range", ":SOUR:VOLT:RANG?", True),
+        FourTerminalDCCommandStep(13, "configure", f":SOUR:VOLT:DEL {source_delay}", "set deliberate source delay", ":SOUR:VOLT:DEL?", True),
+        FourTerminalDCCommandStep(14, "configure", ":SOUR:VOLT:READ:BACK ON", "enable source-voltage readback", ":SOUR:VOLT:READ:BACK?", True),
+        FourTerminalDCCommandStep(15, "configure", f":SOUR:VOLT:ILIM {recipe.sweep.current_compliance_a}", "set current compliance with accepted ILIM/ILIMIT fallback", ":SOUR:VOLT:ILIM?", True),
+        FourTerminalDCCommandStep(16, "pre_output", ":SOUR:VOLT 0", "start from zero drain bias before output"),
+        FourTerminalDCCommandStep(17, "pre_output", ":SYST:ERR?", "require no command error before output", '0,"No error"', True),
+        FourTerminalDCCommandStep(18, "pre_output", ":OUTP ON", "enable output only after all blocking readbacks pass"),
+        FourTerminalDCCommandStep(19, "acquire", ":SOUR:VOLT <sweep_voltage>", "set each sweep voltage"),
+        FourTerminalDCCommandStep(20, "acquire", ":READ?", "read current and compliance status"),
+        FourTerminalDCCommandStep(21, "cleanup", ":SOUR:VOLT 0", "zero drain bias before output off"),
+        FourTerminalDCCommandStep(22, "cleanup", ":OUTP OFF", "turn output off in normal/error/interrupt paths"),
+        FourTerminalDCCommandStep(23, "cleanup", ":SENS:CURR:RSEN OFF", "disable current remote sense after output off", ":SENS:CURR:RSEN?"),
+    )
+
+
+def _active_command_evidence_checks(
+    recipe: FourTerminalDCRecipe,
+    *,
+    preflight_json: str | Path | None,
+    dry_run_metadata: str | Path | None,
+) -> list[FourTerminalDCPreflightCheck]:
+    checks: list[FourTerminalDCPreflightCheck] = [
+        FourTerminalDCPreflightCheck(
+            name="recipe_explicit_nplc",
+            ok=recipe.instrument.nplc is not None,
+            actual=str(recipe.instrument.nplc),
+            message="Recipe declares Keithley NPLC.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="recipe_explicit_ranges_and_compliance",
+            ok=recipe.instrument.voltage_range_v is not None and recipe.instrument.current_range_a is not None and recipe.sweep.current_compliance_a is not None,
+            actual=f"Vrange={recipe.instrument.voltage_range_v}, Irange={recipe.instrument.current_range_a}, compliance={recipe.sweep.current_compliance_a}",
+            message="Recipe declares voltage range, current range, and compliance.",
+        ),
+    ]
+    checks.extend(_preflight_json_evidence_checks(preflight_json))
+    checks.extend(_dry_run_metadata_evidence_checks(recipe, dry_run_metadata))
+    return checks
+
+
+def _preflight_json_evidence_checks(preflight_json: str | Path | None) -> list[FourTerminalDCPreflightCheck]:
+    if preflight_json is None:
+        return [
+            FourTerminalDCPreflightCheck(
+                name="hardware_preflight_json_attached",
+                ok=False,
+                message="No hardware preflight JSON was attached.",
+            )
+        ]
+    payload = _load_json_object(Path(preflight_json))
+    checks_by_name = {check.get("name"): check for check in payload.get("checks", []) if isinstance(check, dict)}
+    return [
+        FourTerminalDCPreflightCheck(
+            name="hardware_preflight_passed",
+            ok=payload.get("preflight_passed") is True and payload.get("hardware_checked") is True,
+            actual=f"preflight_passed={payload.get('preflight_passed')}, hardware_checked={payload.get('hardware_checked')}",
+            message="Hardware preflight passed on an attached report.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="hardware_preflight_keeps_output_blocked",
+            ok=payload.get("active_hardware_run_allowed") is False,
+            actual=str(payload.get("active_hardware_run_allowed")),
+            message="Attached preflight did not authorize active output.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="hardware_preflight_remote_sense_readback",
+            ok=bool(checks_by_name.get("remote_sense_readback_available", {}).get("ok")),
+            actual=str(checks_by_name.get("remote_sense_readback_available", {}).get("actual")),
+            message="Attached preflight shows :SENS:CURR:RSEN? is readable.",
+        ),
+    ]
+
+
+def _dry_run_metadata_evidence_checks(
+    recipe: FourTerminalDCRecipe,
+    dry_run_metadata: str | Path | None,
+) -> list[FourTerminalDCPreflightCheck]:
+    if dry_run_metadata is None:
+        return [
+            FourTerminalDCPreflightCheck(
+                name="dry_run_metadata_attached",
+                ok=False,
+                message="No four-terminal DC dry-run metadata was attached.",
+            )
+        ]
+    payload = _load_json_object(Path(dry_run_metadata))
+    configured = payload.get("configured_smu", {}) if isinstance(payload.get("configured_smu"), dict) else {}
+    remote_sense = payload.get("remote_sense", {}) if isinstance(payload.get("remote_sense"), dict) else {}
+    nplc_matches = configured.get("nplc") == recipe.instrument.nplc
+    return [
+        FourTerminalDCPreflightCheck(
+            name="dry_run_completed",
+            ok=payload.get("completed") is True and payload.get("dry_run") is True,
+            actual=f"completed={payload.get('completed')}, dry_run={payload.get('dry_run')}",
+            message="Attached metadata is a completed four-terminal DC dry-run.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="dry_run_measurement_type",
+            ok=payload.get("measurement_type") == "four_terminal_dc",
+            actual=str(payload.get("measurement_type")),
+            message="Attached metadata belongs to the four-terminal DC method.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="dry_run_nplc_matches_recipe",
+            ok=nplc_matches,
+            actual=f"metadata={configured.get('nplc')}, recipe={recipe.instrument.nplc}",
+            message="Dry-run metadata preserves the recipe NPLC.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="dry_run_remote_sense_not_configured",
+            ok=remote_sense.get("configured_in_dry_run") is False,
+            actual=str(remote_sense.get("configured_in_dry_run")),
+            message="Dry-run did not configure Keithley remote sense.",
+        ),
+    ]
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        data = json.load(handle)
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data

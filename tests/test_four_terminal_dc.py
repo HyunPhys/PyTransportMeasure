@@ -6,9 +6,11 @@ import pytest
 
 from pytransport.cli import main
 from pytransport.four_terminal_dc import (
+    format_four_terminal_dc_command_review,
     format_four_terminal_dc_preflight,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    review_four_terminal_dc_active_run_commands,
     run_four_terminal_dc_dry_run,
     run_four_terminal_dc_preflight,
 )
@@ -290,6 +292,48 @@ def test_four_terminal_dc_dry_run_saves_partial_metadata_on_limit(tmp_path):
     assert saved_metadata["triggered_limit"] == "instrument_compliance"
 
 
+def test_four_terminal_dc_command_review_lists_guarded_sequence_without_output():
+    report = review_four_terminal_dc_active_run_commands("configs/recipes/four_terminal_dc_schema_draft.yaml")
+    text = format_four_terminal_dc_command_review(report)
+    commands = [step.command for step in report.command_steps]
+
+    assert report.active_hardware_run_allowed is False
+    assert report.active_runner_ready is False
+    assert report.evidence_passed is False
+    assert ":SENS:CURR:RSEN ON" in commands
+    assert ":SENS:CURR:RSEN OFF" in commands
+    assert ":OUTP ON" in commands
+    assert commands.index(":SENS:CURR:RSEN ON") < commands.index(":OUTP ON")
+    assert commands.index(":SOUR:VOLT 0") < commands.index(":OUTP ON")
+    assert any(step.command == ":SENS:CURR:NPLC 1.0" for step in report.command_steps)
+    assert "Active hardware run allowed: False" in text
+
+
+def test_four_terminal_dc_command_review_accepts_preflight_and_dry_run_evidence(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    preflight = run_four_terminal_dc_preflight(
+        recipe_path,
+        instrument_factory=FakeKeithleyFourTerminalPreflight,
+    )
+    preflight_path = tmp_path / "preflight.json"
+    preflight_path.write_text(json.dumps(preflight.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_four_terminal_dc_dry_run(recipe, safety, recipe_path=recipe_path, fake_noise_std_a=0)
+    metadata_path = Path(metadata["metadata_path"])
+
+    report = review_four_terminal_dc_active_run_commands(
+        recipe_path,
+        preflight_json=preflight_path,
+        dry_run_metadata=metadata_path,
+    )
+
+    assert report.evidence_passed is True
+    assert report.active_hardware_run_allowed is False
+    assert all(check.ok for check in report.evidence_checks)
+
+
 def test_cli_four_terminal_dc_design_gate_outputs_text_and_json(tmp_path, capsys):
     recipe = tmp_path / "four_terminal_dc.yaml"
     output = tmp_path / "design_gate.json"
@@ -365,3 +409,23 @@ def test_cli_four_terminal_dc_dry_run_writes_artifacts(tmp_path, capsys):
     assert "Active hardware run allowed: False" in text
     assert metadata["completed"] is True
     assert metadata["configured_smu"]["nplc"] == pytest.approx(1.0)
+
+
+def test_cli_four_terminal_dc_command_review_outputs_text_and_json(tmp_path, capsys):
+    recipe = "configs/recipes/four_terminal_dc_schema_draft.yaml"
+    output = tmp_path / "command_review.json"
+
+    assert main(["four-terminal-dc-command-review", recipe]) == 0
+    text = capsys.readouterr().out
+    assert "Four-terminal DC active-run command review" in text
+    assert "Active hardware run allowed: False" in text
+    assert ":SENS:CURR:RSEN ON" in text
+
+    assert main(["four-terminal-dc-command-review", recipe, "--json-output", str(output)]) == 0
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert saved["active_hardware_run_allowed"] is False
+    capsys.readouterr()
+
+    assert main(["four-terminal-dc-command-review", recipe, "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["active_runner_ready"] is False

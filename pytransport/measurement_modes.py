@@ -80,6 +80,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         preflight_commands=(
             "ptm four-terminal-dc-preflight configs/recipes/four_terminal_dc_schema_draft.yaml --dry-check",
             "ptm four-terminal-dc-preflight configs/recipes/four_terminal_dc_schema_draft.yaml",
+            "ptm four-terminal-dc-command-review configs/recipes/four_terminal_dc_schema_draft.yaml --preflight-json docs/four_terminal_dc_preflight.json --dry-run-metadata data/raw/<run>/metadata.json",
         ),
         run_commands=(
             "ptm four-terminal-dc configs/recipes/four_terminal_dc_schema_draft.yaml --dry-run --fake-resistance-ohm 1000000 --progress",
@@ -96,7 +97,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "keep active hardware run disabled while preflight is being verified",
         ),
         current_limitations=("Dry-run artifacts exist; no active Keithley remote-sense output path yet.",),
-        next_step="Run lab preflight feedback, then design the guarded active remote-sense output sequence.",
+        next_step="Use command-review evidence before implementing the guarded active remote-sense runner.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

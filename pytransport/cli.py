@@ -110,14 +110,17 @@ from .dual_gate_lockin_review import (
 )
 from .feedback_bundle import create_feedback_bundle
 from .four_terminal_dc import (
+    format_four_terminal_dc_command_review,
     format_four_terminal_dc_dry_run_result,
     format_four_terminal_dc_preflight,
     format_four_terminal_dc_recipe_validation,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    review_four_terminal_dc_active_run_commands,
     run_four_terminal_dc_dry_run,
     run_four_terminal_dc_preflight,
     validate_four_terminal_dc_recipe_file,
+    write_four_terminal_dc_command_review_json,
     write_four_terminal_dc_design_gate_json,
     write_four_terminal_dc_preflight_json,
 )
@@ -322,6 +325,16 @@ def build_parser() -> argparse.ArgumentParser:
     four_terminal_dc.add_argument("--fake-noise-std-a", type=float, default=0.0)
     four_terminal_dc.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     four_terminal_dc.add_argument("--progress", action="store_true")
+
+    four_terminal_dc_command_review = subparsers.add_parser(
+        "four-terminal-dc-command-review",
+        help="Review the future guarded Keithley remote-sense active-run SCPI sequence without enabling output.",
+    )
+    four_terminal_dc_command_review.add_argument("recipe", type=Path)
+    four_terminal_dc_command_review.add_argument("--preflight-json", type=Path)
+    four_terminal_dc_command_review.add_argument("--dry-run-metadata", type=Path)
+    four_terminal_dc_command_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    four_terminal_dc_command_review.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
 
     run = subparsers.add_parser("run", help="Run a Drain I-V recipe.")
     run.add_argument("recipe", type=Path)
@@ -1389,6 +1402,26 @@ def command_four_terminal_dc(args: argparse.Namespace) -> int:
         print(f"Error: {metadata['error_type']}: {metadata['error_message']}")
         return 2
     return 0 if metadata.get("completed") else 2
+
+
+def command_four_terminal_dc_command_review(args: argparse.Namespace) -> int:
+    try:
+        report = review_four_terminal_dc_active_run_commands(
+            args.recipe,
+            preflight_json=args.preflight_json,
+            dry_run_metadata=args.dry_run_metadata,
+        )
+    except Exception as exc:
+        print(f"Four-terminal DC command review failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_four_terminal_dc_command_review_json(report, args.json_output)
+        print(f"Four-terminal DC command review JSON: {output_path}")
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, sort_keys=True))
+    elif not args.json_output:
+        print(format_four_terminal_dc_command_review(report))
+    return 0
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -3935,6 +3968,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_four_terminal_dc_preflight(args)
     if args.command == "four-terminal-dc":
         return command_four_terminal_dc(args)
+    if args.command == "four-terminal-dc-command-review":
+        return command_four_terminal_dc_command_review(args)
     if args.command == "run":
         return command_run(args)
     if args.command == "single-gate-plan":

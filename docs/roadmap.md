@@ -620,11 +620,14 @@ root.
   - add a dry-run/fake artifact path for four-terminal DC metadata and reports
   - keep real Keithley remote-sense output blocked until lab preflight feedback
     confirms the readback gate
-- [ ] Phase 25cq: Four-terminal DC active-run command review
+- [x] Phase 25cq: Four-terminal DC active-run command review
   - design the exact guarded remote-sense output sequence using preflight
     evidence and Keithley 2450 SCPI behavior
   - require explicit approval gates before wiring `:SENS:CURR:RSEN ON` into
     any active runner
+- [ ] Phase 25cr: Four-terminal DC guarded active runner draft
+  - implement the remote-sense active runner behind explicit lab approval gates
+  - require passing command-review evidence before any output can be enabled
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

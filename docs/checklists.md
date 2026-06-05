@@ -1185,6 +1185,24 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm `remote_sense.configured_in_dry_run` is `false`.
 - [ ] Confirm the command without `--dry-run` refuses to run hardware output.
 
+## Four-Terminal DC Command Review Checklist
+
+- [ ] Produce a hardware preflight JSON:
+  ```powershell
+  ptm four-terminal-dc-preflight configs\recipes\four_terminal_dc_schema_draft.yaml --json-output docs\four_terminal_dc_preflight.json
+  ```
+- [ ] Produce a completed dry-run metadata file.
+- [ ] Run:
+  ```powershell
+  ptm four-terminal-dc-command-review configs\recipes\four_terminal_dc_schema_draft.yaml --preflight-json docs\four_terminal_dc_preflight.json --dry-run-metadata data\raw\<run>\metadata.json --json-output docs\four_terminal_dc_command_review.json
+  ```
+- [ ] Confirm evidence checks are PASS.
+- [ ] Confirm `:SENS:CURR:RSEN ON` appears before `:OUTP ON`.
+- [ ] Confirm `:SENS:CURR:RSEN OFF` appears in cleanup.
+- [ ] Confirm NPLC/ranges/compliance/source delay are listed as blocking
+  measurement conditions.
+- [ ] Confirm `Active hardware run allowed: False`.
+
 ## Development Checklist
 
 - [ ] Keep hardware logic out of CLI argument handling.
