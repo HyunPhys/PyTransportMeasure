@@ -48,8 +48,10 @@ from .method_registry import handler_for_measurement_type, handler_for_metadata,
 from .model import MeasurementPoint
 from .plot import write_iv_svg
 from .preflight import (
+    format_ac_lockin_preflight_report,
     format_preflight_report,
     format_single_gate_preflight_report,
+    run_ac_lockin_preflight,
     run_preflight,
     run_preflight_for_recipe,
     run_single_gate_preflight,
@@ -183,6 +185,13 @@ def build_parser() -> argparse.ArgumentParser:
     ac_lockin_plan.add_argument("recipe", type=Path)
     ac_lockin_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     ac_lockin_plan.add_argument("--preview-points", type=int, default=5)
+
+    ac_lockin_preflight = subparsers.add_parser(
+        "ac-lockin-preflight",
+        help="Validate an AC/lock-in recipe, find source and SR860 addresses, and probe both instruments.",
+    )
+    ac_lockin_preflight.add_argument("recipe", type=Path)
+    ac_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
 
     ac_lockin = subparsers.add_parser("ac-lockin", help="Run an AC/lock-in bias sweep recipe. Current milestone is dry-run only.")
     ac_lockin.add_argument("recipe", type=Path)
@@ -638,6 +647,12 @@ def command_ac_lockin_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_ac_lockin_preflight(args: argparse.Namespace) -> int:
+    report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
+    print(format_ac_lockin_preflight_report(report))
+    return 0 if report.ok else 2
+
+
 def command_ac_lockin(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type("ac_lockin_sweep")
     recipe = method.load_recipe(args.recipe)
@@ -646,6 +661,9 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
     print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
     print()
     if not args.dry_run:
+        report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
+        print(format_ac_lockin_preflight_report(report))
+        print()
         print("AC lock-in hardware runs are not active yet. Use --dry-run for this milestone.", file=sys.stderr)
         return 2
     source_smu = build_fake_smu(args.fake_resistance_ohm, args.fake_noise_std)
@@ -1685,6 +1703,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_single_gate(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
+    if args.command == "ac-lockin-preflight":
+        return command_ac_lockin_preflight(args)
     if args.command == "ac-lockin":
         return command_ac_lockin(args)
     if args.command == "pulse-plan":

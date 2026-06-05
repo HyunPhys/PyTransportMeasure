@@ -7,14 +7,17 @@ from pathlib import Path
 from typing import Callable
 
 from .instruments.keithley_2450 import Keithley2450
+from .instruments.srs_sr860 import probe_srs_sr860
 from .recipes import (
+    AcLockInRecipe,
     DrainIVRecipe,
     SingleGateRecipe,
+    load_ac_lockin_recipe,
     load_named_safety_preset,
     load_recipe,
     load_single_gate_recipe,
 )
-from .safety import validate_single_gate_recipe_against_safety
+from .safety import validate_ac_lockin_recipe_against_safety, validate_single_gate_recipe_against_safety
 from .validation import RecipeValidationReport, format_validation_report, validate_recipe
 from .visa_utils import list_resources
 
@@ -58,6 +61,21 @@ class SingleGatePreflightReport:
     @property
     def ok(self) -> bool:
         return self.validation_ok and self.distinct_addresses and self.drain.ok and self.gate.ok
+
+
+@dataclass(frozen=True)
+class AcLockInPreflightReport:
+    recipe_path: str
+    validation_ok: bool
+    validation_error: str | None
+    visa_resources: tuple[str, ...]
+    distinct_addresses: bool
+    source: InstrumentPreflight
+    lockin: InstrumentPreflight
+
+    @property
+    def ok(self) -> bool:
+        return self.validation_ok and self.distinct_addresses and self.source.ok and self.lockin.ok
 
 
 def run_preflight(
@@ -149,6 +167,68 @@ def run_single_gate_preflight_for_recipe(
         distinct_addresses=distinct_addresses,
         drain=drain,
         gate=gate,
+    )
+
+
+def run_ac_lockin_preflight(
+    recipe_path: str | Path,
+    safety_dir: str | Path = "configs/safety",
+    resource_lister: Callable[[], tuple[str, ...]] = list_resources,
+    source_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+) -> AcLockInPreflightReport:
+    recipe = load_ac_lockin_recipe(recipe_path)
+    return run_ac_lockin_preflight_for_recipe(
+        recipe,
+        recipe_path,
+        safety_dir,
+        resource_lister,
+        source_probe_factory,
+        lockin_probe_factory,
+    )
+
+
+def run_ac_lockin_preflight_for_recipe(
+    recipe: AcLockInRecipe,
+    recipe_path: str | Path,
+    safety_dir: str | Path = "configs/safety",
+    resource_lister: Callable[[], tuple[str, ...]] = list_resources,
+    source_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+) -> AcLockInPreflightReport:
+    validation_ok = True
+    validation_error = None
+    try:
+        safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+        validate_ac_lockin_recipe_against_safety(recipe, safety)
+    except Exception as exc:
+        validation_ok = False
+        validation_error = f"{type(exc).__name__}: {exc}"
+    resources = resource_lister()
+    lockin_address = recipe.lockin.address or ""
+    distinct_addresses = recipe.source_instrument.address != lockin_address
+    source = run_instrument_preflight(
+        "source",
+        recipe.source_instrument.address,
+        recipe.source_instrument.timeout_ms,
+        resources,
+        source_probe_factory,
+    )
+    lockin = run_instrument_preflight(
+        "lock-in",
+        lockin_address,
+        recipe.lockin.timeout_ms,
+        resources,
+        lockin_probe_factory or probe_srs_sr860,
+    )
+    return AcLockInPreflightReport(
+        recipe_path=str(recipe_path),
+        validation_ok=validation_ok,
+        validation_error=validation_error,
+        visa_resources=resources,
+        distinct_addresses=distinct_addresses,
+        source=source,
+        lockin=lockin,
     )
 
 
@@ -250,4 +330,40 @@ def format_single_gate_preflight_report(report: SingleGatePreflightReport) -> st
             lines.append("  - skipped")
         lines.append(f"- ok: {instrument.ok}")
     lines.extend(["", f"Single-gate preflight OK: {report.ok}"])
+    return "\n".join(lines)
+
+
+def format_ac_lockin_preflight_report(report: AcLockInPreflightReport) -> str:
+    lines = [
+        "AC Lock-In Preflight",
+        "",
+        f"Recipe: {report.recipe_path}",
+        f"Validation OK: {report.validation_ok}",
+    ]
+    if report.validation_error is not None:
+        lines.append(f"Validation error: {report.validation_error}")
+    lines.extend(["", "VISA resources:"])
+    if report.visa_resources:
+        lines.extend(f"- {resource}" for resource in report.visa_resources)
+    else:
+        lines.append("- none")
+    lines.extend(["", f"Source/lock-in addresses distinct: {report.distinct_addresses}"])
+    for instrument in [report.source, report.lockin]:
+        lines.extend(
+            [
+                "",
+                f"{instrument.label.capitalize()} instrument:",
+                f"- address: {instrument.address}",
+                f"- address found: {instrument.address_found}",
+                "- probe:",
+            ]
+        )
+        if instrument.probe is not None:
+            lines.extend(f"  - {key}: {value}" for key, value in instrument.probe.items())
+        elif instrument.probe_error is not None:
+            lines.append(f"  - error: {instrument.probe_error}")
+        else:
+            lines.append("  - skipped")
+        lines.append(f"- ok: {instrument.ok}")
+    lines.extend(["", f"AC lock-in preflight OK: {report.ok}"])
     return "\n".join(lines)

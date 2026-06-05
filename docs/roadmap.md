@@ -132,6 +132,11 @@ root.
   - add SR860 identify/probe/doctor path
   - add SR860 driver with read-only probe and X/Y/R/theta read primitives
   - add Keithley `nplc` recipe/config/driver/plan/report support
+- [x] Phase 23a: AC lock-in two-instrument preflight
+  - add `ptm ac-lockin-preflight`
+  - check Keithley source and SR860 resources before AC hardware work
+  - print AC preflight before blocked non-dry-run `ptm ac-lockin`
+  - keep source output disabled because AC hardware acquisition is not active yet
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -147,7 +152,6 @@ root.
   - save first two-SMU smoke-test artifacts
 - [ ] Phase 23b: Two-terminal AC hardware smoke
   - run SR860 identify/probe on the lab laptop
-  - add AC lock-in two-instrument preflight
   - Keithley DC bias or zero-bias source setup
   - SR860 X/Y/R/theta readout
   - point CSV and metadata with lock-in settings

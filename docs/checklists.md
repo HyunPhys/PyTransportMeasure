@@ -299,6 +299,12 @@ artifact path.
 - [ ] Confirm the active method recipe owns the lock-in block.
 - [ ] Confirm the timing mode is explicit, starting with `after_dc_settle`.
 - [ ] Confirm every Keithley source block has the intended `nplc` value.
+- [ ] Run the two-instrument AC preflight.
+  ```powershell
+  ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml
+  ```
+- [ ] Confirm `Source/lock-in addresses distinct: True`, both addresses are
+  found, and `AC lock-in preflight OK: True`.
 - [ ] Dry-run with `FakeLockIn`.
   ```powershell
   ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0

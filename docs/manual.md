@@ -684,6 +684,7 @@ For SR860 communication smoke tests, use the manual-backed read-only probe path:
 ptm identify --instrument srs_sr860 --address "GPIB0::4::INSTR"
 ptm probe --instrument srs_sr860 --address "GPIB0::4::INSTR"
 ptm doctor --instrument srs_sr860 --address "GPIB0::4::INSTR"
+ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml
 ```
 
 Keithley 2450 source blocks may set `nplc`. This controls current measurement
