@@ -50,6 +50,18 @@ lockin:
   settle_time_constants: 3.0
   filter_slope_db_per_oct: 24
   synchronous_filter: false
+topology:
+  source_contact: S
+  drain_contact: D
+  lockin_input_mode: voltage
+  lockin_input_contacts:
+    - Vxx+
+    - Vxx-
+  excitation_contacts:
+    - S
+    - D
+  voltage_probe_role: longitudinal
+  notes: Four-terminal AC dry-run contact map; edit labels to match the Hall bar before hardware use.
 bias_sweep:
   mode: linear_one_way
   start_v: -0.05

@@ -130,8 +130,12 @@ def test_ac_lockin_four_terminal_recipe_sample_and_plan():
     assert recipe.measurement_geometry.terminal_count == 4
     assert recipe.lockin.input_mode == "voltage"
     assert recipe.lockin.voltage_input == "a-b"
+    assert recipe.topology is not None
+    assert recipe.topology.lockin_input_contacts == ["Vxx+", "Vxx-"]
     assert "Measurement geometry: four_terminal, 4-terminal" in plan
     assert "Lock-in voltage input: a-b" in plan
+    assert "Source/drain contacts: S -> D" in plan
+    assert "Lock-in voltage contacts: Vxx+, Vxx-" in plan
 
 
 def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
@@ -182,6 +186,13 @@ def test_ac_lockin_four_terminal_differential_voltage_dry_run(tmp_path):
         "notes": "Keithley biases source-drain while SR860 reads differential voltage contacts.",
     }
     data["lockin"]["voltage_input"] = "a-b"
+    data["topology"] = {
+        "source_contact": "S",
+        "drain_contact": "D",
+        "lockin_input_mode": "voltage",
+        "lockin_input_contacts": ["Vxx+", "Vxx-"],
+        "excitation_contacts": ["S", "D"],
+    }
     recipe = AcLockInRecipe.model_validate(data)
     safety = load_named_safety_preset(recipe.safety_preset)
     source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
@@ -195,9 +206,11 @@ def test_ac_lockin_four_terminal_differential_voltage_dry_run(tmp_path):
     assert saved_metadata["recipe"]["measurement_geometry"]["method"] == "four_terminal"
     assert saved_metadata["recipe"]["measurement_geometry"]["terminal_count"] == 4
     assert saved_metadata["recipe"]["lockin"]["voltage_input"] == "a-b"
+    assert saved_metadata["recipe"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
     report = format_ac_lockin_report(Path(metadata["run_dir"]))
     assert "Measurement geometry: four_terminal, 4-terminal" in report
     assert "- Lock-in voltage input: a-b" in report
+    assert "- Lock-in voltage contacts: Vxx+, Vxx-" in report
 
 
 def test_ac_lockin_saves_matching_lockin_settings_readback(tmp_path):

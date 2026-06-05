@@ -182,6 +182,7 @@ def validate_ac_lockin_recipe_against_safety(recipe: AcLockInRecipe, safety: Saf
         recipe.measurement_geometry.terminal_count,
         recipe.lockin.input_mode,
         recipe.lockin.voltage_input,
+        topology=recipe.topology,
     )
     max_recipe_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.bias_sweep))
     if max_recipe_voltage > safety.max_abs_voltage_v:

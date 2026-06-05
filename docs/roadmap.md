@@ -644,6 +644,11 @@ root.
   - require source SMU readback, SR860 setting readback, output cleanup, NPLC,
     ranges, compliance, point count, and optional lock-in signal bounds
   - keep broader AC and Hall-bar lock-in work gated by real lab smoke evidence
+- [x] Phase 25cv: Four-terminal AC contact topology guard
+  - require AC lock-in four-terminal recipes to declare source/drain excitation
+    contacts and separate SR860 voltage contacts
+  - print contact topology in AC lock-in plans and reports
+  - reject hidden four-terminal AC wiring variants before preflight or hardware
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

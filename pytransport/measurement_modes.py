@@ -151,16 +151,18 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         guarded_parameters=(
             "four-terminal contact map",
             "voltage contact pair",
+            "source/drain excitation contact pair",
             "SR860 voltage input mode",
             "input coupling",
             "shield grounding notes",
         ),
         safety_gates=(
             "contact overlap validation",
-            "four-terminal lock-in recipes require voltage readout topology",
+            "four-terminal lock-in recipes require topology with separate excitation and voltage contacts",
+            "four-terminal lock-in recipes require SR860 voltage input a-b",
         ),
-        current_limitations=("Dry-run and recipe guard exist; hardware execution needs lab smoke validation.",),
-        next_step="Promote to hardware-smoke-ready after SR860 differential voltage wiring test.",
+        current_limitations=("Dry-run and contact-topology guard exist; hardware execution needs lab smoke validation.",),
+        next_step="Promote to hardware-smoke-ready after SR860 differential voltage wiring test with declared contacts.",
     ),
     MeasurementMode(
         key="hall_dual_gate_lockin",

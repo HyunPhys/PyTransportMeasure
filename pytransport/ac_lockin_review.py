@@ -9,7 +9,7 @@ from html import escape
 from pathlib import Path
 from typing import Any
 
-from .measurement_context import format_geometry
+from .measurement_context import format_geometry, format_lockin_contact_context
 from .plot import _scale
 from .report import fmt
 
@@ -385,6 +385,7 @@ def format_ac_lockin_report(run_dir: str | Path) -> str:
     measurement_geometry = recipe.get("measurement_geometry") or {}
     lockin = recipe.get("lockin") or {}
     source = recipe.get("source_instrument") or {}
+    topology = recipe.get("topology") if isinstance(recipe.get("topology"), dict) else None
     lines = [
         f"# {metadata.get('measurement_name') or path.name}",
         "",
@@ -414,6 +415,9 @@ def format_ac_lockin_report(run_dir: str | Path) -> str:
         f"- Lock-in channels: {', '.join(lockin.get('channels') or []) or 'n/a'}",
         f"- Read timing: {lockin.get('read_timing') or 'n/a'}",
     ]
+    if topology is not None:
+        lines.extend(["", "## Contact Topology", ""])
+        lines.extend(f"- {line}" for line in format_lockin_contact_context(measurement_geometry, lockin, topology)[3:])
     if (path / "ac_lockin_plot.svg").exists():
         lines.extend(["", "## Plot", "", "![AC lock-in plot](ac_lockin_plot.svg)"])
     if metadata.get("error_type"):

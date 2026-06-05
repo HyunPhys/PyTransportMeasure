@@ -836,6 +836,9 @@ remain point-guarded.
   four_terminal` and `terminal_count: 4`.
 - [ ] For SR860 lock-in voltage readout, confirm `lockin.input_mode: voltage`
   and `lockin.voltage_input: a-b`.
+- [ ] For AC lock-in four-terminal recipes, confirm `topology.source_contact`,
+  `drain_contact`, `lockin_input_contacts`, and `excitation_contacts` are
+  present, and that voltage contacts do not overlap source/drain contacts.
 - [ ] For dual-gate Hall-bar lock-in, confirm voltage contacts and excitation
   contacts are distinct and non-overlapping.
 - [ ] For Keithley 2450 remote-sense DC work, confirm the future implementation

@@ -102,6 +102,13 @@ def ac_lockin_four_terminal_data():
             "input_mode": "voltage",
             "voltage_input": "a-b",
         },
+        "topology": {
+            "source_contact": "S",
+            "drain_contact": "D",
+            "lockin_input_mode": "voltage",
+            "lockin_input_contacts": ["Vxx+", "Vxx-"],
+            "excitation_contacts": ["S", "D"],
+        },
         "bias_sweep": {
             "mode": "linear_one_way",
             "start_v": -0.01,
@@ -177,11 +184,25 @@ def test_ac_lockin_four_terminal_geometry_is_allowed_for_differential_voltage_in
 def test_ac_lockin_four_terminal_geometry_requires_differential_input():
     data = ac_lockin_four_terminal_data()
     data["lockin"]["voltage_input"] = "a"
-    recipe = AcLockInRecipe.model_validate(data)
 
-    with pytest.raises(SafetyLimitError) as error:
-        validate_ac_lockin_recipe_against_safety(recipe, make_safety())
-    assert error.value.triggered_limit == "lockin_voltage_input"
+    with pytest.raises(Exception, match="four-terminal AC lock-in recipes require"):
+        AcLockInRecipe.model_validate(data)
+
+
+def test_ac_lockin_four_terminal_geometry_requires_contact_topology():
+    data = ac_lockin_four_terminal_data()
+    data.pop("topology")
+
+    with pytest.raises(Exception, match="require topology"):
+        AcLockInRecipe.model_validate(data)
+
+
+def test_ac_lockin_four_terminal_geometry_rejects_overlapping_contacts():
+    data = ac_lockin_four_terminal_data()
+    data["topology"]["lockin_input_contacts"] = ["S", "Vxx-"]
+
+    with pytest.raises(Exception, match="must not overlap excitation contacts"):
+        AcLockInRecipe.model_validate(data)
 
 
 def test_dual_gate_lockin_four_terminal_geometry_is_allowed_for_separate_voltage_contacts():

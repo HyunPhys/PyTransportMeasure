@@ -1314,14 +1314,22 @@ measurement_geometry:
   terminal_count: 4
   method: four_terminal
   notes: SR860 reads differential voltage contacts while another path excites current.
+topology:
+  source_contact: S
+  drain_contact: D
+  lockin_input_mode: voltage
+  lockin_input_contacts: [Vxx+, Vxx-]
+  excitation_contacts: [S, D]
+  voltage_probe_role: longitudinal
 ```
 
 The safety gate allows this only for lock-in runners with `lockin.input_mode:
-voltage` and `lockin.voltage_input: a-b`. For dual-gate Hall-bar lock-in, the
-topology must also declare two voltage contacts and two excitation contacts with
-no overlap. Keithley 2450 remote-sense / 4-wire DC measurement remains a future
-runner and is still blocked by the DC Drain I-V, single-gate, dual-gate, and
-pulse paths.
+voltage` and `lockin.voltage_input: a-b`. AC lock-in four-terminal recipes must
+also declare a `topology` block with source/drain excitation contacts and two
+separate SR860 voltage contacts. For dual-gate Hall-bar lock-in, the topology
+must likewise declare two voltage contacts and two excitation contacts with no
+overlap. Plans and reports include this context so an exported run folder
+remains interpretable away from the recipe file.
 
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under

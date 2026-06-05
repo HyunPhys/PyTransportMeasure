@@ -40,6 +40,7 @@ from .smu_config import (
     read_voltage_source_config_if_available,
     voltage_source_config_snapshot,
 )
+from .measurement_context import format_lockin_contact_context
 
 
 AC_LOCKIN_COLUMNS = [
@@ -130,6 +131,14 @@ def format_ac_lockin_plan(
         f"Source compliance: {recipe.bias_sweep.current_compliance_a:.6g} A",
         f"Safety current limit: {safety.max_abs_current_a:.6g} A",
     ]
+    if recipe.topology is not None:
+        lines.extend(
+            format_lockin_contact_context(
+                recipe.measurement_geometry.model_dump(mode="json"),
+                recipe.lockin.model_dump(mode="json"),
+                recipe.topology.model_dump(mode="json"),
+            )[3:]
+        )
     preview = max(0, preview_points)
     if preview:
         head = voltages[:preview]

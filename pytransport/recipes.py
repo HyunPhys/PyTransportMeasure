@@ -245,6 +245,32 @@ class HallBarLockInTopology(BaseModel):
         return self
 
 
+class AcLockInTopology(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_contact: str = Field(min_length=1)
+    drain_contact: str = Field(min_length=1)
+    lockin_input_mode: Literal["voltage"] = "voltage"
+    lockin_input_contacts: list[str] = Field(min_length=2, max_length=2)
+    excitation_contacts: list[str] = Field(min_length=2, max_length=2)
+    voltage_probe_role: Literal["longitudinal", "hall", "generic"] = "generic"
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def contacts_must_define_four_terminal_voltage_readout(self) -> "AcLockInTopology":
+        if self.source_contact == self.drain_contact:
+            raise ValueError("source_contact and drain_contact must be different")
+        if len(set(self.lockin_input_contacts)) != 2:
+            raise ValueError("lockin_input_contacts must contain two different contacts")
+        if len(set(self.excitation_contacts)) != 2:
+            raise ValueError("excitation_contacts must contain two different contacts")
+        if self.excitation_contacts != [self.source_contact, self.drain_contact]:
+            raise ValueError("excitation_contacts must match source_contact and drain_contact order")
+        if set(self.lockin_input_contacts) & set(self.excitation_contacts):
+            raise ValueError("four-terminal AC voltage contacts must not overlap excitation contacts")
+        return self
+
+
 class ResistanceCheck(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -427,6 +453,7 @@ class AcLockInRecipe(BaseModel):
     measurement_geometry: MeasurementGeometry = MeasurementGeometry()
     source_instrument: InstrumentConfig
     lockin: LockInConfig
+    topology: AcLockInTopology | None = None
     bias_sweep: SweepConfig
     safety_preset: str = "nano_device_safe"
     output: OutputConfig = OutputConfig()
@@ -444,6 +471,13 @@ class AcLockInRecipe(BaseModel):
     def ranges_and_lockin_must_be_valid(self) -> "AcLockInRecipe":
         if not self.lockin.enabled:
             raise ValueError("ac_lockin recipes require lockin.enabled=true")
+        if self.measurement_geometry.method == "four_terminal":
+            if self.lockin.input_mode != "voltage" or self.lockin.voltage_input != "a-b":
+                raise ValueError("four-terminal AC lock-in recipes require lockin.input_mode=voltage and voltage_input=a-b")
+            if self.topology is None:
+                raise ValueError("four-terminal AC lock-in recipes require topology with source/drain and voltage contacts")
+        if self.measurement_geometry.method == "two_terminal" and self.topology is not None:
+            raise ValueError("topology is only supported for four-terminal AC lock-in recipes")
         if self.source_instrument.voltage_range_v is not None:
             voltages = sweep_voltages(self.bias_sweep)
             max_bias_voltage = max(abs(voltage) for voltage in voltages)
