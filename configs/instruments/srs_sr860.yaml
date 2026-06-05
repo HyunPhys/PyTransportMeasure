@@ -7,4 +7,4 @@ channels:
   - r
   - theta
 read_timing: after_dc_settle
-notes: Template only. SR860 hardware control is not active in current measurement runners.
+notes: SR860 identify/probe is active. Full AC hardware acquisition remains blocked until smoke tests pass.

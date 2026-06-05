@@ -16,6 +16,7 @@ instrument:
   terminal: FRONT
   voltage_range_v: 0.2
   current_range_a: 2.0e-4
+  nplc: 1.0
 sweep:
   mode: multi_segment
   delay_s: 0.05

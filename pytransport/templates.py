@@ -46,6 +46,7 @@ def recipe_template(
             "terminal": "FRONT",
             "voltage_range_v": 0.2,
             "current_range_a": 1.0e-7,
+            "nplc": 1.0,
         },
         "sweep": {
             "mode": mode,

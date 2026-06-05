@@ -15,6 +15,7 @@ instrument:
   terminal: FRONT
   voltage_range_v: 0.2
   current_range_a: 2.0e-4
+  nplc: 1.0
 sweep:
   mode: linear_one_way
   start_v: -0.1

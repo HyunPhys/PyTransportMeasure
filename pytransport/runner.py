@@ -63,6 +63,7 @@ def run_drain_iv(
                 voltage_range_v=recipe.instrument.voltage_range_v,
                 current_range_a=recipe.instrument.current_range_a,
                 terminal=recipe.instrument.terminal,
+                nplc=recipe.instrument.nplc,
             )
         )
         metadata["current_limit_command"] = getattr(smu, "current_limit_command", None)

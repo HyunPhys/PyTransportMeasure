@@ -90,6 +90,8 @@ class Keithley2450:
         if config.terminal is not None:
             self._write_checked(f":ROUT:TERM {config.terminal}", "terminal selection")
         self._write_checked(":SENS:FUNC \"CURR\"", "sense function configuration")
+        if config.nplc is not None:
+            self._write_checked(f":SENS:CURR:NPLC {config.nplc}", "current NPLC configuration")
         if config.current_range_a is None:
             self._write_checked(":SENS:CURR:RANG:AUTO ON", "current range configuration")
         else:

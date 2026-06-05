@@ -16,7 +16,9 @@ def test_validate_recipe_file_reports_smoke_test():
     assert report.points == 21
     assert report.estimated_duration_s == pytest.approx(1.05)
     assert report.terminal == "FRONT"
+    assert report.nplc == 1.0
     assert "Recipe validation: OK" in format_validation_report(report)
+    assert "NPLC: 1" in format_validation_report(report)
     assert "Sample: resistor_box" in format_validation_report(report)
 
 

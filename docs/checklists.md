@@ -288,8 +288,17 @@ read SR860 hardware data yet, but `ptm ac-lockin --dry-run` validates the
 artifact path.
 
 - [ ] Confirm the SR860 VISA resource appears in `ptm list-resources`.
+- [ ] Probe SR860 communication without changing measurement settings.
+  ```powershell
+  ptm identify --instrument srs_sr860 --address "GPIB0::4::INSTR"
+  ptm probe --instrument srs_sr860 --address "GPIB0::4::INSTR"
+  ptm doctor --instrument srs_sr860 --address "GPIB0::4::INSTR"
+  ```
+- [ ] Confirm the probe reports an SR860 identity, `error_status: 0`, and a
+  decimal `lia_status`.
 - [ ] Confirm the active method recipe owns the lock-in block.
 - [ ] Confirm the timing mode is explicit, starting with `after_dc_settle`.
+- [ ] Confirm every Keithley source block has the intended `nplc` value.
 - [ ] Dry-run with `FakeLockIn`.
   ```powershell
   ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0

@@ -52,6 +52,7 @@ def inspect_run(run_dir: str | Path) -> str:
         f"Safety preset: {recipe.get('safety_preset') or 'n/a'}",
         f"Instrument: {instrument.get('id') or 'n/a'} @ {instrument.get('address') or 'n/a'}",
         f"Terminal: {instrument.get('terminal') or 'n/a'}",
+        f"NPLC: {instrument.get('nplc') if instrument.get('nplc') is not None else 'n/a'}",
         f"Sweep: {format_sweep(sweep) if sweep else 'n/a'}",
     ]
     if measurement_type == "single_gate_sweep":
@@ -60,6 +61,7 @@ def inspect_run(run_dir: str | Path) -> str:
         lines.extend(
             [
                 f"Gate instrument: {gate_instrument.get('id') or 'n/a'} @ {gate_instrument.get('address') or 'n/a'}",
+                f"Gate NPLC: {gate_instrument.get('nplc') if gate_instrument.get('nplc') is not None else 'n/a'}",
                 f"Gate sweep: {format_gate_sweep(gate_sweep)}",
             ]
         )

@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from pytransport.instruments.base import LockInReading
 from pytransport.instruments.fake import FakeLockIn
+from pytransport.instruments.srs_sr860 import SRS_SR860
 from pytransport.recipes import LockInConfig
 
 
@@ -45,3 +46,69 @@ def test_lockin_config_requires_address_only_when_enabled():
 
     with pytest.raises(ValidationError):
         LockInConfig.model_validate({"enabled": True})
+
+
+class FakeSR860VisaInstrument:
+    def __init__(self):
+        self.queries = []
+        self.closed = False
+
+    def query(self, command):
+        self.queries.append(command)
+        if command == "*IDN?":
+            return "Stanford_Research_Systems,SR860,000111,v1.23"
+        if command == "ERRS?":
+            return "0"
+        if command == "LIAS?":
+            return "0"
+        if command == "SNAP? X,Y,R":
+            return "1.0e-6,2.0e-6,2.2360679e-6"
+        if command == "OUTP? THeta":
+            return "63.4349488"
+        raise AssertionError(f"Unexpected query: {command}")
+
+    def close(self):
+        self.closed = True
+
+
+def test_srs_sr860_probe_reads_identity_and_status():
+    lockin = SRS_SR860("GPIB0::4::INSTR")
+    fake = FakeSR860VisaInstrument()
+    lockin._inst = fake
+
+    result = lockin.probe()
+
+    assert result["address"] == "GPIB0::4::INSTR"
+    assert result["idn"].startswith("Stanford_Research_Systems,SR860")
+    assert result["error_status"] == "0"
+    assert result["lia_status"] == "0"
+    assert fake.queries == ["*IDN?", "ERRS?", "LIAS?"]
+
+
+def test_srs_sr860_read_channels_uses_snap_for_xyr_and_outp_for_theta():
+    lockin = SRS_SR860("GPIB0::4::INSTR")
+    fake = FakeSR860VisaInstrument()
+    lockin._inst = fake
+
+    reading = lockin.read_channels()
+
+    assert reading.x_v == pytest.approx(1e-6)
+    assert reading.y_v == pytest.approx(2e-6)
+    assert reading.r_v == pytest.approx(2.2360679e-6)
+    assert reading.theta_deg == pytest.approx(63.4349488)
+    assert fake.queries == ["SNAP? X,Y,R", "OUTP? THeta"]
+
+
+def test_srs_sr860_rejects_bad_snap_response_shape():
+    lockin = SRS_SR860("GPIB0::4::INSTR")
+
+    class BadSnapInstrument(FakeSR860VisaInstrument):
+        def query(self, command):
+            if command == "SNAP? X,Y,R":
+                return "1,2"
+            return super().query(command)
+
+    lockin._inst = BadSnapInstrument()
+
+    with pytest.raises(RuntimeError, match="SNAP"):
+        lockin.read_channels()

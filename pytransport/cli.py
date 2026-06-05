@@ -43,6 +43,7 @@ from .feedback_bundle import create_feedback_bundle
 from .inspect import inspect_run
 from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, FakeLockIn, FakeSMU
 from .instruments.keithley_2450 import Keithley2450
+from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
 from .model import MeasurementPoint
 from .plot import write_iv_svg
@@ -119,18 +120,19 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("list-resources", help="List VISA resources visible to PyVISA.")
 
     doctor = subparsers.add_parser("doctor", help="Print lab laptop environment and VISA diagnostics.")
-    doctor.add_argument("--address", help="Optional Keithley VISA address to check and probe.")
+    doctor.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450", "srs_sr860"])
+    doctor.add_argument("--address", help="Optional VISA address to check and probe.")
     doctor.add_argument("--timeout-ms", type=int, default=10000)
     doctor.add_argument("--json", action="store_true", help="Print JSON instead of text.")
     doctor.add_argument("--output", type=Path, help="Write the report to a file.")
 
     identify = subparsers.add_parser("identify", help="Query *IDN? for a supported instrument.")
-    identify.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450"])
+    identify.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450", "srs_sr860"])
     identify.add_argument("--address", required=True)
     identify.add_argument("--timeout-ms", type=int, default=10000)
 
-    probe = subparsers.add_parser("probe", help="Probe a Keithley 2450 with *IDN?, *LANG?, and :SYST:ERR?.")
-    probe.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450"])
+    probe = subparsers.add_parser("probe", help="Probe a supported instrument with conservative read-only queries.")
+    probe.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450", "srs_sr860"])
     probe.add_argument("--address", required=True)
     probe.add_argument("--timeout-ms", type=int, default=10000)
 
@@ -462,8 +464,28 @@ def command_list_resources() -> int:
     return 0
 
 
+def instrument_probe_factory(instrument_id: str):
+    if instrument_id == "keithley_2450":
+        return None
+    if instrument_id == "srs_sr860":
+        return probe_srs_sr860
+    raise ValueError(f"Unsupported instrument: {instrument_id}")
+
+
+def open_supported_instrument(instrument_id: str, address: str, timeout_ms: int):
+    if instrument_id == "keithley_2450":
+        return Keithley2450(address, timeout_ms)
+    if instrument_id == "srs_sr860":
+        return SRS_SR860(address, timeout_ms)
+    raise ValueError(f"Unsupported instrument: {instrument_id}")
+
+
 def command_doctor(args: argparse.Namespace) -> int:
-    report = run_doctor(address=args.address, timeout_ms=args.timeout_ms)
+    report = run_doctor(
+        address=args.address,
+        timeout_ms=args.timeout_ms,
+        probe_factory=instrument_probe_factory(args.instrument),
+    )
     if args.output:
         path = write_doctor_report(report, args.output, as_json=args.json)
         print(f"Doctor report: {path}")
@@ -475,7 +497,7 @@ def command_doctor(args: argparse.Namespace) -> int:
 
 
 def command_identify(args: argparse.Namespace) -> int:
-    smu = Keithley2450(args.address, args.timeout_ms)
+    smu = open_supported_instrument(args.instrument, args.address, args.timeout_ms)
     try:
         smu.connect()
         print(smu.identify())
@@ -485,7 +507,7 @@ def command_identify(args: argparse.Namespace) -> int:
 
 
 def command_probe(args: argparse.Namespace) -> int:
-    smu = Keithley2450(args.address, args.timeout_ms)
+    smu = open_supported_instrument(args.instrument, args.address, args.timeout_ms)
     try:
         smu.connect()
         for key, value in smu.probe().items():

@@ -34,11 +34,13 @@ def test_keithley_current_limit_falls_back_after_undefined_header():
             voltage_range_v=0.2,
             current_range_a=2e-4,
             terminal="FRONT",
+            nplc=1.0,
         )
     )
 
     assert smu.current_limit_command == ":SOUR:VOLT:ILIMIT {value}"
     assert ":ROUT:TERM FRONT" in smu.inst.commands
+    assert ":SENS:CURR:NPLC 1.0" in smu.inst.commands
     assert ":SOUR:VOLT:RANG 0.2" in smu.inst.commands
     assert ":SENS:CURR:RANG 0.0002" in smu.inst.commands
     assert ":SOUR:VOLT:ILIMIT 0.0002" in smu.inst.commands

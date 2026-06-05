@@ -677,3 +677,21 @@ fake-driver support, recipe validation, and smoke tests. See
 `docs/phase20_4probe_remote_sense_design.md`,
 `docs/phase21_lockin_foundation.md`, and
 `docs/phase22_ac_lockin_recipe_skeleton.md`.
+
+For SR860 communication smoke tests, use the manual-backed read-only probe path:
+
+```powershell
+ptm identify --instrument srs_sr860 --address "GPIB0::4::INSTR"
+ptm probe --instrument srs_sr860 --address "GPIB0::4::INSTR"
+ptm doctor --instrument srs_sr860 --address "GPIB0::4::INSTR"
+```
+
+Keithley 2450 source blocks may set `nplc`. This controls current measurement
+integration time and is part of the saved recipe snapshot:
+
+```yaml
+instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  nplc: 1.0
+```

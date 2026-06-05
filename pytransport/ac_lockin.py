@@ -97,6 +97,7 @@ def format_ac_lockin_plan(
         f"Recipe: {Path(recipe_path)}",
         f"Safety preset: {safety.name}",
         f"Source instrument: {recipe.source_instrument.id} at {recipe.source_instrument.address}",
+        f"Source NPLC: {recipe.source_instrument.nplc if recipe.source_instrument.nplc is not None else 'auto'}",
         f"Lock-in: {recipe.lockin.id} at {recipe.lockin.address}",
         f"Lock-in channels: {', '.join(recipe.lockin.channels)}",
         f"Lock-in timing: {recipe.lockin.read_timing}",
@@ -166,6 +167,7 @@ def run_ac_lockin_sweep(
                 voltage_range_v=recipe.source_instrument.voltage_range_v,
                 current_range_a=recipe.source_instrument.current_range_a,
                 terminal=recipe.source_instrument.terminal,
+                nplc=recipe.source_instrument.nplc,
             )
         )
         source_smu.output_on()

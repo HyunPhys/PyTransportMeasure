@@ -16,6 +16,7 @@ def test_load_example_recipe():
     assert recipe.instrument.terminal == "FRONT"
     assert recipe.instrument.voltage_range_v == 0.2
     assert recipe.instrument.current_range_a == 2.0e-4
+    assert recipe.instrument.nplc == 1.0
     assert recipe.sweep.points == 21
 
 

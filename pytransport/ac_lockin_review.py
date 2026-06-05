@@ -195,6 +195,7 @@ def format_ac_lockin_report(run_dir: str | Path) -> str:
         "## Instruments",
         "",
         f"- Source: {source.get('id') or 'n/a'} @ `{source.get('address') or 'n/a'}`",
+        f"- Source NPLC: {source.get('nplc') if source.get('nplc') is not None else 'n/a'}",
         f"- Lock-in: {lockin.get('id') or 'n/a'} @ `{lockin.get('address') or 'n/a'}`",
         f"- Lock-in channels: {', '.join(lockin.get('channels') or []) or 'n/a'}",
         f"- Read timing: {lockin.get('read_timing') or 'n/a'}",

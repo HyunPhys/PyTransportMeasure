@@ -381,6 +381,7 @@ def test_schema_form_round_trips_drain_iv_common_fields():
     assert fields["experiment.cooldown_id"].value == ""
     assert fields["instrument.terminal"].kind == "choice"
     assert "" in fields["instrument.terminal"].choices
+    assert fields["instrument.nplc"].value == "1"
     assert fields["sweep.points"].value == "21"
 
     updated = schema_form_text_from_values(
@@ -410,6 +411,7 @@ def test_schema_form_treats_blank_optional_numbers_as_none():
         {
             "instrument.voltage_range_v": "",
             "instrument.current_range_a": "",
+            "instrument.nplc": "",
             "checks.fitted_resistance_ohm.min_ohm": "",
             "checks.fitted_resistance_ohm.max_ohm": "",
         },
@@ -418,6 +420,7 @@ def test_schema_form_treats_blank_optional_numbers_as_none():
 
     assert recipe.instrument.voltage_range_v is None
     assert recipe.instrument.current_range_a is None
+    assert recipe.instrument.nplc is None
     assert recipe.checks.fitted_resistance_ohm.min_ohm is None
     assert recipe.checks.fitted_resistance_ohm.max_ohm is None
 

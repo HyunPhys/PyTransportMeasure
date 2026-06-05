@@ -15,6 +15,7 @@ drain_instrument:
   terminal: FRONT
   voltage_range_v: 0.2
   current_range_a: 1.0e-6
+  nplc: 1.0
 gate_instrument:
   id: keithley_2450
   address: GPIB0::3::INSTR
@@ -22,6 +23,7 @@ gate_instrument:
   terminal: FRONT
   voltage_range_v: 1.0
   current_range_a: 1.0e-9
+  nplc: 1.0
 gate_sweep:
   start_v: -0.5
   stop_v: 0.5

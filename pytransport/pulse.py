@@ -158,6 +158,7 @@ def run_pulse_measurement(
                 voltage_range_v=recipe.source_instrument.voltage_range_v,
                 current_range_a=recipe.source_instrument.current_range_a,
                 terminal=recipe.source_instrument.terminal,
+                nplc=recipe.source_instrument.nplc,
             )
         )
         source_smu.set_voltage(float(pulse.base_v))

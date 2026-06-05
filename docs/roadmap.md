@@ -127,6 +127,11 @@ root.
   - block identical or missing drain/gate resources
   - expose single-gate preflight in GUI while keeping GUI hardware output
     conservative
+- [x] Phase 22: SR860 probe and Keithley NPLC
+  - read `SR860m.pdf` and document the exact SCPI command subset
+  - add SR860 identify/probe/doctor path
+  - add SR860 driver with read-only probe and X/Y/R/theta read primitives
+  - add Keithley `nplc` recipe/config/driver/plan/report support
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -140,12 +145,9 @@ root.
   - confirm two Keithley addresses
   - verify drain/gate output-off behavior on real instruments
   - save first two-SMU smoke-test artifacts
-- [ ] Phase 22: SR860 hardware smoke preparation
-  - read `SR860m.pdf` and document the exact SCPI command subset
-  - add SR860 identify/probe path
-  - add conservative hardware smoke-test checklist
-  - keep full hardware acquisition blocked until smoke test passes
 - [ ] Phase 23b: Two-terminal AC hardware smoke
+  - run SR860 identify/probe on the lab laptop
+  - add AC lock-in two-instrument preflight
   - Keithley DC bias or zero-bias source setup
   - SR860 X/Y/R/theta readout
   - point CSV and metadata with lock-in settings

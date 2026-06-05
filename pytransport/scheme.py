@@ -41,6 +41,7 @@ class InstrumentOverrides(BaseModel):
     terminal: str | None = None
     voltage_range_v: float | None = Field(default=None, gt=0)
     current_range_a: float | None = Field(default=None, gt=0)
+    nplc: float | None = Field(default=None, gt=0)
 
 
 class SweepOverrides(BaseModel):

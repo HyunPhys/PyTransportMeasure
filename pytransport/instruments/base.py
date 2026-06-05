@@ -12,6 +12,7 @@ class SMUVoltageSourceConfig:
     voltage_range_v: float | None = None
     current_range_a: float | None = None
     terminal: str | None = None
+    nplc: float | None = None
 
 
 @dataclass(frozen=True)

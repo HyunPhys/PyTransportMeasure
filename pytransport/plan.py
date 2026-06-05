@@ -29,6 +29,7 @@ class MeasurementPlan:
     terminal: str | None
     voltage_range_v: float | None
     current_range_a: float | None
+    nplc: float | None
     output_directory: Path
     sweep_mode: str
     points: int
@@ -85,6 +86,7 @@ def build_measurement_plan_from_objects(
         terminal=recipe.instrument.terminal,
         voltage_range_v=recipe.instrument.voltage_range_v,
         current_range_a=recipe.instrument.current_range_a,
+        nplc=recipe.instrument.nplc,
         output_directory=recipe.output.directory,
         sweep_mode=recipe.sweep.mode,
         points=len(planned_points),
@@ -111,7 +113,8 @@ def format_measurement_plan(plan: MeasurementPlan) -> str:
     def fmt_optional(value: float | None, unit: str) -> str:
         if value is None:
             return "auto"
-        return f"{value:.6g} {unit}"
+        suffix = f" {unit}" if unit else ""
+        return f"{value:.6g}{suffix}"
 
     lines = [
         "Measurement plan",
@@ -128,6 +131,7 @@ def format_measurement_plan(plan: MeasurementPlan) -> str:
         f"- Terminal: {plan.terminal or 'unchanged'}",
         f"- Voltage range: {fmt_optional(plan.voltage_range_v, 'V')}",
         f"- Current range: {fmt_optional(plan.current_range_a, 'A')}",
+        f"- NPLC: {fmt_optional(plan.nplc, '')}",
         "",
         "Safety",
         f"- Preset: {plan.safety_preset}",

@@ -97,6 +97,8 @@ def format_single_gate_plan(recipe: SingleGateRecipe, safety: SafetyPreset, reci
         f"Safety preset: {safety.name}",
         f"Gate instrument: {recipe.gate_instrument.id} at {recipe.gate_instrument.address}",
         f"Drain instrument: {recipe.drain_instrument.id} at {recipe.drain_instrument.address}",
+        f"Gate NPLC: {recipe.gate_instrument.nplc if recipe.gate_instrument.nplc is not None else 'auto'}",
+        f"Drain NPLC: {recipe.drain_instrument.nplc if recipe.drain_instrument.nplc is not None else 'auto'}",
         f"Gate sweep: {gate_voltages[0]:.6g} V -> {gate_voltages[-1]:.6g} V, {len(gate_voltages)} points, settle {recipe.gate_sweep.settle_s:.6g} s",
         f"Drain sweep: {drain_voltages[0]:.6g} V -> {drain_voltages[-1]:.6g} V, {len(drain_voltages)} points, mode {recipe.drain_sweep.mode}",
         f"Total points: {total_points}",
@@ -166,6 +168,7 @@ def run_single_gate_sweep(
                 voltage_range_v=recipe.drain_instrument.voltage_range_v,
                 current_range_a=recipe.drain_instrument.current_range_a,
                 terminal=recipe.drain_instrument.terminal,
+                nplc=recipe.drain_instrument.nplc,
             )
         )
         gate_smu.configure_voltage_source(
@@ -174,6 +177,7 @@ def run_single_gate_sweep(
                 voltage_range_v=recipe.gate_instrument.voltage_range_v,
                 current_range_a=recipe.gate_instrument.current_range_a,
                 terminal=recipe.gate_instrument.terminal,
+                nplc=recipe.gate_instrument.nplc,
             )
         )
         gate_smu.output_on()

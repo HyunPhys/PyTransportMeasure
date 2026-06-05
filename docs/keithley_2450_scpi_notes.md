@@ -66,6 +66,7 @@ The repeated pattern in the manual for voltage-source/current-measure operation 
 ```text
 *RST
 SENS:FUNC "CURR"
+SENS:CURR:NPLC <nplc>
 SENS:CURR:RANG:AUTO ON
 SOUR:FUNC VOLT
 SOUR:VOLT:RANG <range>
@@ -80,6 +81,7 @@ The order varies across examples, but the important pieces are:
 
 - Set source function to voltage: `SOUR:FUNC VOLT`
 - Set measure function to current: `SENS:FUNC "CURR"`
+- Optionally set current integration time: `SENS:CURR:NPLC <value>`
 - Enable current autorange: `SENS:CURR:RANG:AUTO ON`
 - Set current limit on the voltage source: `SOUR:VOLT:ILIM <A>`
 - Optionally set a voltage range: `SOUR:VOLT:RANG <V>`
@@ -185,6 +187,7 @@ Solar-cell and FET examples:
 
 ```text
 SENS:FUNC "CURR"
+SENS:CURR:NPLC 1
 SENS:CURR:RANG:AUTO ON
 SOUR:FUNC VOLT
 SOUR:VOLT:RANG 2
