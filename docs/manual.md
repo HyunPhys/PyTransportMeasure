@@ -495,7 +495,8 @@ ptm dual-gate-lockin-hall-suite-package configs\recipes\hall_suite_sampleA\sampl
 ```
 
 The package is hardware-free. It copies the suite recipes, writes
-`acquisition_runbook.md`, writes `package_manifest.json`, and creates a ZIP.
+`acquisition_runbook.md`, writes `package_manifest.json`, writes per-recipe
+Keithley audit files under `keithley_audit/`, and creates a ZIP.
 You can attach chunk feedback, saved preflight text, or lab notes:
 
 ```powershell
@@ -505,6 +506,9 @@ ptm dual-gate-lockin-hall-suite-package ... --chunk-feedback-file docs\<sample>_
 Use this when development happens on one computer but hardware validation
 happens on the lab laptop. The package records the exact recipe set and command
 sequence to use, but it does not enable any output or talk to VISA.
+Before hardware preflight, inspect the runbook's Keithley Parameter Audits
+section or the package manifest's `keithley_parameter_audits` block. Every
+copied recipe should report `ok_for_hardware: true`.
 
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:

@@ -33,6 +33,11 @@ from .hall_analysis import (
     write_dual_gate_lockin_hall_mobility,
     write_dual_gate_lockin_hall_zero_corrected,
 )
+from .measurement_parameters import (
+    audit_smu_hardware_parameters,
+    format_smu_hardware_parameter_audit,
+    smu_hardware_parameter_audit_to_dict,
+)
 from .recipes import DualGateLockInRecipe, SafetyPreset, load_named_safety_preset, load_yaml
 
 
@@ -377,6 +382,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     recipes_dir = package_dir / "recipes"
     recipes_dir.mkdir()
     copied_recipes = _copy_suite_recipes(audit, recipes_dir)
+    keithley_audits = _write_hall_suite_keithley_audits(copied_recipes, package_dir)
     extras = []
     extras.extend(_copy_labeled_files(chunk_feedback_files or [], package_dir / "chunk_feedback", "chunk_feedback"))
     extras.extend(_copy_labeled_files(preflight_files or [], package_dir / "preflight", "preflight"))
@@ -395,6 +401,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
             accepted_previous_run=accepted_previous_run,
             acquisition_note=acquisition_note,
             extras=extras,
+            keithley_audits=keithley_audits,
         ),
         encoding="utf-8",
     )
@@ -409,6 +416,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
             "zero_hall": str(audit.zero_hall_recipe) if audit.zero_hall_recipe is not None else None,
         },
         "copied_recipes": {key: path.relative_to(package_dir).as_posix() for key, path in copied_recipes.items()},
+        "keithley_parameter_audits": keithley_audits,
         "compatible": audit.compatible,
         "point_count": audit.point_count,
         "chunk_size": chunk_size,
@@ -1187,6 +1195,7 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
     accepted_previous_run: str | Path | None,
     acquisition_note: str | None,
     extras: list[dict[str, str]],
+    keithley_audits: dict[str, dict[str, Any]],
 ) -> str:
     copied_audit = audit_dual_gate_lockin_hall_suite(
         copied_recipes["longitudinal"],
@@ -1229,6 +1238,17 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
             *[f"ptm dual-gate-lockin-plan {path}" for _, _, path, _ in copied_suite],
             *[f"ptm dual-gate-lockin-preflight {path}" for _, _, path, _ in copied_suite],
             "```",
+            "",
+            "## Keithley Parameter Audits",
+            "",
+            *[
+                (
+                    f"- {label}: {'PASS' if record.get('ok_for_hardware') else 'MISSING'}; "
+                    f"JSON `{record.get('json')}`, Markdown `{record.get('markdown')}`"
+                )
+                for label, record in keithley_audits.items()
+            ],
+            *([] if keithley_audits else ["- none"]),
             "",
             "## Guarded Chunk Acquisition Template",
             "",
@@ -1837,6 +1857,48 @@ def _copy_suite_recipes(audit: HallSuiteAudit, recipes_dir: Path) -> dict[str, P
         shutil.copy2(source, target)
         copied[key] = target
     return copied
+
+
+def _write_hall_suite_keithley_audits(copied_recipes: dict[str, Path], package_dir: Path) -> dict[str, dict[str, Any]]:
+    audit_dir = package_dir / "keithley_audit"
+    audit_dir.mkdir()
+    records: dict[str, dict[str, Any]] = {}
+    for key, recipe_path in copied_recipes.items():
+        recipe = DualGateLockInRecipe.model_validate(load_yaml(recipe_path))
+        audits = audit_smu_hardware_parameters(recipe)
+        payload = {
+            "recipe_key": key,
+            "recipe_path": recipe_path.relative_to(package_dir).as_posix(),
+            **smu_hardware_parameter_audit_to_dict(audits),
+        }
+        json_path = audit_dir / f"{key}_keithley_audit.json"
+        markdown_path = audit_dir / f"{key}_keithley_audit.md"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        markdown_path.write_text(
+            "\n".join(
+                [
+                    f"# {_suite_key_label(key)} Keithley Parameter Audit",
+                    "",
+                    f"- Recipe: `{payload['recipe_path']}`",
+                    f"- Hardware-ready: {payload['ok_for_hardware']}",
+                    "",
+                    format_smu_hardware_parameter_audit(audits),
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        records[key] = {
+            "json": json_path.relative_to(package_dir).as_posix(),
+            "markdown": markdown_path.relative_to(package_dir).as_posix(),
+            "ok_for_hardware": bool(payload["ok_for_hardware"]),
+            "missing_roles": [
+                {"role": role["role"], "missing_required_parameters": role["missing_required_parameters"]}
+                for role in payload["roles"]
+                if role["missing_required_parameters"]
+            ],
+        }
+    return records
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: str | Path) -> Path:

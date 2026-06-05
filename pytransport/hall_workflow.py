@@ -72,6 +72,34 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         ok=approved is not None,
         details=(approved or {}).get("strategy", "not present") if approved else "not present",
     )
+    keithley_audits = manifest.get("keithley_parameter_audits")
+    audit_paths: list[Path] = []
+    audit_ok = False
+    audit_details = "not present"
+    if isinstance(keithley_audits, dict):
+        for record in keithley_audits.values():
+            if not isinstance(record, dict):
+                continue
+            for field in ["json", "markdown"]:
+                value = record.get(field)
+                if value:
+                    path = Path(str(value))
+                    if not path.is_absolute():
+                        path = package_dir / path
+                    audit_paths.append(path)
+        audit_ok = bool(audit_paths) and all(path.exists() for path in audit_paths) and all(
+            bool(record.get("ok_for_hardware"))
+            for record in keithley_audits.values()
+            if isinstance(record, dict)
+        )
+        audit_details = f"{len(keithley_audits)} recipe audits"
+    add_stage(
+        "keithley_parameter_audits",
+        "Keithley parameter audits",
+        package_dir / "keithley_audit",
+        ok=audit_ok,
+        details=audit_details,
+    )
 
     intake_json = package_dir / "result_intake.json"
     intake_ok = False
@@ -104,7 +132,8 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         except ValueError:
             rehearsal_ok = False
     add_stage("dry_run_rehearsal", "Dry-run rehearsal", rehearsal_json, ok=rehearsal_ok if rehearsal_json.exists() else False)
-    ready_for_lab_review = all(stage["ok"] for stage in stages[:4])
+    ready_stage_keys = {"package_manifest", "runbook", "zip", "recipes", "keithley_parameter_audits"}
+    ready_for_lab_review = all(stage["ok"] for stage in stages if stage["key"] in ready_stage_keys)
     return {
         "package_dir": str(package_dir),
         "package_manifest": str(manifest_path),

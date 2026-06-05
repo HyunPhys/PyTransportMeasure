@@ -437,6 +437,8 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert (package_dir / "recipes" / result.plus_hall_recipe.name).exists()
     assert (package_dir / "chunk_feedback" / "chunk_feedback.md").exists()
     assert (package_dir / "preflight" / "preflight.txt").exists()
+    assert (package_dir / "keithley_audit" / "longitudinal_keithley_audit.json").exists()
+    assert (package_dir / "keithley_audit" / "longitudinal_keithley_audit.md").exists()
     assert runbook.exists()
     assert manifest_path.exists()
     assert zip_path.exists()
@@ -447,6 +449,8 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert "dual-gate-lockin-hall-suite-chunk-plan" in runbook_text
     assert "dual-gate-lockin-chunk-feedback" in runbook_text
     assert "dual-gate-lockin-hall-suite-adjust-recipes" in runbook_text
+    assert "Keithley Parameter Audits" in runbook_text
+    assert "longitudinal_keithley_audit.json" in runbook_text
     assert "lab laptop handoff package" in runbook_text
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -455,12 +459,15 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert manifest["max_hardware_points"] == 4
     assert manifest["point_count"] == 25
     assert manifest["copied_recipes"]["longitudinal"].endswith(result.longitudinal_recipe.name)
+    assert manifest["keithley_parameter_audits"]["longitudinal"]["ok_for_hardware"] is True
+    assert manifest["keithley_parameter_audits"]["longitudinal"]["json"] == "keithley_audit/longitudinal_keithley_audit.json"
     assert {record["kind"] for record in manifest["extras"]} == {"chunk_feedback", "preflight"}
     with zipfile.ZipFile(zip_path) as archive:
         names = set(archive.namelist())
     assert "acquisition_runbook.md" in names
     assert "package_manifest.json" in names
     assert f"recipes/{result.longitudinal_recipe.name}" in names
+    assert "keithley_audit/longitudinal_keithley_audit.json" in names
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):

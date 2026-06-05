@@ -511,11 +511,15 @@ root.
   - surface NPLC/range/compliance/terminal/source-delay consistency in one
     machine-readable artifact
   - prepare the audit for two-SMU gate plus SR860 Hall-bar workflows
-- [ ] Phase 25bt: Hall package Keithley audit integration
+- [x] Phase 25bt: Hall package Keithley audit integration
   - write Keithley parameter audit JSON/Markdown into Hall-suite acquisition
     packages
   - include per-recipe PASS/MISSING status in the Hall workflow status summary
   - make lab handoff packages carry measurement-parameter audit provenance
+- [ ] Phase 25bu: Hall package SR860 audit integration
+  - write declared SR860 setting summaries into Hall-suite acquisition packages
+  - expose SR860 setting audit status in workflow handoff summaries
+  - keep Keithley and lock-in measurement-condition provenance side by side
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
