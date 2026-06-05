@@ -410,9 +410,11 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
         encoding="utf-8",
     )
     manifest_path = package_dir / "package_manifest.json"
+    measurement_condition_audits = _measurement_condition_audits_manifest(keithley_audits, lockin_audits)
     manifest = {
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "package_name": base_name,
+        "manifest_schema_version": 2,
         "source_recipes": {
             "longitudinal": str(audit.longitudinal_recipe),
             "plus_hall": str(audit.plus_hall_recipe),
@@ -422,6 +424,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
         "copied_recipes": {key: path.relative_to(package_dir).as_posix() for key, path in copied_recipes.items()},
         "keithley_parameter_audits": keithley_audits,
         "lockin_setting_audits": lockin_audits,
+        "measurement_condition_audits": measurement_condition_audits,
         "compatible": audit.compatible,
         "point_count": audit.point_count,
         "chunk_size": chunk_size,
@@ -1937,6 +1940,43 @@ def _write_hall_suite_lockin_audits(copied_recipes: dict[str, Path], package_dir
             "read_settle_s": payload["read_settle_s"],
         }
     return records
+
+
+def _measurement_condition_audits_manifest(
+    keithley_audits: dict[str, dict[str, Any]],
+    lockin_audits: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    records: list[dict[str, Any]] = []
+    for instrument, audit_type, source in [
+        ("keithley_2450", "smu_hardware_parameters", keithley_audits),
+        ("srs_sr860", "lockin_expected_settings", lockin_audits),
+    ]:
+        for recipe_key, record in source.items():
+            records.append(
+                {
+                    "recipe_key": recipe_key,
+                    "instrument": instrument,
+                    "audit_type": audit_type,
+                    "json": record.get("json"),
+                    "markdown": record.get("markdown"),
+                    "ok_for_hardware": bool(record.get("ok_for_hardware")),
+                    "summary": _measurement_condition_audit_summary(record),
+                }
+            )
+    return {
+        "schema_version": 1,
+        "ok_for_hardware": all(record["ok_for_hardware"] for record in records),
+        "records": records,
+    }
+
+
+def _measurement_condition_audit_summary(record: dict[str, Any]) -> dict[str, Any]:
+    summary_keys = [
+        "missing_roles",
+        "declared_expected_setting_count",
+        "read_settle_s",
+    ]
+    return {key: record[key] for key in summary_keys if key in record}
 
 
 def _lockin_setting_audit_payload(key: str, recipe_path: str, recipe: DualGateLockInRecipe) -> dict[str, Any]:

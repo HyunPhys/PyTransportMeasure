@@ -72,11 +72,28 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         ok=approved is not None,
         details=(approved or {}).get("strategy", "not present") if approved else "not present",
     )
+    measurement_condition_audits = manifest.get("measurement_condition_audits")
+    normalized_audit_records = (
+        measurement_condition_audits.get("records")
+        if isinstance(measurement_condition_audits, dict)
+        else None
+    )
     keithley_audits = manifest.get("keithley_parameter_audits")
     audit_paths: list[Path] = []
     audit_ok = False
     audit_details = "not present"
-    if isinstance(keithley_audits, dict):
+    if isinstance(normalized_audit_records, list):
+        keithley_records = [
+            record
+            for record in normalized_audit_records
+            if isinstance(record, dict) and record.get("instrument") == "keithley_2450"
+        ]
+        audit_paths = _audit_record_paths(keithley_records, package_dir)
+        audit_ok = bool(audit_paths) and all(path.exists() for path in audit_paths) and all(
+            bool(record.get("ok_for_hardware")) for record in keithley_records
+        )
+        audit_details = f"{len(keithley_records)} recipe audits"
+    elif isinstance(keithley_audits, dict):
         for record in keithley_audits.values():
             if not isinstance(record, dict):
                 continue
@@ -104,7 +121,18 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
     lockin_audit_paths: list[Path] = []
     lockin_audit_ok = False
     lockin_audit_details = "not present"
-    if isinstance(lockin_audits, dict):
+    if isinstance(normalized_audit_records, list):
+        lockin_records = [
+            record
+            for record in normalized_audit_records
+            if isinstance(record, dict) and record.get("instrument") == "srs_sr860"
+        ]
+        lockin_audit_paths = _audit_record_paths(lockin_records, package_dir)
+        lockin_audit_ok = bool(lockin_audit_paths) and all(path.exists() for path in lockin_audit_paths) and all(
+            bool(record.get("ok_for_hardware")) for record in lockin_records
+        )
+        lockin_audit_details = f"{len(lockin_records)} recipe audits"
+    elif isinstance(lockin_audits, dict):
         for record in lockin_audits.values():
             if not isinstance(record, dict):
                 continue
@@ -382,6 +410,19 @@ def _load_json_object(path: Path) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _audit_record_paths(records: list[dict], package_dir: Path) -> list[Path]:
+    paths: list[Path] = []
+    for record in records:
+        for field in ["json", "markdown"]:
+            value = record.get(field)
+            if value:
+                path = Path(str(value))
+                if not path.is_absolute():
+                    path = package_dir / path
+                paths.append(path)
+    return paths
 
 
 def _package_recipe_paths(manifest: dict, package_dir: Path) -> dict[str, Path]:

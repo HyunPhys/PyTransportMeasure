@@ -542,6 +542,8 @@ remain point-guarded.
   every copied recipe reports `ok_for_hardware: true`.
 - [ ] Confirm `package_manifest.json` contains `lockin_setting_audits` and every
   copied recipe reports `ok_for_hardware: true`.
+- [ ] Confirm `package_manifest.json` contains `measurement_condition_audits`
+  with `ok_for_hardware: true` and records for both Keithley and SR860 audits.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.

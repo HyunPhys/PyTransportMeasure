@@ -520,10 +520,16 @@ root.
   - write declared SR860 setting summaries into Hall-suite acquisition packages
   - expose SR860 setting audit status in workflow handoff summaries
   - keep Keithley and lock-in measurement-condition provenance side by side
-- [ ] Phase 25bv: Hall package manifest schema cleanup
+- [x] Phase 25bv: Hall package manifest schema cleanup
   - normalize Hall package audit manifest records for Keithley and SR860
   - add direct tests for manifest backward compatibility
   - document package manifest fields for external lab notebooks and scripts
+- [ ] Phase 25bw: Hall package manifest validator
+  - add a dedicated command to validate package manifest schema and artifact
+    paths without running the full workflow status report
+  - report missing package files, audit files, and schema incompatibilities in
+    machine-readable JSON
+  - prepare the validator for GUI package inspection
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

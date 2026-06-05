@@ -467,6 +467,19 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert manifest["keithley_parameter_audits"]["longitudinal"]["json"] == "keithley_audit/longitudinal_keithley_audit.json"
     assert manifest["lockin_setting_audits"]["longitudinal"]["ok_for_hardware"] is True
     assert manifest["lockin_setting_audits"]["longitudinal"]["json"] == "lockin_audit/longitudinal_sr860_audit.json"
+    assert manifest["manifest_schema_version"] == 2
+    normalized = manifest["measurement_condition_audits"]
+    assert normalized["schema_version"] == 1
+    assert normalized["ok_for_hardware"] is True
+    normalized_records = normalized["records"]
+    assert len(normalized_records) == 8
+    assert {
+        (record["recipe_key"], record["instrument"], record["audit_type"])
+        for record in normalized_records
+    } >= {
+        ("longitudinal", "keithley_2450", "smu_hardware_parameters"),
+        ("longitudinal", "srs_sr860", "lockin_expected_settings"),
+    }
     assert {record["kind"] for record in manifest["extras"]} == {"chunk_feedback", "preflight"}
     with zipfile.ZipFile(zip_path) as archive:
         names = set(archive.namelist())

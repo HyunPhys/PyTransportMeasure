@@ -513,6 +513,10 @@ copied recipe should report `ok_for_hardware: true`.
 Also inspect the SR860 Setting Audits section or `lockin_setting_audits`.
 These records preserve the expected lock-in settings that preflight/readback
 must match on the lab laptop.
+New packages also include `measurement_condition_audits`, a normalized manifest
+block that lists Keithley and SR860 audit records with stable `recipe_key`,
+`instrument`, `audit_type`, `json`, `markdown`, `ok_for_hardware`, and
+`summary` fields for scripts or GUI inspection.
 
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:

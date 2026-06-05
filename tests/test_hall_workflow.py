@@ -50,11 +50,35 @@ def test_hall_workflow_status_reports_package_stage_readiness(tmp_path):
         }
     (package_dir / "acquisition_runbook.md").write_text("# runbook\n", encoding="utf-8")
     package_dir.with_suffix(".zip").write_bytes(b"fake zip placeholder")
+    normalized_records = []
+    for key, record in keithley_audits.items():
+        normalized_records.append(
+            {
+                "recipe_key": key,
+                "instrument": "keithley_2450",
+                "audit_type": "smu_hardware_parameters",
+                **record,
+            }
+        )
+    for key, record in lockin_audits.items():
+        normalized_records.append(
+            {
+                "recipe_key": key,
+                "instrument": "srs_sr860",
+                "audit_type": "lockin_expected_settings",
+                **record,
+            }
+        )
     manifest = {
         "package_name": "fake_package",
         "copied_recipes": recipe_paths,
         "keithley_parameter_audits": keithley_audits,
         "lockin_setting_audits": lockin_audits,
+        "measurement_condition_audits": {
+            "schema_version": 1,
+            "ok_for_hardware": True,
+            "records": normalized_records,
+        },
         "approved_next_scan": {"strategy": "refine_charge_neutrality_region"},
     }
     (package_dir / "package_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -75,6 +99,49 @@ def test_hall_workflow_status_reports_package_stage_readiness(tmp_path):
     assert "| Keithley parameter audits | PASS |" in text
     assert "| SR860 setting audits | PASS |" in text
     assert "| Dry-run rehearsal | MISSING |" in text
+
+
+def test_hall_workflow_status_supports_legacy_audit_manifest(tmp_path):
+    package_dir = tmp_path / "legacy_package"
+    (package_dir / "recipes").mkdir(parents=True)
+    (package_dir / "keithley_audit").mkdir()
+    (package_dir / "lockin_audit").mkdir()
+    for key in ["longitudinal", "plus", "minus"]:
+        (package_dir / "recipes" / f"{key}.yaml").write_text("measurement_name: fake\n", encoding="utf-8")
+        (package_dir / "keithley_audit" / f"{key}.json").write_text("{}", encoding="utf-8")
+        (package_dir / "keithley_audit" / f"{key}.md").write_text("# audit\n", encoding="utf-8")
+        (package_dir / "lockin_audit" / f"{key}.json").write_text("{}", encoding="utf-8")
+        (package_dir / "lockin_audit" / f"{key}.md").write_text("# audit\n", encoding="utf-8")
+    (package_dir / "acquisition_runbook.md").write_text("# runbook\n", encoding="utf-8")
+    package_dir.with_suffix(".zip").write_bytes(b"zip")
+    manifest = {
+        "package_name": "legacy_package",
+        "copied_recipes": {key: f"recipes/{key}.yaml" for key in ["longitudinal", "plus", "minus"]},
+        "keithley_parameter_audits": {
+            key: {
+                "json": f"keithley_audit/{key}.json",
+                "markdown": f"keithley_audit/{key}.md",
+                "ok_for_hardware": True,
+            }
+            for key in ["longitudinal", "plus", "minus"]
+        },
+        "lockin_setting_audits": {
+            key: {
+                "json": f"lockin_audit/{key}.json",
+                "markdown": f"lockin_audit/{key}.md",
+                "ok_for_hardware": True,
+            }
+            for key in ["longitudinal", "plus", "minus"]
+        },
+    }
+    (package_dir / "package_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    payload = inspect_dual_gate_lockin_hall_suite_workflow_status(package_dir)
+    stage_by_key = {stage["key"]: stage for stage in payload["stages"]}
+
+    assert payload["ready_for_lab_review"] is True
+    assert stage_by_key["keithley_parameter_audits"]["ok"] is True
+    assert stage_by_key["lockin_setting_audits"]["ok"] is True
 
 
 def test_hall_workflow_status_requires_package_manifest(tmp_path):
