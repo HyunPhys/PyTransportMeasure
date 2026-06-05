@@ -3,7 +3,17 @@
 from __future__ import annotations
 
 from .errors import SafetyLimitError
-from .recipes import AcLockInRecipe, DrainIVRecipe, DualGateRecipe, PulseRecipe, SafetyPreset, SingleGateRecipe, gate_voltages_from_config, sweep_voltages
+from .recipes import (
+    AcLockInRecipe,
+    DrainIVRecipe,
+    DualGateLockInRecipe,
+    DualGateRecipe,
+    PulseRecipe,
+    SafetyPreset,
+    SingleGateRecipe,
+    gate_voltages_from_config,
+    sweep_voltages,
+)
 
 
 def validate_active_geometry(method: str, terminal_count: int) -> None:
@@ -114,6 +124,33 @@ def validate_ac_lockin_recipe_against_safety(recipe: AcLockInRecipe, safety: Saf
             ),
             triggered_limit="source_max_abs_current_a",
         )
+
+
+def validate_dual_gate_lockin_recipe_against_safety(recipe: DualGateLockInRecipe, safety: SafetyPreset) -> None:
+    validate_active_geometry("Dual-gate lock-in", recipe.measurement_geometry.terminal_count)
+    gate1_max_voltage = max(abs(voltage) for voltage in gate_voltages_from_config(recipe.gate1_sweep))
+    gate2_max_voltage = max(abs(voltage) for voltage in gate_voltages_from_config(recipe.gate2_sweep))
+    max_recipe_voltage = max(gate1_max_voltage, gate2_max_voltage)
+    if max_recipe_voltage > safety.max_abs_voltage_v:
+        raise SafetyLimitError(
+            (
+                f"Gate voltage range reaches {max_recipe_voltage:g} V, "
+                f"above safety limit {safety.max_abs_voltage_v:g} V"
+            ),
+            triggered_limit="max_abs_voltage_v",
+        )
+    for label, compliance in [
+        ("Gate1", recipe.gate1_sweep.current_compliance_a),
+        ("Gate2", recipe.gate2_sweep.current_compliance_a),
+    ]:
+        if compliance > safety.max_abs_current_a:
+            raise SafetyLimitError(
+                (
+                    f"{label} compliance {compliance:g} A, "
+                    f"above safety limit {safety.max_abs_current_a:g} A"
+                ),
+                triggered_limit=f"{label.lower()}_max_abs_current_a",
+            )
 
 
 def validate_pulse_recipe_against_safety(recipe: PulseRecipe, safety: SafetyPreset) -> None:

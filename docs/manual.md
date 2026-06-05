@@ -71,6 +71,7 @@ Important modules:
 | Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
+| Dual-gate lock-in sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
@@ -352,6 +353,36 @@ This should return a blocking message before any instrument output is enabled.
 The next hardware design step is to choose between a DC three-source topology
 and an AC topology where the two Keithleys bias the gates while SR860/lock-in
 readout measures the source-drain response.
+
+## Dual-Gate Lock-In Sweep
+
+The dual-gate lock-in workflow is the software path closest to the current
+hardware set: two Keithley 2450 instruments bias gate1 and gate2, while SR860
+readout records the source-drain lock-in response. The current phase is dry-run
+only, because SR860 excitation and Hall bar wiring assumptions still need a
+hardware preflight gate.
+
+```powershell
+ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
+ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
+```
+
+The saved `points.csv` contains one row per `gate1 x gate2` pair, with gate
+leakage currents and SR860 X/Y/R/theta values. Review artifacts include:
+
+- `dual_gate_lockin_heatmap.svg`: mean lock-in R over the gate1/gate2 grid.
+- `dual_gate_lockin_stats.csv`: per-gate-pair lock-in and leakage statistics.
+- `dual_gate_lockin_report.md`: human-readable run report.
+
+Hardware output is intentionally blocked:
+
+```powershell
+ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml
+```
+
+The next phase should add a read-only preflight for two Keithleys and one SR860,
+then explicitly state how SR860 excitation and device wiring are configured
+before any gate output can be enabled.
 
 ## Campaign
 

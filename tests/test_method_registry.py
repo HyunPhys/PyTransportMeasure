@@ -78,6 +78,7 @@ def test_registry_lists_known_measurement_types_and_defaults_legacy_metadata():
         "drain_iv",
         "single_gate_sweep",
         "dual_gate_sweep",
+        "dual_gate_lockin_sweep",
         "ac_lockin_sweep",
         "pulse_measurement",
     )
@@ -85,6 +86,7 @@ def test_registry_lists_known_measurement_types_and_defaults_legacy_metadata():
     assert handler_for_measurement_type("drain_iv").scheme_step_type == "drain_iv"
     assert handler_for_scheme_step("single_gate").measurement_type == "single_gate_sweep"
     assert handler_for_scheme_step("dual_gate").measurement_type == "dual_gate_sweep"
+    assert handler_for_scheme_step("dual_gate_lockin").measurement_type == "dual_gate_lockin_sweep"
     assert handler_for_scheme_step("ac_lockin").measurement_type == "ac_lockin_sweep"
     assert handler_for_scheme_step("pulse").measurement_type == "pulse_measurement"
 
@@ -113,6 +115,14 @@ def test_registry_loads_and_formats_method_plans():
 
     assert "Dual-Gate Sweep Plan" in dual_gate_plan
     assert "dual_gate_dry_run" in dual_gate_plan
+
+    dual_gate_lockin = handler_for_measurement_type("dual_gate_lockin_sweep")
+    dual_gate_lockin_recipe_path = "configs/recipes/dual_gate_lockin_dry_run.yaml"
+    dual_gate_lockin_recipe = dual_gate_lockin.load_recipe(dual_gate_lockin_recipe_path)
+    dual_gate_lockin_plan = dual_gate_lockin.format_plan(dual_gate_lockin_recipe, dual_gate_lockin_recipe_path, "configs/safety", 3)
+
+    assert "Dual-Gate Lock-In Sweep Plan" in dual_gate_lockin_plan
+    assert "dual_gate_lockin_dry_run" in dual_gate_lockin_plan
 
     ac_lockin = handler_for_measurement_type("ac_lockin_sweep")
     ac_lockin_recipe_path = "configs/recipes/ac_lockin_dry_run.yaml"

@@ -319,6 +319,45 @@ class AcLockInRecipe(BaseModel):
         return self
 
 
+class DualGateLockInRecipe(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    measurement_name: str = Field(min_length=1)
+    experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry = MeasurementGeometry()
+    gate1_instrument: InstrumentConfig
+    gate2_instrument: InstrumentConfig
+    lockin: LockInConfig
+    gate1_sweep: GateSweepConfig
+    gate2_sweep: GateSweepConfig
+    safety_preset: str = "nano_device_safe"
+    output: OutputConfig = OutputConfig()
+    checks: QualityChecks | None = None
+
+    @field_validator("measurement_name")
+    @classmethod
+    def measurement_name_is_file_friendly(cls, value: str) -> str:
+        forbidden = '<>:"/\\|?*'
+        if any(char in value for char in forbidden):
+            raise ValueError(f"measurement_name cannot contain any of {forbidden}")
+        return value
+
+    @model_validator(mode="after")
+    def ranges_and_lockin_must_be_valid(self) -> "DualGateLockInRecipe":
+        if not self.lockin.enabled:
+            raise ValueError("dual_gate_lockin recipes require lockin.enabled=true")
+        for label, instrument, sweep in [
+            ("gate1", self.gate1_instrument, self.gate1_sweep),
+            ("gate2", self.gate2_instrument, self.gate2_sweep),
+        ]:
+            if instrument.voltage_range_v is not None:
+                gate_voltages = gate_voltages_from_config(sweep)
+                max_gate_voltage = max(abs(voltage) for voltage in gate_voltages)
+                if instrument.voltage_range_v < max_gate_voltage:
+                    raise ValueError(f"{label}_instrument.voltage_range_v must cover {label}_sweep")
+        return self
+
+
 class PulseRecipe(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -444,6 +483,10 @@ def load_dual_gate_recipe(path: str | Path) -> DualGateRecipe:
 
 def load_ac_lockin_recipe(path: str | Path) -> AcLockInRecipe:
     return AcLockInRecipe.model_validate(load_yaml(Path(path)))
+
+
+def load_dual_gate_lockin_recipe(path: str | Path) -> DualGateLockInRecipe:
+    return DualGateLockInRecipe.model_validate(load_yaml(Path(path)))
 
 
 def load_pulse_recipe(path: str | Path) -> PulseRecipe:

@@ -10,10 +10,12 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Batch, scheme, and campaign review flows are available.
 - [x] Single-gate workflow is dry-run verified.
 - [x] Dual-gate workflow is dry-run verified and hardware-blocked.
+- [x] Dual-gate lock-in workflow is dry-run verified and hardware-blocked.
 - [x] SR860 / AC lock-in workflow is dry-run verified.
 - [x] Two-terminal AC lock-in hardware smoke path is available after preflight.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
+- [ ] Dual-gate lock-in hardware preflight still needs implementation.
 - [x] Keithley/SR860 AC lock-in preflight checks both resources before hardware
   output is enabled.
 - [x] Pulse measurement is dry-run verified; hardware output is intentionally
@@ -305,6 +307,38 @@ hardware output is enabled.
 - [ ] Confirm non-dry-run hardware dual-gate is blocked.
   ```powershell
   ptm dual-gate configs/recipes/dual_gate_dry_run.yaml
+  ```
+
+## Dual-Gate Lock-In Dry-Run Checklist
+
+Use this for the likely two-Keithley-plus-SR860 Hall bar graphene path. Current
+hardware execution is blocked until preflight and SR860 excitation/readout
+assumptions are explicit.
+
+- [ ] Preview the lock-in dual-gate plan.
+  ```powershell
+  ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
+  ```
+- [ ] Confirm the plan shows gate1 Keithley, gate2 Keithley, SR860 address,
+  NPLC values, lock-in channels, and `after_dc_settle` timing.
+- [ ] Run the dry-run artifact path.
+  ```powershell
+  ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
+  ```
+- [ ] Confirm `points.csv` contains `gate1_voltage_v`, `gate2_voltage_v`,
+  `gate1_current_a`, `gate2_current_a`, `lockin_x_v`, `lockin_y_v`,
+  `lockin_r_v`, and `lockin_theta_deg`.
+- [ ] Confirm `dual_gate_lockin_heatmap.svg`,
+  `dual_gate_lockin_stats.csv`, and `dual_gate_lockin_report.md` are written.
+- [ ] Confirm generic saved-run commands work.
+  ```powershell
+  ptm summarize data\raw\<dual_gate_lockin_run_folder>
+  ptm plot data\raw\<dual_gate_lockin_run_folder>
+  ptm report data\raw\<dual_gate_lockin_run_folder>
+  ```
+- [ ] Confirm non-dry-run hardware dual-gate lock-in is blocked.
+  ```powershell
+  ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml
   ```
 
 ## Future 4-Probe / Remote-Sense Smoke Test

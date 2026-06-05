@@ -47,9 +47,25 @@ from .dual_gate_review import (
     write_dual_gate_report,
     write_dual_gate_stats_csv,
 )
+from .dual_gate_lockin import run_dual_gate_lockin_sweep
+from .dual_gate_lockin_review import (
+    format_dual_gate_lockin_summary,
+    summarize_dual_gate_lockin_run,
+    write_dual_gate_lockin_heatmap_svg,
+    write_dual_gate_lockin_report,
+    write_dual_gate_lockin_stats_csv,
+)
 from .feedback_bundle import create_feedback_bundle
 from .inspect import inspect_run
-from .instruments.fake import CoupledFakeDeviceState, CoupledFakeSMU, DualGateFakeDeviceState, DualGateFakeSMU, FakeLockIn, FakeSMU
+from .instruments.fake import (
+    CoupledFakeDeviceState,
+    CoupledFakeSMU,
+    DualGateFakeDeviceState,
+    DualGateFakeLockIn,
+    DualGateFakeSMU,
+    FakeLockIn,
+    FakeSMU,
+)
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
@@ -74,6 +90,7 @@ from .run_index import append_run_index, filter_run_index, format_run_index, rea
 from .runner import run_drain_iv
 from .safety import (
     validate_ac_lockin_recipe_against_safety,
+    validate_dual_gate_lockin_recipe_against_safety,
     validate_dual_gate_recipe_against_safety,
     validate_pulse_recipe_against_safety,
     validate_single_gate_recipe_against_safety,
@@ -217,6 +234,31 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate.add_argument("--progress", action="store_true")
     dual_gate.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     dual_gate.add_argument("--preview-points", type=int, default=5)
+
+    dual_gate_lockin_plan = subparsers.add_parser("dual-gate-lockin-plan", help="Show a dual-gate lock-in sweep plan without hardware.")
+    dual_gate_lockin_plan.add_argument("recipe", type=Path)
+    dual_gate_lockin_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_plan.add_argument("--preview-points", type=int, default=5)
+
+    dual_gate_lockin = subparsers.add_parser("dual-gate-lockin", help="Run a dual-gate lock-in recipe. Current milestone is dry-run only.")
+    dual_gate_lockin.add_argument("recipe", type=Path)
+    dual_gate_lockin.add_argument("--dry-run", action="store_true")
+    dual_gate_lockin.add_argument("--fake-gate1-leak-resistance-ohm", type=float, default=1_000_000_000.0)
+    dual_gate_lockin.add_argument("--fake-gate2-leak-resistance-ohm", type=float, default=1_000_000_000.0)
+    dual_gate_lockin.add_argument("--fake-lockin-r-v", type=float, default=1e-6)
+    dual_gate_lockin.add_argument("--fake-lockin-gate1-sensitivity-v-per-v", type=float, default=0.0)
+    dual_gate_lockin.add_argument("--fake-lockin-gate2-sensitivity-v-per-v", type=float, default=0.0)
+    dual_gate_lockin.add_argument("--fake-lockin-cross-sensitivity-v-per-v2", type=float, default=0.0)
+    dual_gate_lockin.add_argument("--fake-lockin-phase-deg", type=float, default=0.0)
+    dual_gate_lockin.add_argument("--fake-noise-std", type=float, default=0.0)
+    dual_gate_lockin.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin.add_argument("--summary", action="store_true")
+    dual_gate_lockin.add_argument("--plot", action="store_true")
+    dual_gate_lockin.add_argument("--report", action="store_true")
+    dual_gate_lockin.add_argument("--gate-stats", action="store_true")
+    dual_gate_lockin.add_argument("--progress", action="store_true")
+    dual_gate_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
+    dual_gate_lockin.add_argument("--preview-points", type=int, default=5)
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
@@ -748,6 +790,77 @@ def command_dual_gate(args: argparse.Namespace) -> int:
     return exit_code_for_metadata(metadata)
 
 
+def command_dual_gate_lockin_plan(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.recipe)
+    print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
+    return 0
+
+
+def command_dual_gate_lockin(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.recipe)
+    safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
+    validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
+    print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
+    print()
+    if not args.dry_run:
+        print(
+            "Dual-gate lock-in hardware runs are not active yet. Use --dry-run until SR860 excitation/readout topology is smoke-tested.",
+            file=sys.stderr,
+        )
+        return 2
+    gate1_smu, gate2_smu, lockin = build_dual_gate_lockin_fake_instruments(
+        args.fake_gate1_leak_resistance_ohm,
+        args.fake_gate2_leak_resistance_ohm,
+        args.fake_lockin_r_v,
+        args.fake_lockin_gate1_sensitivity_v_per_v,
+        args.fake_lockin_gate2_sensitivity_v_per_v,
+        args.fake_lockin_cross_sensitivity_v_per_v2,
+        args.fake_lockin_phase_deg,
+        args.fake_noise_std,
+    )
+    progress_callback = print_dual_gate_lockin_progress if args.progress else None
+    metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path=args.recipe,
+        progress_callback=progress_callback,
+    )
+    run_dir = Path(metadata["run_dir"])
+    print(f"CSV: {metadata['csv_path']}")
+    print(f"Metadata: {metadata['metadata_path']}")
+    print(f"Metadata completed: {metadata['completed']}")
+    if args.gate_stats and metadata["points_written"] > 0:
+        stats_path = write_dual_gate_lockin_stats_csv(run_dir)
+        update_metadata_file(Path(metadata["metadata_path"]), {"dual_gate_lockin_stats_path": str(stats_path)})
+        print(f"Dual-gate lock-in stats: {stats_path}")
+    elif args.gate_stats:
+        print("Dual-gate lock-in stats: skipped because no points were written")
+    if args.plot and metadata["points_written"] > 0:
+        plot_path = write_dual_gate_lockin_heatmap_svg(run_dir)
+        update_metadata_file(Path(metadata["metadata_path"]), {"dual_gate_lockin_heatmap_path": str(plot_path)})
+        print(f"Dual-gate lock-in heatmap: {plot_path}")
+    elif args.plot:
+        print("Dual-gate lock-in heatmap: skipped because no points were written")
+    if args.report and metadata["points_written"] > 0:
+        report_path = write_dual_gate_lockin_report(run_dir)
+        update_metadata_file(Path(metadata["metadata_path"]), {"dual_gate_lockin_report_path": str(report_path)})
+        print(f"Dual-gate lock-in report: {report_path}")
+    elif args.report:
+        print("Dual-gate lock-in report: skipped because no points were written")
+    indexed_metadata = read_metadata_file(Path(metadata["metadata_path"]))
+    written_index_path = append_run_index(indexed_metadata, args.index_path)
+    print(f"Index: {written_index_path}")
+    if args.summary and metadata["points_written"] > 0:
+        print()
+        print(format_dual_gate_lockin_summary(summarize_dual_gate_lockin_run(run_dir)))
+    return exit_code_for_metadata(metadata)
+
+
 def command_ac_lockin_plan(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type("ac_lockin_sweep")
     recipe = method.load_recipe(args.recipe)
@@ -1002,6 +1115,40 @@ def build_dual_gate_fake_smus(
     return DualGateFakeSMU("drain", state), DualGateFakeSMU("gate1", state), DualGateFakeSMU("gate2", state)
 
 
+def build_dual_gate_lockin_fake_instruments(
+    gate1_leak_resistance_ohm: float,
+    gate2_leak_resistance_ohm: float,
+    lockin_r_v: float,
+    lockin_gate1_sensitivity_v_per_v: float,
+    lockin_gate2_sensitivity_v_per_v: float,
+    lockin_cross_sensitivity_v_per_v2: float,
+    lockin_phase_deg: float,
+    noise_std_v: float,
+) -> tuple[DualGateFakeSMU, DualGateFakeSMU, DualGateFakeLockIn]:
+    if gate1_leak_resistance_ohm <= 0:
+        raise ValueError("--fake-gate1-leak-resistance-ohm must be > 0")
+    if gate2_leak_resistance_ohm <= 0:
+        raise ValueError("--fake-gate2-leak-resistance-ohm must be > 0")
+    if lockin_r_v < 0:
+        raise ValueError("--fake-lockin-r-v must be >= 0")
+    if noise_std_v < 0:
+        raise ValueError("--fake-noise-std must be >= 0")
+    state = DualGateFakeDeviceState(
+        gate1_leak_resistance_ohm=gate1_leak_resistance_ohm,
+        gate2_leak_resistance_ohm=gate2_leak_resistance_ohm,
+    )
+    lockin = DualGateFakeLockIn(
+        state,
+        base_r_v=lockin_r_v,
+        gate1_sensitivity_v_per_v=lockin_gate1_sensitivity_v_per_v,
+        gate2_sensitivity_v_per_v=lockin_gate2_sensitivity_v_per_v,
+        cross_sensitivity_v_per_v2=lockin_cross_sensitivity_v_per_v2,
+        phase_deg=lockin_phase_deg,
+        noise_std_v=noise_std_v,
+    )
+    return DualGateFakeSMU("gate1", state), DualGateFakeSMU("gate2", state), lockin
+
+
 def exit_code_for_metadata(metadata: dict) -> int:
     if metadata["error_type"]:
         print(f"Error: {metadata['error_type']}: {metadata['error_message']}", file=sys.stderr)
@@ -1057,6 +1204,22 @@ def print_dual_gate_progress(point, total_points: int) -> None:
             f"Id={point.drain_current_a:.6g} A, "
             f"Ig1={point.gate1_current_a:.6g} A, "
             f"Ig2={point.gate2_current_a:.6g} A, "
+            f"t={point.elapsed_s:.3f} s"
+        ),
+        flush=True,
+    )
+
+
+def print_dual_gate_lockin_progress(point, total_points: int) -> None:
+    print(
+        (
+            f"[{point.index + 1}/{total_points}] "
+            f"Vg1={point.gate1_voltage_v:.6g} V, "
+            f"Vg2={point.gate2_voltage_v:.6g} V, "
+            f"Ig1={point.gate1_current_a:.6g} A, "
+            f"Ig2={point.gate2_current_a:.6g} A, "
+            f"R={point.lockin_r_v:.6g} V, "
+            f"theta={point.lockin_theta_deg:.6g} deg, "
             f"t={point.elapsed_s:.3f} s"
         ),
         flush=True,
@@ -1867,6 +2030,10 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_plan(args)
     if args.command == "dual-gate":
         return command_dual_gate(args)
+    if args.command == "dual-gate-lockin-plan":
+        return command_dual_gate_lockin_plan(args)
+    if args.command == "dual-gate-lockin":
+        return command_dual_gate_lockin(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
     if args.command == "ac-lockin-preflight":

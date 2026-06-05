@@ -56,6 +56,7 @@ def test_gui_methods_include_dry_run_families():
     assert methods["drain_iv"] == "Drain I-V"
     assert methods["single_gate_sweep"] == "Single-gate sweep"
     assert methods["dual_gate_sweep"] == "Dual-gate sweep"
+    assert methods["dual_gate_lockin_sweep"] == "Dual-gate lock-in sweep"
     assert methods["ac_lockin_sweep"] == "AC lock-in sweep"
     assert methods["pulse_measurement"] == "Pulse measurement"
 

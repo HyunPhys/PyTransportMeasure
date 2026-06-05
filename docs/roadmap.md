@@ -147,6 +147,11 @@ root.
   - add dry-run runner over gate1 x gate2 x drain sweep points
   - add dual-gate CSV, metadata, heatmap, stats, report, and registry support
   - keep hardware execution blocked until topology and smoke tests are defined
+- [x] Phase 25c: Dual-gate lock-in dry-run foundation
+  - add two-Keithley gate-bias plus SR860 lock-in readout recipe schema
+  - add dry-run runner over gate1 x gate2 lock-in readout points
+  - add lock-in heatmap, stats, report, and registry support
+  - keep hardware execution blocked until SR860 excitation/readout topology is smoke-tested
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -168,6 +173,10 @@ root.
   - decide DC three-source path vs AC source/readout plus two Keithley gates
   - define Hall-bar graphene dual-gate wiring and safety checklist
   - add preflight for the selected real hardware topology before enabling output
+- [ ] Phase 25d: Dual-gate lock-in hardware preflight
+  - validate two gate Keithley addresses and one SR860 address
+  - require distinct resources and successful read-only probes
+  - print SR860 excitation/readout assumptions before output can be enabled
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

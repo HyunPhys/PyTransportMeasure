@@ -1,0 +1,93 @@
+import json
+from pathlib import Path
+
+from pytransport import cli
+
+
+def write_dual_gate_lockin_cli_recipe(tmp_path: Path) -> Path:
+    recipe = tmp_path / "dual_gate_lockin_cli.yaml"
+    output_dir = str(tmp_path / "raw").replace("\\", "/")
+    recipe.write_text(
+        f"""
+measurement_name: dual_gate_lockin_cli
+safety_preset: nano_device_safe
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+gate1_instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+gate2_instrument:
+  id: keithley_2450
+  address: GPIB0::3::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+lockin:
+  enabled: true
+  address: GPIB0::4::INSTR
+  channels: [x, y, r, theta]
+  read_timing: after_dc_settle
+gate1_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 2
+  settle_s: 0.0
+  current_compliance_a: 1.0e-8
+gate2_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 2
+  settle_s: 0.0
+  current_compliance_a: 1.0e-8
+output:
+  directory: {output_dir}
+checks:
+  require_completed: true
+  min_points: 4
+""".strip(),
+        encoding="utf-8",
+    )
+    return recipe
+
+
+def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--summary",
+            "--plot",
+            "--report",
+            "--gate-stats",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    run_dirs = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))
+    assert len(run_dirs) == 1
+    metadata = json.loads((run_dirs[0] / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["measurement_type"] == "dual_gate_lockin_sweep"
+    assert metadata["points_written"] == 4
+    assert (run_dirs[0] / "dual_gate_lockin_heatmap.svg").exists()
+    assert (run_dirs[0] / "dual_gate_lockin_report.md").exists()
+    assert (run_dirs[0] / "dual_gate_lockin_stats.csv").exists()
+
+
+def test_cli_dual_gate_lockin_hardware_run_is_blocked(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(["dual-gate-lockin", str(recipe)])
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()

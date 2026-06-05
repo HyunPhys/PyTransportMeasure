@@ -85,6 +85,21 @@ def test_build_index_record_keeps_dual_gate_artifacts():
     assert record["dual_gate_heatmap_path"].endswith("dual_gate_heatmap.svg")
 
 
+def test_build_index_record_keeps_dual_gate_lockin_artifacts():
+    record = build_index_record(
+        make_metadata()
+        | {
+            "measurement_type": "dual_gate_lockin_sweep",
+            "dual_gate_lockin_heatmap_path": "run/dual_gate_lockin_heatmap.svg",
+            "dual_gate_lockin_report_path": "run/dual_gate_lockin_report.md",
+            "dual_gate_lockin_stats_path": "run/dual_gate_lockin_stats.csv",
+        }
+    )
+
+    assert record["measurement_type"] == "dual_gate_lockin_sweep"
+    assert record["dual_gate_lockin_heatmap_path"].endswith("dual_gate_lockin_heatmap.svg")
+
+
 def test_append_and_read_run_index(tmp_path):
     index_path = tmp_path / "run_index.jsonl"
     append_run_index(make_metadata("run-a"), index_path)

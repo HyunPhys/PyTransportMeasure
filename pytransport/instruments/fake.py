@@ -207,6 +207,67 @@ class DualGateFakeSMU:
         self.connected = False
 
 
+class DualGateFakeLockIn:
+    def __init__(
+        self,
+        state: DualGateFakeDeviceState,
+        base_r_v: float = 1e-6,
+        gate1_sensitivity_v_per_v: float = 0.0,
+        gate2_sensitivity_v_per_v: float = 0.0,
+        cross_sensitivity_v_per_v2: float = 0.0,
+        phase_deg: float = 0.0,
+        noise_std_v: float = 0.0,
+    ):
+        if base_r_v < 0:
+            raise ValueError("base_r_v must be >= 0")
+        if noise_std_v < 0:
+            raise ValueError("noise_std_v must be >= 0")
+        self.state = state
+        self.base_r_v = base_r_v
+        self.gate1_sensitivity_v_per_v = gate1_sensitivity_v_per_v
+        self.gate2_sensitivity_v_per_v = gate2_sensitivity_v_per_v
+        self.cross_sensitivity_v_per_v2 = cross_sensitivity_v_per_v2
+        self.phase_deg = phase_deg
+        self.noise_std_v = noise_std_v
+        self.connected = False
+
+    def connect(self) -> None:
+        self.connected = True
+
+    def identify(self) -> str:
+        return "FAKE,LOCKIN,DUAL-GATE-SR860-DRY-RUN,0"
+
+    def probe(self) -> dict[str, str]:
+        return {
+            "address": "FAKE::LOCKIN",
+            "idn": self.identify(),
+            "base_r_v": f"{self.base_r_v:.12g}",
+            "gate1_sensitivity_v_per_v": f"{self.gate1_sensitivity_v_per_v:.12g}",
+            "gate2_sensitivity_v_per_v": f"{self.gate2_sensitivity_v_per_v:.12g}",
+            "cross_sensitivity_v_per_v2": f"{self.cross_sensitivity_v_per_v2:.12g}",
+            "phase_deg": f"{self.phase_deg:.12g}",
+            "noise_std_v": f"{self.noise_std_v:.12g}",
+        }
+
+    def read_channels(self) -> LockInReading:
+        signal_r_v = max(
+            0.0,
+            self.base_r_v
+            + self.gate1_sensitivity_v_per_v * self.state.gate1_voltage_v
+            + self.gate2_sensitivity_v_per_v * self.state.gate2_voltage_v
+            + self.cross_sensitivity_v_per_v2 * self.state.gate1_voltage_v * self.state.gate2_voltage_v,
+        )
+        phase_rad = math.radians(self.phase_deg)
+        x_v = signal_r_v * math.cos(phase_rad) + random.gauss(0.0, self.noise_std_v)
+        y_v = signal_r_v * math.sin(phase_rad) + random.gauss(0.0, self.noise_std_v)
+        r_v = math.hypot(x_v, y_v)
+        theta_deg = math.degrees(math.atan2(y_v, x_v))
+        return LockInReading(x_v=x_v, y_v=y_v, r_v=r_v, theta_deg=theta_deg)
+
+    def close(self) -> None:
+        self.connected = False
+
+
 class FakeLockIn:
     def __init__(
         self,
