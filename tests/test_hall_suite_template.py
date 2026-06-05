@@ -615,6 +615,35 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert approved_recipe.gate1_instrument.nplc == 1.0
     assert (tmp_path / "approved_suite" / "approved_graphene_approved_next_scan_review.md").exists()
 
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-approved-next-scan-package",
+            str(tmp_path / "approved_suite" / "approved_graphene_vxx.yaml"),
+            str(tmp_path / "approved_suite" / "approved_graphene_vxy_plus_b.yaml"),
+            str(tmp_path / "approved_suite" / "approved_graphene_vxy_minus_b.yaml"),
+            str(tmp_path / "approved_packages"),
+            "--zero-field-recipe",
+            str(tmp_path / "approved_suite" / "approved_graphene_vxy_zero_b.yaml"),
+            "--proposal-json",
+            str(proposal_json),
+            "--approval-review",
+            str(tmp_path / "approved_suite" / "approved_graphene_approved_next_scan_review.md"),
+            "--package-name",
+            "approved_graphene_package",
+            "--chunk-size",
+            "5",
+        ]
+    )
+    assert code == 0
+    approved_package = tmp_path / "approved_packages" / "approved_graphene_package"
+    approved_manifest = json.loads((approved_package / "package_manifest.json").read_text(encoding="utf-8"))
+    approved_runbook = (approved_package / "acquisition_runbook.md").read_text(encoding="utf-8")
+    names = zipfile.ZipFile(approved_package.with_suffix(".zip")).namelist()
+    assert approved_manifest["approved_next_scan"]["strategy"] == "refine_charge_neutrality_region"
+    assert "Approved Next-Scan Provenance" in approved_runbook
+    assert any(name.endswith("hall_suite_next_scan_proposal.json") for name in names)
+    assert any(name.endswith("approved_graphene_approved_next_scan_review.md") for name in names)
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(

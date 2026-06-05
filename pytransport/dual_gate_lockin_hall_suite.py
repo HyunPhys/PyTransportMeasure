@@ -422,6 +422,61 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     return HallSuiteAcquisitionPackageResult(package_dir, recipes_dir, runbook_path, manifest_path, zip_path)
 
 
+def write_dual_gate_lockin_hall_suite_approved_next_scan_package(
+    longitudinal_recipe: str | Path,
+    plus_hall_recipe: str | Path,
+    minus_hall_recipe: str | Path,
+    output_dir: str | Path,
+    *,
+    proposal_json: str | Path,
+    approval_review: str | Path,
+    zero_hall_recipe: str | Path | None = None,
+    package_name: str | None = None,
+    chunk_size: int,
+    max_hardware_points: int = 9,
+    accepted_previous_run: str | Path | None = None,
+    acquisition_note: str | None = None,
+    safety_dir: str | Path = "configs/safety",
+    overwrite: bool = False,
+) -> HallSuiteAcquisitionPackageResult:
+    proposal_path = Path(proposal_json)
+    review_path = Path(approval_review)
+    if not proposal_path.exists() or not proposal_path.is_file():
+        raise FileNotFoundError(f"Approved next-scan proposal JSON does not exist: {proposal_path}")
+    if not review_path.exists() or not review_path.is_file():
+        raise FileNotFoundError(f"Approved next-scan review does not exist: {review_path}")
+    proposal = _load_next_scan_proposal_json(proposal_path)
+    if proposal.get("requires_lab_approval") is not True:
+        raise ValueError("next-scan proposal does not declare requires_lab_approval=true")
+    note = acquisition_note or "approved next-scan acquisition package"
+    result = write_dual_gate_lockin_hall_suite_acquisition_package(
+        longitudinal_recipe,
+        plus_hall_recipe,
+        minus_hall_recipe,
+        output_dir,
+        zero_hall_recipe=zero_hall_recipe,
+        package_name=package_name,
+        chunk_size=chunk_size,
+        max_hardware_points=max_hardware_points,
+        accepted_previous_run=accepted_previous_run,
+        note_files=[proposal_path, review_path],
+        acquisition_note=note,
+        safety_dir=safety_dir,
+        overwrite=overwrite,
+    )
+    _annotate_approved_next_scan_package(result, proposal_path, review_path, proposal)
+    if result.zip_path.exists():
+        result.zip_path.unlink()
+    zip_path = Path(shutil.make_archive(str(result.package_dir), "zip", root_dir=result.package_dir))
+    return HallSuiteAcquisitionPackageResult(
+        result.package_dir,
+        result.recipes_dir,
+        result.runbook_path,
+        result.manifest_path,
+        zip_path,
+    )
+
+
 def write_dual_gate_lockin_hall_suite_result_intake(
     package_manifest_or_dir: str | Path,
     longitudinal_run_dir: str | Path,
@@ -2365,6 +2420,65 @@ def _load_package_manifest(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _annotate_approved_next_scan_package(
+    result: HallSuiteAcquisitionPackageResult,
+    proposal_path: Path,
+    approval_review_path: Path,
+    proposal: dict[str, Any],
+) -> None:
+    manifest = _load_package_manifest(result.manifest_path)
+    manifest["approved_next_scan"] = {
+        "proposal_json": str(proposal_path),
+        "approval_review": str(approval_review_path),
+        "strategy": proposal.get("strategy"),
+        "proposed_gate_grid": proposal.get("proposed_gate_grid"),
+        "hardware_recipe_written_by_proposal": proposal.get("hardware_recipe_written"),
+        "requires_lab_approval": proposal.get("requires_lab_approval"),
+        "preserve_measurement_settings": proposal.get("preserve_measurement_settings"),
+    }
+    result.manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    with result.runbook_path.open("a", encoding="utf-8") as handle:
+        handle.write("\n")
+        handle.write(format_dual_gate_lockin_hall_suite_approved_next_scan_package_addendum(proposal_path, approval_review_path, proposal))
+
+
+def format_dual_gate_lockin_hall_suite_approved_next_scan_package_addendum(
+    proposal_path: Path,
+    approval_review_path: Path,
+    proposal: dict[str, Any],
+) -> str:
+    current = proposal.get("current_gate_grid") if isinstance(proposal.get("current_gate_grid"), dict) else {}
+    proposed = proposal.get("proposed_gate_grid") if isinstance(proposal.get("proposed_gate_grid"), dict) else {}
+    settings = proposal.get("preserve_measurement_settings") if isinstance(proposal.get("preserve_measurement_settings"), dict) else {}
+    return "\n".join(
+        [
+            "## Approved Next-Scan Provenance",
+            "",
+            f"- Proposal JSON copied from: `{proposal_path}`",
+            f"- Approval review copied from: `{approval_review_path}`",
+            f"- Strategy: `{proposal.get('strategy')}`",
+            "",
+            "### Gate Grid Change",
+            "",
+            "| Axis | Previous start (V) | Previous stop (V) | Previous points | Package start (V) | Package stop (V) | Package points |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            _proposal_grid_row("gate1", current, proposed),
+            _proposal_grid_row("gate2", current, proposed),
+            "",
+            "### Measurement Settings To Preserve",
+            "",
+            *_proposal_settings_lines(settings),
+            "",
+            "### Hardware Policy",
+            "",
+            "- Use the chunked acquisition commands in this runbook.",
+            "- After the lab run, use `ptm dual-gate-lockin-hall-suite-intake` against this package before Hall analysis.",
+            "- Do not change Keithley NPLC/range/compliance or SR860 settings on the lab laptop unless the change is recorded in the lab notebook and a new package is produced.",
+            "",
+        ]
+    )
 
 
 def _package_recipe_paths(manifest: dict[str, Any], package_dir: Path) -> dict[str, Path]:

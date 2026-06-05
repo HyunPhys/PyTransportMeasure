@@ -476,12 +476,17 @@ root.
   - require an approval note before writing hardware recipes
   - keep NPLC/range/compliance/SR860 settings unchanged by default and record
     any deliberate measurement-setting changes
-- [ ] Phase 25bm: Approved next-scan acquisition package
+- [x] Phase 25bm: Approved next-scan acquisition package
   - package the approved next-scan recipe suite with the proposal and approval
     review artifacts
   - include a hardware runbook that highlights changed gate grid and preserved
     NPLC/range/compliance/SR860 settings
   - keep chunked acquisition and post-run intake as the default hardware path
+- [ ] Phase 25bn: Approved next-scan dry-run package rehearsal
+  - run the approved next-scan package through fake acquisition, intake,
+    analysis, review, and proposal in one verification workflow
+  - verify package provenance survives the full loop
+  - keep the rehearsal hardware-free for local development
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

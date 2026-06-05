@@ -74,6 +74,7 @@ from .dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_adjusted_recipes,
     write_dual_gate_lockin_hall_suite_analysis,
     write_dual_gate_lockin_hall_suite_analysis_review,
+    write_dual_gate_lockin_hall_suite_approved_next_scan_package,
     write_dual_gate_lockin_hall_suite_approved_next_scan_recipes,
     write_dual_gate_lockin_hall_suite_next_scan_proposal,
     write_dual_gate_lockin_hall_suite_result_intake,
@@ -696,6 +697,30 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--run-output-directory", type=Path)
     dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_approved_next_scan_package = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-approved-next-scan-package",
+        help="Create a lab handoff package for approved next-scan Hall-suite recipes.",
+    )
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("longitudinal_recipe", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("plus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("minus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("output_dir", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--zero-field-recipe", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--proposal-json", type=Path, required=True)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--approval-review", type=Path, required=True)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--package-name")
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--chunk-size", type=int, required=True)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument(
+        "--max-hardware-points",
+        type=int,
+        default=9,
+        help="Maximum points allowed in the first active hardware command printed in the runbook.",
+    )
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--accepted-previous-run", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--acquisition-note")
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2140,6 +2165,34 @@ def command_dual_gate_lockin_hall_suite_approved_next_scan(args: argparse.Namesp
     return 0
 
 
+def command_dual_gate_lockin_hall_suite_approved_next_scan_package(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_approved_next_scan_package(
+            args.longitudinal_recipe,
+            args.plus_hall_recipe,
+            args.minus_hall_recipe,
+            args.output_dir,
+            zero_hall_recipe=args.zero_field_recipe,
+            proposal_json=args.proposal_json,
+            approval_review=args.approval_review,
+            package_name=args.package_name,
+            chunk_size=args.chunk_size,
+            max_hardware_points=args.max_hardware_points,
+            accepted_previous_run=args.accepted_previous_run,
+            acquisition_note=args.acquisition_note,
+            safety_dir=args.safety_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite approved next-scan package failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Approved next-scan acquisition package: {result.package_dir}")
+    print(f"Runbook: {result.runbook_path}")
+    print(f"Manifest: {result.manifest_path}")
+    print(f"ZIP: {result.zip_path}")
+    return 0
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3443,6 +3496,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_next_scan_proposal(args)
     if args.command == "dual-gate-lockin-hall-suite-approved-next-scan":
         return command_dual_gate_lockin_hall_suite_approved_next_scan(args)
+    if args.command == "dual-gate-lockin-hall-suite-approved-next-scan-package":
+        return command_dual_gate_lockin_hall_suite_approved_next_scan_package(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

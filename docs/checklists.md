@@ -600,6 +600,16 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-hall-suite-check configs\recipes\<approved_next_suite>\<prefix>_vxx.yaml configs\recipes\<approved_next_suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<approved_next_suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<approved_next_suite>\<prefix>_vxy_zero_b.yaml
   ```
+- [ ] Create an approved next-scan acquisition package for the lab laptop.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-approved-next-scan-package configs\recipes\<approved_next_suite>\<prefix>_vxx.yaml configs\recipes\<approved_next_suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<approved_next_suite>\<prefix>_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\<approved_next_suite>\<prefix>_vxy_zero_b.yaml --proposal-json data\hall_packages\<previous_package>\hall_analysis\hall_suite_next_scan_proposal.json --approval-review configs\recipes\<approved_next_suite>\<prefix>_approved_next_scan_review.md --package-name <approved_next_package> --chunk-size <N>
+  ```
+- [ ] Confirm `package_manifest.json` includes `approved_next_scan`.
+- [ ] Confirm `acquisition_runbook.md` includes `Approved Next-Scan Provenance`.
+- [ ] Confirm the ZIP includes copied recipes, the proposal JSON, and the
+  approval review markdown.
+- [ ] Use chunked acquisition from the package runbook, then run result intake
+  against this approved package before Hall analysis.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

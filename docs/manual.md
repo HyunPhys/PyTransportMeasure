@@ -582,6 +582,20 @@ current range, compliance, source delay, gate settle time, and SR860 settings.
 After generation, run `dual-gate-lockin-hall-suite-check` and create a new
 acquisition package before any hardware run.
 
+For an approved next-scan lab handoff, package the generated recipes together
+with the proposal and approval review:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-approved-next-scan-package configs\recipes\sampleA_cd1_next\sampleA_cd1_next_vxx.yaml configs\recipes\sampleA_cd1_next\sampleA_cd1_next_vxy_plus_b.yaml configs\recipes\sampleA_cd1_next\sampleA_cd1_next_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\sampleA_cd1_next\sampleA_cd1_next_vxy_zero_b.yaml --proposal-json data\hall_packages\sampleA_cd1_lab1\hall_analysis\hall_suite_next_scan_proposal.json --approval-review configs\recipes\sampleA_cd1_next\sampleA_cd1_next_approved_next_scan_review.md --package-name sampleA_cd1_next_lab1 --chunk-size <N>
+```
+
+The package runbook includes an approved next-scan provenance section showing
+the changed gate grid and the preserved measurement settings. The package
+manifest records the proposal strategy and approval artifacts, and the ZIP
+contains copied recipes plus the proposal/review files. Use the chunked
+acquisition commands in that runbook and run result intake against this package
+after the lab measurement.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 
