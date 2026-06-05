@@ -163,6 +163,11 @@ from .hall_workflow import (
     write_dual_gate_lockin_hall_suite_lab_return_manifest,
     write_dual_gate_lockin_hall_suite_return_bundle_index,
 )
+from .hardware_evidence import (
+    audit_hardware_evidence,
+    format_hardware_evidence_audit,
+    write_hardware_evidence_audit_json,
+)
 from .inspect import inspect_run
 from .instruments.fake import (
     CoupledFakeDeviceState,
@@ -1333,6 +1338,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     inspect = subparsers.add_parser("inspect-run", help="Inspect metadata, summary, and files for a saved run.")
     inspect.add_argument("run_dir", type=Path)
+
+    hardware_evidence_audit = subparsers.add_parser(
+        "hardware-evidence-audit",
+        help="Audit hardware evidence provenance recorded in a saved run metadata.json.",
+    )
+    hardware_evidence_audit.add_argument("run_dir", type=Path)
+    hardware_evidence_audit.add_argument("--require-measurement-audit", action="store_true")
+    hardware_evidence_audit.add_argument("--require-sr860-configure", action="store_true")
+    hardware_evidence_audit.add_argument("--json-output", type=Path)
 
     plot = subparsers.add_parser("plot", help="Write an SVG I-V plot for a saved measurement run.")
     plot.add_argument("run_dir", type=Path)
@@ -4265,6 +4279,23 @@ def command_inspect_run(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_hardware_evidence_audit(args: argparse.Namespace) -> int:
+    try:
+        audit = audit_hardware_evidence(
+            args.run_dir,
+            require_measurement_audit=args.require_measurement_audit,
+            require_sr860_configure=args.require_sr860_configure,
+        )
+    except Exception as exc:
+        print(f"Hardware evidence audit failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_hardware_evidence_audit_json(audit, args.json_output)
+        print(f"Hardware evidence audit JSON: {output_path}")
+    print(format_hardware_evidence_audit(audit))
+    return 0 if audit.accepted else 2
+
+
 def command_plot(args: argparse.Namespace) -> int:
     metadata = read_metadata_file(args.run_dir / "metadata.json")
     output_path = handler_for_metadata(metadata).write_plot(args.run_dir, args.output)
@@ -4653,6 +4684,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_summarize(args)
     if args.command == "inspect-run":
         return command_inspect_run(args)
+    if args.command == "hardware-evidence-audit":
+        return command_hardware_evidence_audit(args)
     if args.command == "plot":
         return command_plot(args)
     if args.command == "report":

@@ -882,6 +882,11 @@ root.
     hardware run metadata
   - keep evidence provenance separate from point-count/approval hardware guards
   - ensure dry-runs do not claim hardware evidence checks
+- [x] Phase 25dap: Hardware evidence post-run audit
+  - add `ptm hardware-evidence-audit` for saved run folders
+  - recheck saved measurement-audit evidence against `metadata.recipe_path`
+  - support strict post-run requirements for measurement-audit and SR860
+    configure evidence
 
 ## Next GUI
 

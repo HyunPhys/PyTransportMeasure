@@ -187,6 +187,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] After a guarded lock-in hardware run, open `metadata.json` and confirm
   `hardware_evidence.measurement_audit_json` and/or
   `hardware_evidence.sr860_configure_json` record the evidence files used.
+- [ ] Run the post-run hardware evidence audit when evidence files were used.
+  ```powershell
+  ptm hardware-evidence-audit data\raw\<run_folder> --require-measurement-audit --json-output docs\<sample>_hardware_evidence_audit.json
+  ```
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

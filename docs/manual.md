@@ -1704,6 +1704,16 @@ When a guarded lock-in hardware command receives `--measurement-audit-json` or
 `hardware_evidence` block with the evidence file paths and a flag that preflight
 was rerun after the evidence check. Dry-runs omit this block.
 
+After acquisition, audit that block:
+
+```powershell
+ptm hardware-evidence-audit data\raw\<run_folder> --require-measurement-audit --json-output docs\hardware_evidence_audit.json
+```
+
+The audit checks the metadata evidence block, confirms referenced evidence files
+exist, and rechecks saved measurement-audit JSON against `metadata.recipe_path`
+when the recipe file is still available.
+
 To review the exact SR860 setting commands implied by a lock-in recipe, use:
 
 ```powershell
