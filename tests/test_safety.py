@@ -42,3 +42,24 @@ def test_point_current_limit_rejected():
     with pytest.raises(SafetyLimitError) as error:
         validate_point_current(2e-6, make_safety())
     assert error.value.triggered_limit == "measured_current_a"
+
+
+def test_four_terminal_geometry_is_blocked_until_runner_support_exists():
+    recipe = DrainIVRecipe.model_validate(
+        {
+            "measurement_name": "future_four_terminal",
+            "measurement_geometry": {"method": "four_terminal", "terminal_count": 4},
+            "instrument": {"address": "FAKE"},
+            "sweep": {
+                "start_v": -0.01,
+                "stop_v": 0.01,
+                "points": 3,
+                "delay_s": 0,
+                "current_compliance_a": 1e-7,
+            },
+        }
+    )
+
+    with pytest.raises(SafetyLimitError) as error:
+        validate_recipe_against_safety(recipe, make_safety())
+    assert error.value.triggered_limit == "measurement_geometry_terminal_count"

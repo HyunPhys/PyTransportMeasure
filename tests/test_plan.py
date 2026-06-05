@@ -16,7 +16,9 @@ def test_build_measurement_plan_for_1k_recipe():
     assert plan.current_compliance_a == pytest.approx(2.0e-4)
     assert plan.safety_current_limit_a == pytest.approx(5.0e-4)
     assert plan.nplc == pytest.approx(1.0)
+    assert plan.measurement_geometry["method"] == "two_terminal"
     assert "Measurement plan" in text
+    assert "Measurement geometry: two_terminal, 2-terminal" in text
     assert "- NPLC: 1" in text
     assert "Point preview" in text
     assert "... 11 points omitted ..." in text

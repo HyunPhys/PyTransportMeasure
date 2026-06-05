@@ -90,6 +90,7 @@ def format_pulse_plan(recipe: PulseRecipe, safety: SafetyPreset, recipe_path: st
     lines = [
         f"Pulse Measurement Plan: {recipe.measurement_name}",
         f"Recipe: {Path(recipe_path)}",
+        f"Measurement geometry: {format_geometry(recipe.measurement_geometry.model_dump(mode='json'))}",
         f"Safety preset: {safety.name}",
         f"Source instrument: {recipe.source_instrument.id} at {recipe.source_instrument.address}",
         f"Base voltage: {pulse.base_v:.6g} V",
@@ -113,6 +114,14 @@ def format_pulse_plan(recipe: PulseRecipe, safety: SafetyPreset, recipe_path: st
         for index in range(tail_start, pulse.count):
             lines.append(f"  #{index}: Vpulse={pulse.amplitude_v:.6g} V, width={pulse.width_s:.6g} s")
     return "\n".join(lines)
+
+
+def format_geometry(geometry: dict) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text
 
 
 def run_pulse_measurement(

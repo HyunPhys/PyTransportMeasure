@@ -55,6 +55,7 @@ def test_pulse_recipe_sample_and_plan():
     assert recipe.measurement_name == "pulse_dry_run"
     assert pulse_point_count(recipe) == 5
     assert "Pulse Measurement Plan" in plan
+    assert "Measurement geometry: two_terminal, 2-terminal" in plan
     assert "Total on-time: 0.005 s" in plan
 
 

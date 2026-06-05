@@ -16,6 +16,7 @@ from .io import unique_run_dir
 from .method_registry import handler_for_scheme_step
 from .recipes import (
     DrainIVRecipe,
+    MeasurementGeometry,
     QualityChecks,
     SingleGateRecipe,
     SweepSegment,
@@ -69,6 +70,7 @@ class RecipeOverrides(BaseModel):
     measurement_suffix: str | None = None
     safety_preset: str | None = None
     experiment: ExperimentOverrides | None = None
+    measurement_geometry: MeasurementGeometry | None = None
     instrument: InstrumentOverrides | None = None
     sweep: SweepOverrides | None = None
     output: OutputOverrides | None = None

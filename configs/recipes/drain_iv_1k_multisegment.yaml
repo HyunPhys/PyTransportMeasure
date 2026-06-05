@@ -9,6 +9,10 @@ experiment:
     - smoke-test
     - resistor
     - multi-segment
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+  notes: Source and measure current through the same Keithley force leads.
 instrument:
   id: keithley_2450
   address: GPIB0::2::INSTR

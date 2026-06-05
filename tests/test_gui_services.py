@@ -355,6 +355,8 @@ def test_gui_recipe_overview_summarizes_drain_iv_recipe():
     assert "Measurement: drain_iv_1k_resistor_check" in overview
     assert "Experiment" in overview
     assert "- sample id: resistor_box" in overview
+    assert "Measurement Geometry" in overview
+    assert "- method: two_terminal" in overview
     assert "Instrument" in overview
     assert "- address: GPIB0::2::INSTR" in overview
     assert "Sweep" in overview
@@ -381,6 +383,8 @@ def test_schema_form_round_trips_drain_iv_common_fields():
     assert fields["experiment.cooldown_id"].value == ""
     assert fields["instrument.terminal"].kind == "choice"
     assert "" in fields["instrument.terminal"].choices
+    assert fields["measurement_geometry.method"].value == "two_terminal"
+    assert fields["measurement_geometry.terminal_count"].value == "2"
     assert fields["instrument.nplc"].value == "1"
     assert fields["sweep.points"].value == "21"
 
@@ -400,6 +404,20 @@ def test_schema_form_round_trips_drain_iv_common_fields():
     assert round_trip["cooldown_id"] == "cd-schema"
     assert round_trip["points"] == "11"
     assert round_trip["min_points"] == "11"
+
+
+def test_schema_form_round_trips_all_displayed_drain_iv_values():
+    text = default_recipe_text("drain_iv")
+    sections = schema_form_from_text("drain_iv", text)
+    values = {field.path: field.value for section in sections for field in section.fields}
+    values["measurement_name"] = "schema_form_all_values"
+
+    updated = schema_form_text_from_values("drain_iv", text, values)
+    recipe = load_recipe_from_text("drain_iv", updated)
+
+    assert recipe.measurement_name == "schema_form_all_values"
+    assert recipe.measurement_geometry.terminal_count == 2
+    assert recipe.measurement_geometry.method == "two_terminal"
 
 
 def test_schema_form_treats_blank_optional_numbers_as_none():
@@ -698,6 +716,8 @@ def test_drain_iv_form_round_trip_from_default_recipe():
 
     assert values["measurement_name"] == "drain_iv_1k_resistor_check"
     assert values["address"] == "GPIB0::2::INSTR"
+    assert values["measurement_geometry_method"] == "two_terminal"
+    assert values["measurement_geometry_terminal_count"] == "2"
     assert values["sweep_mode"] == "linear_one_way"
     assert values["points"] == "21"
     assert values["resistance_min_ohm"] == "900"
@@ -708,6 +728,7 @@ def test_drain_iv_form_round_trip_from_default_recipe():
     round_trip = drain_iv_form_from_text(updated)
 
     assert round_trip["measurement_name"] == "gui_form_round_trip"
+    assert round_trip["measurement_geometry_method"] == "two_terminal"
     assert round_trip["points"] == "11"
     assert round_trip["current_compliance_a"] == "0.0002"
 

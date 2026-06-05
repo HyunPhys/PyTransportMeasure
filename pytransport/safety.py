@@ -6,7 +6,16 @@ from .errors import SafetyLimitError
 from .recipes import AcLockInRecipe, DrainIVRecipe, PulseRecipe, SafetyPreset, SingleGateRecipe, gate_voltages_from_config, sweep_voltages
 
 
+def validate_active_geometry(method: str, terminal_count: int) -> None:
+    if terminal_count != 2:
+        raise SafetyLimitError(
+            f"{method} currently supports only 2-terminal geometry; requested {terminal_count}-terminal",
+            triggered_limit="measurement_geometry_terminal_count",
+        )
+
+
 def validate_recipe_against_safety(recipe: DrainIVRecipe, safety: SafetyPreset) -> None:
+    validate_active_geometry("Drain I-V", recipe.measurement_geometry.terminal_count)
     max_recipe_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.sweep))
     if max_recipe_voltage > safety.max_abs_voltage_v:
         raise SafetyLimitError(
@@ -27,6 +36,7 @@ def validate_recipe_against_safety(recipe: DrainIVRecipe, safety: SafetyPreset) 
 
 
 def validate_single_gate_recipe_against_safety(recipe: SingleGateRecipe, safety: SafetyPreset) -> None:
+    validate_active_geometry("Single-gate", recipe.measurement_geometry.terminal_count)
     drain_max_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.drain_sweep))
     gate_max_voltage = max(abs(voltage) for voltage in gate_voltages_from_config(recipe.gate_sweep))
     max_recipe_voltage = max(drain_max_voltage, gate_max_voltage)
@@ -57,6 +67,7 @@ def validate_single_gate_recipe_against_safety(recipe: SingleGateRecipe, safety:
 
 
 def validate_ac_lockin_recipe_against_safety(recipe: AcLockInRecipe, safety: SafetyPreset) -> None:
+    validate_active_geometry("AC lock-in", recipe.measurement_geometry.terminal_count)
     max_recipe_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.bias_sweep))
     if max_recipe_voltage > safety.max_abs_voltage_v:
         raise SafetyLimitError(
@@ -77,6 +88,7 @@ def validate_ac_lockin_recipe_against_safety(recipe: AcLockInRecipe, safety: Saf
 
 
 def validate_pulse_recipe_against_safety(recipe: PulseRecipe, safety: SafetyPreset) -> None:
+    validate_active_geometry("Pulse", recipe.measurement_geometry.terminal_count)
     max_recipe_voltage = max(abs(recipe.pulse.base_v), abs(recipe.pulse.amplitude_v))
     if max_recipe_voltage > safety.max_abs_voltage_v:
         raise SafetyLimitError(

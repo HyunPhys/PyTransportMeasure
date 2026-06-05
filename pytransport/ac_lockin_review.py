@@ -172,6 +172,7 @@ def format_ac_lockin_report(run_dir: str | Path) -> str:
     summary = summarize_ac_lockin_run(path)
     recipe = metadata.get("recipe") or {}
     experiment = recipe.get("experiment") or {}
+    measurement_geometry = recipe.get("measurement_geometry") or {}
     lockin = recipe.get("lockin") or {}
     source = recipe.get("source_instrument") or {}
     lines = [
@@ -194,6 +195,7 @@ def format_ac_lockin_report(run_dir: str | Path) -> str:
         "",
         "## Instruments",
         "",
+        f"- Measurement geometry: {format_geometry(measurement_geometry)}",
         f"- Source: {source.get('id') or 'n/a'} @ `{source.get('address') or 'n/a'}`",
         f"- Source NPLC: {source.get('nplc') if source.get('nplc') is not None else 'n/a'}",
         f"- Lock-in: {lockin.get('id') or 'n/a'} @ `{lockin.get('address') or 'n/a'}`",
@@ -205,3 +207,11 @@ def format_ac_lockin_report(run_dir: str | Path) -> str:
     if metadata.get("error_type"):
         lines.extend(["", "## Error", "", f"- Type: {metadata.get('error_type')}", f"- Message: {metadata.get('error_message')}"])
     return "\n".join(lines) + "\n"
+
+
+def format_geometry(geometry: dict[str, Any]) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text

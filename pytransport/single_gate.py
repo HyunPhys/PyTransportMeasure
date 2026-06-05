@@ -94,6 +94,7 @@ def format_single_gate_plan(recipe: SingleGateRecipe, safety: SafetyPreset, reci
     lines = [
         f"Single-Gate Sweep Plan: {recipe.measurement_name}",
         f"Recipe: {Path(recipe_path)}",
+        f"Measurement geometry: {format_geometry(recipe.measurement_geometry.model_dump(mode='json'))}",
         f"Safety preset: {safety.name}",
         f"Gate instrument: {recipe.gate_instrument.id} at {recipe.gate_instrument.address}",
         f"Drain instrument: {recipe.drain_instrument.id} at {recipe.drain_instrument.address}",
@@ -120,6 +121,14 @@ def format_single_gate_plan(recipe: SingleGateRecipe, safety: SafetyPreset, reci
             for offset, (gate_v, drain_v) in enumerate(tail):
                 lines.append(f"  #{start_index + offset}: Vg={gate_v:.6g} V, Vd={drain_v:.6g} V")
     return "\n".join(lines)
+
+
+def format_geometry(geometry: dict) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text
 
 
 def run_single_gate_sweep(

@@ -24,6 +24,7 @@ def format_run_report(run_dir: str | Path) -> str:
     safety = metadata.get("safety") or {}
     quality = metadata.get("quality") or {}
     experiment = recipe.get("experiment") or {}
+    measurement_geometry = recipe.get("measurement_geometry") or {}
     instrument = recipe.get("instrument") or {}
     sweep = recipe.get("sweep") or {}
     files = file_status(path)
@@ -58,6 +59,7 @@ def format_run_report(run_dir: str | Path) -> str:
         "## Recipe",
         "",
         f"- Recipe path: `{metadata.get('recipe_path') or 'n/a'}`",
+        f"- Measurement geometry: {format_geometry(measurement_geometry)}",
         f"- Safety preset: {recipe.get('safety_preset') or 'n/a'}",
         f"- Instrument: {instrument.get('id') or 'n/a'} @ `{instrument.get('address') or 'n/a'}`",
         f"- Terminal: {instrument.get('terminal') or 'n/a'}",
@@ -121,3 +123,11 @@ def fmt(value: Any, unit: str = "") -> str:
     if isinstance(value, int | float):
         return f"{value:.6g}{unit}"
     return f"{value}{unit}"
+
+
+def format_geometry(geometry: dict[str, Any]) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text

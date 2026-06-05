@@ -70,7 +70,7 @@ Important modules:
 | Campaign analysis | Offline artifact analysis | `ptm campaign`, `ptm campaign-bundle` |
 | Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
-| SR860 / AC lock-in | Dry-run verified; hardware run intentionally blocked | `ptm ac-lockin-plan`, `ptm ac-lockin --dry-run` |
+| SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
 | GUI | Dry-run desktop foundation | `ptm-gui` |
@@ -145,6 +145,11 @@ instrument:
   terminal: FRONT
   voltage_range_v: 0.2
   current_range_a: 2.0e-4
+  nplc: 1.0
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+  notes: Source and measure current through the same Keithley force leads.
 sweep:
   mode: linear_one_way
   start_v: -0.1
@@ -168,6 +173,10 @@ Key fields:
 - `safety_preset`: named YAML file under `configs/safety`.
 - `instrument.address`: VISA address.
 - `instrument.terminal`: usually `FRONT` for the current smoke-test setup.
+- `instrument.nplc`: Keithley current integration time in power-line cycles.
+- `measurement_geometry`: electrical measurement topology. Current active
+  runners support `two_terminal`; `four_terminal` is schema-visible but blocked
+  by safety validation until runner and SCPI support are implemented.
 - `sweep.mode`: currently supports linear one-way, forward/backward, and
   multi-segment Drain I-V workflows.
 - `sweep.current_compliance_a`: hardware compliance.
@@ -329,16 +338,23 @@ Campaign artifacts live under `data/campaigns`.
 
 ## AC / Lock-In Sweep
 
-The current AC / lock-in workflow is dry-run only. It validates the recipe,
-fake-lock-in readout, CSV columns, metadata, summary, plot, and report flow.
+The current AC / lock-in workflow has a conservative two-terminal hardware smoke
+path. It validates the recipe, fake-lock-in readout, CSV columns, metadata,
+summary, plot, and report flow, and can run Keithley source bias plus SR860
+X/Y/R/theta readout after preflight.
 
 ```powershell
 ptm ac-lockin-plan configs/recipes/ac_lockin_dry_run.yaml
 ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0
 ```
 
-Hardware AC lock-in runs are intentionally blocked until the SR860 command set
-is confirmed and a hardware smoke-test recipe is added.
+Before hardware:
+
+```powershell
+ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
+ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
+ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
+```
 
 ## Pulse Measurement
 
@@ -471,6 +487,33 @@ ptm new-recipe configs/recipes/my_device_iv.yaml --measurement-name my_device_iv
 The GUI status under `Recipe Tools` tracks this relationship. If YAML is edited,
 YAML remains the execution source and the form may be stale. If the form is
 edited, those values are not used until `Form -> YAML` regenerates the YAML.
+
+Measurement geometry:
+
+`experiment.contact_geometry` describes the sample/contact state, such as Hall
+bar, 2-probe wirebond, contact pads, or cooldown notes. `measurement_geometry`
+describes the electrical method the software is expected to execute. For
+current active runners this should remain:
+
+```yaml
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+  notes: Source and measure through the same force/current path.
+```
+
+Four-terminal recipes can be represented for future work:
+
+```yaml
+measurement_geometry:
+  terminal_count: 4
+  method: four_terminal
+  notes: Future remote-sense or separate voltage-probe measurement.
+```
+
+At present, safety validation blocks `terminal_count: 4` before hardware output
+is enabled. This is intentional until the 2450 remote-sense or separate voltage
+readout runner has its own smoke tests.
 
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under
@@ -670,9 +713,10 @@ The current safety posture is conservative:
 
 ## Future Method Policy
 
-4-probe, active SR860 hardware acquisition, pulse hardware, and GUI workflows
-should be added as method-specific capabilities after manual command review,
-fake-driver support, recipe validation, and smoke tests. See
+4-probe, broader SR860/lock-in measurement geometries, pulse hardware, and
+additional GUI hardware workflows should be added as method-specific
+capabilities after manual command review, fake-driver support, recipe
+validation, and smoke tests. See
 `docs/phase16_method_extensibility_roadmap.md`,
 `docs/phase20_4probe_remote_sense_design.md`,
 `docs/phase21_lockin_foundation.md`, and

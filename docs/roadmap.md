@@ -155,7 +155,7 @@ root.
   - confirm two Keithley addresses
   - verify drain/gate output-off behavior on real instruments
   - save first two-SMU smoke-test artifacts
-- [ ] Phase 24b: Terminal geometry abstraction
+- [x] Phase 24b: Terminal geometry abstraction
   - represent 2-terminal and 4-terminal geometry in recipes and metadata
   - add 2450 4-wire/remote-sense TODO implementation hook
   - keep SCPI selection explicit in plan/preflight before enabling output

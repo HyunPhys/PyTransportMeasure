@@ -161,6 +161,9 @@ DRAIN_IV_FORM_FIELDS = [
     "operator",
     "notes",
     "tags",
+    "measurement_geometry_method",
+    "measurement_geometry_terminal_count",
+    "measurement_geometry_notes",
     "instrument_id",
     "address",
     "timeout_ms",
@@ -512,7 +515,7 @@ def _parse_schema_value(root_schema: dict[str, Any], schema_node: dict[str, Any]
     if text == "" and schema_node.get("enum"):
         return None
     if schema_node.get("enum"):
-        return text
+        return _parse_enum_value(text, schema_node.get("enum") or [])
     if node_type == "array":
         if text == "":
             return []
@@ -534,6 +537,13 @@ def _parse_schema_value(root_schema: dict[str, Any], schema_node: dict[str, Any]
         return int(text)
     if node_type == "number":
         return float(text)
+    return text
+
+
+def _parse_enum_value(text: str, options: list[Any]) -> Any:
+    for option in options:
+        if str(option) == text:
+            return option
     return text
 
 
@@ -587,6 +597,9 @@ def drain_iv_form_from_text(text: str) -> dict[str, str]:
         "operator": recipe.experiment.operator or "",
         "notes": recipe.experiment.notes or "",
         "tags": ", ".join(recipe.experiment.tags),
+        "measurement_geometry_method": recipe.measurement_geometry.method,
+        "measurement_geometry_terminal_count": str(recipe.measurement_geometry.terminal_count),
+        "measurement_geometry_notes": recipe.measurement_geometry.notes or "",
         "instrument_id": recipe.instrument.id,
         "address": recipe.instrument.address,
         "timeout_ms": str(recipe.instrument.timeout_ms),
@@ -624,6 +637,11 @@ def drain_iv_text_from_form(values: dict[str, str]) -> str:
             "operator": _optional_text(values.get("operator")),
             "notes": _optional_text(values.get("notes")),
             "tags": _split_tags(values.get("tags", "")),
+        },
+        "measurement_geometry": {
+            "method": values.get("measurement_geometry_method", "two_terminal").strip() or "two_terminal",
+            "terminal_count": _optional_int(values.get("measurement_geometry_terminal_count")) or 2,
+            "notes": _optional_text(values.get("measurement_geometry_notes")),
         },
         "instrument": {
             "id": values.get("instrument_id", "keithley_2450").strip() or "keithley_2450",
@@ -769,6 +787,7 @@ def format_recipe_overview_text(measurement_type: GuiMethod, text: str) -> str:
             "notes",
         ],
     )
+    _append_overview_block(lines, "Measurement Geometry", data.get("measurement_geometry") or {})
     for block_name in [
         "instrument",
         "drain_instrument",

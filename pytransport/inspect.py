@@ -27,6 +27,7 @@ def inspect_run(run_dir: str | Path) -> str:
     handler = handler_for_metadata(metadata)
     recipe = metadata.get("recipe") or {}
     experiment = recipe.get("experiment") or {}
+    measurement_geometry = recipe.get("measurement_geometry") or {}
     instrument = recipe.get("instrument") or recipe.get("drain_instrument") or recipe.get("source_instrument") or {}
     sweep = recipe.get("sweep") or recipe.get("drain_sweep") or recipe.get("bias_sweep") or {}
     pulse = recipe.get("pulse") or {}
@@ -49,6 +50,7 @@ def inspect_run(run_dir: str | Path) -> str:
         "",
         "Recipe",
         f"Recipe path: {metadata.get('recipe_path') or 'n/a'}",
+        f"Measurement geometry: {format_geometry(measurement_geometry)}",
         f"Safety preset: {recipe.get('safety_preset') or 'n/a'}",
         f"Instrument: {instrument.get('id') or 'n/a'} @ {instrument.get('address') or 'n/a'}",
         f"Terminal: {instrument.get('terminal') or 'n/a'}",
@@ -88,6 +90,14 @@ def format_sweep(sweep: dict[str, Any]) -> str:
         segments = sweep.get("segments") or []
         return f"multi_segment, {len(segments)} segments"
     return f"{mode}, {sweep.get('start_v')} V to {sweep.get('stop_v')} V, {sweep.get('points')} base points"
+
+
+def format_geometry(geometry: dict[str, Any]) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text
 
 
 def format_gate_sweep(sweep: dict[str, Any]) -> str:

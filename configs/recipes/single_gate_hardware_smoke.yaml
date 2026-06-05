@@ -9,6 +9,10 @@ experiment:
     - smoke-test
     - single-gate
     - hardware
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+  notes: Drain current measured in a two-terminal source-drain path while sweeping gate bias.
 drain_instrument:
   id: keithley_2450
   address: GPIB0::2::INSTR

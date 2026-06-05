@@ -8,6 +8,10 @@ experiment:
   tags:
     - dry-run
     - pulse
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+  notes: Pulse source and current readback use the same Keithley force leads.
 source_instrument:
   id: keithley_2450
   address: GPIB0::2::INSTR

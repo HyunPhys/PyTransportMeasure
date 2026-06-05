@@ -53,6 +53,7 @@ def test_ac_lockin_recipe_sample_and_plan():
     assert recipe.measurement_name == "ac_lockin_dry_run"
     assert ac_lockin_point_count(recipe) == 11
     assert "AC Lock-In Sweep Plan" in plan
+    assert "Measurement geometry: two_terminal, 2-terminal" in plan
     assert "Lock-in timing: after_dc_settle" in plan
 
 

@@ -24,6 +24,7 @@ class MeasurementPlan:
     device_id: str | None
     operator: str | None
     tags: list[str]
+    measurement_geometry: dict
     safety_preset: str
     address: str
     terminal: str | None
@@ -81,6 +82,7 @@ def build_measurement_plan_from_objects(
         device_id=recipe.experiment.device_id,
         operator=recipe.experiment.operator,
         tags=recipe.experiment.tags,
+        measurement_geometry=recipe.measurement_geometry.model_dump(mode="json"),
         safety_preset=recipe.safety_preset,
         address=recipe.instrument.address,
         terminal=recipe.instrument.terminal,
@@ -124,6 +126,7 @@ def format_measurement_plan(plan: MeasurementPlan) -> str:
         f"Device: {plan.device_id or 'n/a'}",
         f"Operator: {plan.operator or 'n/a'}",
         f"Tags: {', '.join(plan.tags) if plan.tags else 'none'}",
+        f"Measurement geometry: {format_geometry(plan.measurement_geometry)}",
         f"Output directory: {plan.output_directory}",
         "",
         "Instrument",
@@ -153,6 +156,14 @@ def format_measurement_plan(plan: MeasurementPlan) -> str:
     ]
     lines.extend(format_point_preview(plan.preview_points, plan.preview_omitted))
     return "\n".join(lines)
+
+
+def format_geometry(geometry: dict) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text
 
 
 def format_point_preview(points: list[PlannedPoint], omitted: int) -> list[str]:

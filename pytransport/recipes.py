@@ -138,6 +138,22 @@ class ExperimentMetadata(BaseModel):
     tags: list[str] = Field(default_factory=list)
 
 
+class MeasurementGeometry(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    terminal_count: Literal[2, 4] = 2
+    method: Literal["two_terminal", "four_terminal"] = "two_terminal"
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def terminal_count_matches_method(self) -> "MeasurementGeometry":
+        if self.method == "two_terminal" and self.terminal_count != 2:
+            raise ValueError("two_terminal measurement geometry requires terminal_count=2")
+        if self.method == "four_terminal" and self.terminal_count != 4:
+            raise ValueError("four_terminal measurement geometry requires terminal_count=4")
+        return self
+
+
 class ResistanceCheck(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -164,6 +180,7 @@ class DrainIVRecipe(BaseModel):
 
     measurement_name: str = Field(min_length=1)
     experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry = MeasurementGeometry()
     instrument: InstrumentConfig
     sweep: SweepConfig
     safety_preset: str = "nano_device_safe"
@@ -194,6 +211,7 @@ class SingleGateRecipe(BaseModel):
 
     measurement_name: str = Field(min_length=1)
     experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry = MeasurementGeometry()
     drain_instrument: InstrumentConfig
     gate_instrument: InstrumentConfig
     drain_sweep: SweepConfig
@@ -230,6 +248,7 @@ class AcLockInRecipe(BaseModel):
 
     measurement_name: str = Field(min_length=1)
     experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry = MeasurementGeometry()
     source_instrument: InstrumentConfig
     lockin: LockInConfig
     bias_sweep: SweepConfig
@@ -262,6 +281,7 @@ class PulseRecipe(BaseModel):
 
     measurement_name: str = Field(min_length=1)
     experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry = MeasurementGeometry()
     source_instrument: InstrumentConfig
     pulse: PulseTrainConfig
     pulse_limits: PulseSafetyLimits

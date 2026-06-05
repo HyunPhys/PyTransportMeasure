@@ -95,6 +95,7 @@ def format_ac_lockin_plan(
     lines = [
         f"AC Lock-In Sweep Plan: {recipe.measurement_name}",
         f"Recipe: {Path(recipe_path)}",
+        f"Measurement geometry: {format_geometry(recipe.measurement_geometry.model_dump(mode='json'))}",
         f"Safety preset: {safety.name}",
         f"Source instrument: {recipe.source_instrument.id} at {recipe.source_instrument.address}",
         f"Source NPLC: {recipe.source_instrument.nplc if recipe.source_instrument.nplc is not None else 'auto'}",
@@ -119,6 +120,14 @@ def format_ac_lockin_plan(
             for offset, voltage in enumerate(tail):
                 lines.append(f"  #{start_index + offset}: Vbias={voltage:.6g} V")
     return "\n".join(lines)
+
+
+def format_geometry(geometry: dict) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text
 
 
 def run_ac_lockin_sweep(

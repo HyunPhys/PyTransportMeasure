@@ -62,6 +62,7 @@ def test_single_gate_recipe_validation_and_plan(tmp_path):
     assert single_gate_point_count(recipe) == 15
     plan = format_single_gate_plan(recipe, safety, "single_gate.yaml")
     assert "Single-Gate Sweep Plan" in plan
+    assert "Measurement geometry: two_terminal, 2-terminal" in plan
     assert "Total points: 15" in plan
 
 

@@ -39,6 +39,11 @@ def recipe_template(
             "notes": "Fill in notes before running on a real device.",
             "tags": ["template"],
         },
+        "measurement_geometry": {
+            "terminal_count": 2,
+            "method": "two_terminal",
+            "notes": "Source and measure current through the same Keithley force leads.",
+        },
         "instrument": {
             "id": "keithley_2450",
             "address": address,

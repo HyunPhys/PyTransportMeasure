@@ -20,6 +20,7 @@ class RecipeValidationReport:
     lab_notebook_ref: str | None
     operator: str | None
     tags: list[str]
+    measurement_geometry: dict
     safety_preset: str
     address: str
     terminal: str | None
@@ -66,6 +67,7 @@ def validate_recipe(
         lab_notebook_ref=recipe.experiment.lab_notebook_ref,
         operator=recipe.experiment.operator,
         tags=recipe.experiment.tags,
+        measurement_geometry=recipe.measurement_geometry.model_dump(mode="json"),
         safety_preset=recipe.safety_preset,
         address=recipe.instrument.address,
         terminal=recipe.instrument.terminal,
@@ -102,6 +104,7 @@ def format_validation_report(report: RecipeValidationReport) -> str:
             f"Lab notebook: {report.lab_notebook_ref or 'n/a'}",
             f"Operator: {report.operator or 'n/a'}",
             f"Tags: {', '.join(report.tags) if report.tags else 'none'}",
+            f"Measurement geometry: {format_geometry(report.measurement_geometry)}",
             f"Safety preset: {report.safety_preset}",
             f"Instrument address: {report.address}",
             f"Terminal: {report.terminal or 'unchanged'}",
@@ -117,3 +120,11 @@ def format_validation_report(report: RecipeValidationReport) -> str:
             f"Safety current limit: {report.max_abs_safety_current_a:.6g} A",
         ]
     )
+
+
+def format_geometry(geometry: dict) -> str:
+    method = geometry.get("method") or "two_terminal"
+    terminal_count = geometry.get("terminal_count") or 2
+    notes = geometry.get("notes")
+    text = f"{method}, {terminal_count}-terminal"
+    return f"{text}, {notes}" if notes else text

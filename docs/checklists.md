@@ -10,9 +10,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Batch, scheme, and campaign review flows are available.
 - [x] Single-gate workflow is dry-run verified.
 - [x] SR860 / AC lock-in workflow is dry-run verified.
+- [x] Two-terminal AC lock-in hardware smoke path is available after preflight.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
-- [ ] SR860 hardware acquisition is intentionally blocked until command review
-  and smoke testing.
+- [x] Keithley/SR860 AC lock-in preflight checks both resources before hardware
+  output is enabled.
 - [x] Pulse measurement is dry-run verified; hardware output is intentionally
   blocked.
 - [x] PySide6 GUI foundation supports plan preview and dry-run artifacts.
@@ -69,6 +70,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   as CSV.
 - [x] GUI remembers run/scheme source folders in a small GUI state file.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
+- [x] Recipes now distinguish sample contact metadata from explicit
+  `measurement_geometry`.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
 
@@ -109,6 +112,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   `instrument.terminal`, sweep range, compliance, and output directory.
 - [ ] Fill `experiment.cooldown_id`, `experiment.contact_geometry`,
   `experiment.contact_notes`, and `experiment.lab_notebook_ref` when available.
+- [ ] Confirm `measurement_geometry.method` is `two_terminal` for the current
+  implemented runners.
+- [ ] Set Keithley `instrument.nplc` intentionally, or leave it blank only when
+  the instrument default integration time is desired.
 - [ ] Choose a conservative safety preset.
 - [ ] Validate the recipe.
   ```powershell
@@ -271,7 +278,11 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 This checklist is for the future implementation. The current code does not yet
 enable 4-probe mode.
 
-- [ ] Confirm the future recipe explicitly states `remote_4wire`.
+- [ ] Confirm the future recipe explicitly states `measurement_geometry.method:
+  four_terminal` and `terminal_count: 4`.
+- [ ] Confirm current code blocks 4-terminal recipes before output is enabled
+  until runner support is implemented.
+- [ ] Confirm the future implementation explicitly states `remote_4wire`.
 - [ ] Confirm the plan prints the selected sense mode before hardware access.
 - [ ] Use a known resistor or resistor network before a real device.
 - [ ] Confirm SCPI mode with `ptm probe`.
@@ -281,11 +292,10 @@ enable 4-probe mode.
 - [ ] Compare against a 2-wire baseline.
 - [ ] Confirm output-off behavior after completion, stop, and interrupt.
 
-## Future SR860 / Lock-In Smoke Test
+## SR860 / Lock-In Smoke Test
 
-This checklist is for a future active lock-in method. The current runners do not
-read SR860 hardware data yet, but `ptm ac-lockin --dry-run` validates the
-artifact path.
+Use this checklist for the current conservative two-terminal AC lock-in smoke
+path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 
 - [ ] Confirm the SR860 VISA resource appears in `ptm list-resources`.
 - [ ] Probe SR860 communication without changing measurement settings.

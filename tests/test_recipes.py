@@ -17,7 +17,26 @@ def test_load_example_recipe():
     assert recipe.instrument.voltage_range_v == 0.2
     assert recipe.instrument.current_range_a == 2.0e-4
     assert recipe.instrument.nplc == 1.0
+    assert recipe.measurement_geometry.method == "two_terminal"
+    assert recipe.measurement_geometry.terminal_count == 2
     assert recipe.sweep.points == 21
+
+
+def test_measurement_geometry_rejects_inconsistent_method_and_terminal_count():
+    with pytest.raises(ValidationError, match="four_terminal measurement geometry requires terminal_count=4"):
+        DrainIVRecipe.model_validate(
+            {
+                "measurement_name": "bad_geometry",
+                "measurement_geometry": {"method": "four_terminal", "terminal_count": 2},
+                "instrument": {"address": "FAKE"},
+                "sweep": {
+                    "start_v": -0.01,
+                    "stop_v": 0.01,
+                    "points": 3,
+                    "current_compliance_a": 1e-6,
+                },
+            }
+        )
 
 
 def test_experiment_metadata_accepts_lab_context_fields():
