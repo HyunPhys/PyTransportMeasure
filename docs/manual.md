@@ -481,10 +481,16 @@ Scheme Builder workflow:
    single-gate recipe, or `batch` for a batch YAML.
 4. Enter the recipe or batch path relative to the scheme YAML location, such as
    `../recipes/drain_iv_1k_resistor.yaml`.
-5. Click `Form -> Scheme YAML`.
-6. Click `Check Scheme`.
-7. Click `Scheme Plan` and inspect the expanded workflow.
-8. Click `Save Scheme As` only after validation passes.
+5. For `drain_iv` rows, optionally fill override columns such as `Suffix`,
+   `Start V`, `Stop V`, `Points`, `Delay s`, or `Compliance A`.
+6. Click `Form -> Scheme YAML`.
+7. Click `Check Scheme`.
+8. Click `Scheme Plan` and inspect the expanded workflow.
+9. Click `Save Scheme As` only after validation passes.
+
+Drain I-V overrides let one base recipe be reused for several sweep conditions
+without copying the recipe file. For example, a row can set `Suffix` to
+`_small`, `Start V` to `-0.05`, `Stop V` to `0.05`, and `Points` to `5`.
 
 The GUI Scheme Builder currently creates, validates, previews, and saves scheme
 YAML. Scheme execution remains a CLI workflow for this phase:

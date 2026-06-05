@@ -26,7 +26,7 @@ Current verified setup and supported workflows:
   workspace-separated instruments/analysis views, instrument refresh and
   communication tests, YAML/Form sync status, and live I-V plotting
   plus a method-aware Recipe Overview tab, schema-driven Recipe Form, and GUI
-  Scheme Builder
+  Scheme Builder with Drain I-V step overrides
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -105,6 +105,7 @@ ptm-gui
 - GUI Recipe Overview: [docs/phase47_gui_recipe_overview.md](docs/phase47_gui_recipe_overview.md)
 - GUI schema recipe builder: [docs/phase48_gui_schema_recipe_builder.md](docs/phase48_gui_schema_recipe_builder.md)
 - GUI Scheme Builder: [docs/phase49_gui_scheme_builder.md](docs/phase49_gui_scheme_builder.md)
+- GUI Scheme Drain I-V overrides: [docs/phase50_gui_scheme_drain_iv_overrides.md](docs/phase50_gui_scheme_drain_iv_overrides.md)
 
 ## Hardware Smoke Test
 

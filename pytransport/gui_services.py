@@ -85,6 +85,12 @@ class GuiSchemeStepDraft:
     enabled: bool = True
     repeat: int = 1
     interval_s: float = 0.0
+    measurement_suffix: str = ""
+    sweep_start_v: str = ""
+    sweep_stop_v: str = ""
+    sweep_points: str = ""
+    sweep_delay_s: str = ""
+    sweep_current_compliance_a: str = ""
 
 
 DRAIN_IV_FORM_FIELDS = [
@@ -211,6 +217,8 @@ def scheme_builder_from_text(text: str) -> tuple[str, bool, tuple[GuiSchemeStepD
     rows: list[GuiSchemeStepDraft] = []
     for step in scheme.steps:
         path = step.batch if step.type == "batch" else step.recipe
+        overrides = step.overrides
+        sweep = overrides.sweep if overrides is not None else None
         rows.append(
             GuiSchemeStepDraft(
                 type=step.type,
@@ -219,6 +227,12 @@ def scheme_builder_from_text(text: str) -> tuple[str, bool, tuple[GuiSchemeStepD
                 enabled=step.enabled,
                 repeat=step.repeat,
                 interval_s=step.interval_s,
+                measurement_suffix="" if overrides is None or overrides.measurement_suffix is None else overrides.measurement_suffix,
+                sweep_start_v=_scheme_optional_value(sweep.start_v if sweep is not None else None),
+                sweep_stop_v=_scheme_optional_value(sweep.stop_v if sweep is not None else None),
+                sweep_points=_scheme_optional_value(sweep.points if sweep is not None else None),
+                sweep_delay_s=_scheme_optional_value(sweep.delay_s if sweep is not None else None),
+                sweep_current_compliance_a=_scheme_optional_value(sweep.current_compliance_a if sweep is not None else None),
             )
         )
     return scheme.name, scheme.stop_on_error, tuple(rows)
@@ -245,6 +259,11 @@ def scheme_text_from_builder(
             data["batch"] = step.path.strip()
         else:
             data["recipe"] = step.path.strip()
+        overrides = _scheme_step_overrides(step)
+        if overrides:
+            if step.type != "drain_iv":
+                raise ValueError("GUI scheme overrides currently support drain_iv steps only")
+            data["overrides"] = overrides
         step_data.append(data)
     scheme = SchemeRecipe.model_validate(
         {
@@ -254,6 +273,35 @@ def scheme_text_from_builder(
         }
     )
     return yaml.safe_dump(scheme.model_dump(mode="json", exclude_none=True), sort_keys=False)
+
+
+def _scheme_step_overrides(step: GuiSchemeStepDraft) -> dict[str, Any]:
+    overrides: dict[str, Any] = {}
+    suffix = step.measurement_suffix.strip()
+    if suffix:
+        overrides["measurement_suffix"] = suffix
+    sweep: dict[str, Any] = {}
+    if step.sweep_start_v.strip():
+        sweep["start_v"] = float(step.sweep_start_v)
+    if step.sweep_stop_v.strip():
+        sweep["stop_v"] = float(step.sweep_stop_v)
+    if step.sweep_points.strip():
+        sweep["points"] = int(step.sweep_points)
+    if step.sweep_delay_s.strip():
+        sweep["delay_s"] = float(step.sweep_delay_s)
+    if step.sweep_current_compliance_a.strip():
+        sweep["current_compliance_a"] = float(step.sweep_current_compliance_a)
+    if sweep:
+        overrides["sweep"] = sweep
+    return overrides
+
+
+def _scheme_optional_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, float):
+        return f"{value:g}"
+    return str(value)
 
 
 def load_recipe_from_text(measurement_type: GuiMethod, text: str) -> Any:

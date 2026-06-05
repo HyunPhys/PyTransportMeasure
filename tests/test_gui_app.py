@@ -55,6 +55,7 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert window.test_connection_button.text() == "Test Selected Address"
     assert "Method: Drain I-V (drain_iv)" in window.recipe_overview_text.toPlainText()
     assert window.scheme_step_table.rowCount() >= 2
+    assert window.scheme_step_table.columnCount() == 12
     window.close()
 
 
@@ -119,17 +120,25 @@ def test_gui_scheme_builder_generates_yaml_and_plan(app):
 
     window.scheme_name_edit.setText("gui_test_scheme")
     window.scheme_step_table.setItem(0, 1, QtWidgets.QTableWidgetItem("first_drain"))
+    window.scheme_step_table.setItem(0, 6, QtWidgets.QTableWidgetItem("_small"))
+    window.scheme_step_table.setItem(0, 7, QtWidgets.QTableWidgetItem("-0.05"))
+    window.scheme_step_table.setItem(0, 8, QtWidgets.QTableWidgetItem("0.05"))
+    window.scheme_step_table.setItem(0, 9, QtWidgets.QTableWidgetItem("5"))
     assert window.apply_scheme_form_to_yaml()
 
     text = window.scheme_editor_text.toPlainText()
     assert "name: gui_test_scheme" in text
     assert "label: first_drain" in text
+    assert "measurement_suffix: _small" in text
+    assert "start_v: -0.05" in text
+    assert "points: 5" in text
 
     assert window.validate_scheme_yaml()
     window.show_scheme_plan()
 
     assert "Scheme plan" in window.scheme_plan_text.toPlainText()
     assert "first_drain" in window.scheme_plan_text.toPlainText()
+    assert "sweep.start_v: -0.05" in window.scheme_plan_text.toPlainText()
 
     window.scheme_editor_text.setPlainText(
         "name: edited_scheme\n"

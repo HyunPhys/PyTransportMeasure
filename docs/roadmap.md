@@ -229,10 +229,14 @@ This roadmap tracks the large development phases. Completed items are checked.
   - compose multiple recipes and method steps from the GUI
   - validate and preview scheme plans using the shared scheme core
   - keep generated scheme YAML visible and editable
+- [x] Phase 24aa: GUI Scheme Drain I-V overrides
+  - expose per-step Drain I-V measurement suffix and sweep overrides
+  - reuse one base recipe for multiple scheme conditions
+  - round-trip override YAML through the Schemes table
 
 ## Next GUI
 
-- [ ] Phase 24aa: GUI scheme execution and saved scheme review
+- [ ] Phase 24ab: GUI scheme execution and saved scheme review
   - run scheme dry-runs from the GUI
   - show saved scheme summary/report/artifacts
   - keep hardware scheme execution gated behind later smoke tests

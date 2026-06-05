@@ -55,6 +55,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Recipe Form is generated from the current method recipe schema rather
   than a Drain I-V-only form.
 - [x] GUI Schemes workspace can create, validate, plan, and save scheme YAML.
+- [x] GUI Schemes workspace can set common Drain I-V step overrides without
+  copying the base recipe file.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -397,9 +399,13 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the default scheme has at least two rows.
 - [ ] Edit the scheme name.
 - [ ] Edit a step label.
+- [ ] For a `drain_iv` row, set `Suffix`, `Start V`, `Stop V`, and `Points`.
 - [ ] Click `Form -> Scheme YAML` and confirm the YAML updates.
+- [ ] Confirm the generated scheme YAML contains `overrides` for the edited
+  `drain_iv` row.
 - [ ] Click `Check Scheme` and confirm validation passes.
-- [ ] Click `Scheme Plan` and confirm the expanded plan appears.
+- [ ] Click `Scheme Plan` and confirm the expanded plan and `Overrides` section
+  appear.
 - [ ] Change a row to `batch` and set the path to
   `../batches/drain_iv_1k_repeat_linear.yaml`.
 - [ ] Click `Form -> Scheme YAML`, then `Scheme YAML -> Form`, and confirm the

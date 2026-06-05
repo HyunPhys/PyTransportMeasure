@@ -74,6 +74,36 @@ def test_gui_scheme_builder_generates_valid_scheme_text():
     assert "gate_rep02" in plan
 
 
+def test_gui_scheme_builder_supports_drain_iv_sweep_overrides():
+    text = scheme_text_from_builder(
+        "gui_override_scheme",
+        True,
+        [
+            GuiSchemeStepDraft(
+                "drain_iv",
+                "small_span",
+                "../recipes/drain_iv_1k_resistor.yaml",
+                measurement_suffix="_small",
+                sweep_start_v="-0.05",
+                sweep_stop_v="0.05",
+                sweep_points="5",
+            ),
+        ],
+    )
+    name, _stop_on_error, rows = scheme_builder_from_text(text)
+    plan = format_scheme_plan_text(text, scheme_path="configs/schemes/gui_override_scheme.yaml", preview_points=5)
+
+    assert name == "gui_override_scheme"
+    assert rows[0].measurement_suffix == "_small"
+    assert rows[0].sweep_start_v == "-0.05"
+    assert rows[0].sweep_stop_v == "0.05"
+    assert rows[0].sweep_points == "5"
+    assert "measurement_suffix: _small" in plan
+    assert "sweep.start_v: -0.05" in plan
+    assert "sweep.stop_v: 0.05" in plan
+    assert "sweep.points: 5" in plan
+
+
 def test_gui_default_scheme_text_is_loadable():
     name, _stop_on_error, rows = scheme_builder_from_text(default_scheme_text())
 

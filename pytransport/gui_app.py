@@ -522,8 +522,23 @@ class MainWindow(QMainWindow):
         self.scheme_plan_text.setReadOnly(True)
         self.scheme_validation_text = QPlainTextEdit()
         self.scheme_validation_text.setReadOnly(True)
-        self.scheme_step_table = QTableWidget(0, 6)
-        self.scheme_step_table.setHorizontalHeaderLabels(["Type", "Label", "Path", "Enabled", "Repeat", "Interval s"])
+        self.scheme_step_table = QTableWidget(0, 12)
+        self.scheme_step_table.setHorizontalHeaderLabels(
+            [
+                "Type",
+                "Label",
+                "Path",
+                "Enabled",
+                "Repeat",
+                "Interval s",
+                "Suffix",
+                "Start V",
+                "Stop V",
+                "Points",
+                "Delay s",
+                "Compliance A",
+            ]
+        )
         self.scheme_step_table.horizontalHeader().setStretchLastSection(True)
         self.saved_plot_canvas = IvPlotCanvas()
         self.live_plot_canvas = IvPlotCanvas()
@@ -936,6 +951,12 @@ class MainWindow(QMainWindow):
                 str(step.enabled).lower(),
                 str(step.repeat),
                 f"{step.interval_s:g}",
+                step.measurement_suffix,
+                step.sweep_start_v,
+                step.sweep_stop_v,
+                step.sweep_points,
+                step.sweep_delay_s,
+                step.sweep_current_compliance_a,
             ]
         ):
             self.scheme_step_table.setItem(row, column, QTableWidgetItem(text))
@@ -959,6 +980,12 @@ class MainWindow(QMainWindow):
                     enabled=self.scheme_table_text(row, 3).lower() not in {"false", "0", "no", "n"},
                     repeat=int(self.scheme_table_text(row, 4) or "1"),
                     interval_s=float(self.scheme_table_text(row, 5) or "0"),
+                    measurement_suffix=self.scheme_table_text(row, 6),
+                    sweep_start_v=self.scheme_table_text(row, 7),
+                    sweep_stop_v=self.scheme_table_text(row, 8),
+                    sweep_points=self.scheme_table_text(row, 9),
+                    sweep_delay_s=self.scheme_table_text(row, 10),
+                    sweep_current_compliance_a=self.scheme_table_text(row, 11),
                 )
             )
         return rows
