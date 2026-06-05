@@ -6,8 +6,10 @@ import pytest
 
 from pytransport.dual_gate_lockin import (
     ELEMENTARY_CHARGE_C,
+    check_dual_gate_lockin_resume,
     dual_gate_lockin_grid_signature,
     dual_gate_lockin_point_count,
+    format_dual_gate_lockin_resume_check,
     format_dual_gate_lockin_plan,
     planned_dual_gate_lockin_grid,
     run_dual_gate_lockin_sweep,
@@ -505,6 +507,54 @@ def test_dual_gate_lockin_resume_copies_prefix_and_measures_remaining_points(tmp
     assert resumed_rows[1]["index"] == partial_rows[1]["index"]
     assert resumed_rows[2]["index"] == "2"
     assert json.loads((source_run_dir / "metadata.json").read_text(encoding="utf-8"))["completed"] is False
+
+
+def test_dual_gate_lockin_resume_check_reports_next_point(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1_smu, gate2_smu, lockin)
+    run_dir = Path(metadata["run_dir"])
+    points_path = run_dir / "points.csv"
+    with points_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    with points_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows[:4])
+    metadata_path = run_dir / "metadata.json"
+    saved = json.loads(metadata_path.read_text(encoding="utf-8"))
+    saved.update({"completed": False, "points_written": 4, "remaining_points": 5})
+    metadata_path.write_text(json.dumps(saved, indent=2, sort_keys=True), encoding="utf-8")
+
+    report = check_dual_gate_lockin_resume(recipe, "recipe.yaml", run_dir)
+    text = format_dual_gate_lockin_resume_check(report)
+
+    assert report.ok is True
+    assert report.copied_points == 4
+    assert report.remaining_points == 5
+    assert report.next_point_index == 4
+    assert report.next_gate1_index == 1
+    assert report.next_gate2_index == 1
+    assert report.next_gate1_voltage_v == pytest.approx(0.0)
+    assert report.next_gate2_voltage_v == pytest.approx(0.0)
+    assert "Dual-gate lock-in resume check: PASS" in text
+    assert "Next gate voltages: Vg1=0 V, Vg2=0 V" in text
+
+
+def test_dual_gate_lockin_resume_check_fails_for_completed_run(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1_smu, gate2_smu, lockin)
+
+    report = check_dual_gate_lockin_resume(recipe, "recipe.yaml", metadata["run_dir"])
+
+    assert report.ok is False
+    assert "already completed" in report.message
+    assert "FAIL" in format_dual_gate_lockin_resume_check(report)
 
 
 def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):

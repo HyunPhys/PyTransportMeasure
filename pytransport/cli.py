@@ -47,7 +47,12 @@ from .dual_gate_review import (
     write_dual_gate_report,
     write_dual_gate_stats_csv,
 )
-from .dual_gate_lockin import dual_gate_lockin_point_count, run_dual_gate_lockin_sweep
+from .dual_gate_lockin import (
+    check_dual_gate_lockin_resume,
+    dual_gate_lockin_point_count,
+    format_dual_gate_lockin_resume_check,
+    run_dual_gate_lockin_sweep,
+)
 from .dual_gate_lockin_scaleup import (
     default_dual_gate_lockin_scale_up_review_path,
     write_dual_gate_lockin_scale_up_recipe,
@@ -281,6 +286,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_preflight.add_argument("recipe", type=Path)
     dual_gate_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+
+    dual_gate_lockin_resume_check = subparsers.add_parser(
+        "dual-gate-lockin-resume-check",
+        help="Check whether a partial dual-gate lock-in run can be resumed with a recipe, without hardware.",
+    )
+    dual_gate_lockin_resume_check.add_argument("recipe", type=Path)
+    dual_gate_lockin_resume_check.add_argument("run_dir", type=Path)
 
     dual_gate_lockin_smoke = subparsers.add_parser(
         "dual-gate-lockin-smoke",
@@ -1027,6 +1039,14 @@ def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
     report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
     print(format_dual_gate_lockin_preflight_report(report))
     return 0 if report.ok else 1
+
+
+def command_dual_gate_lockin_resume_check(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.recipe)
+    report = check_dual_gate_lockin_resume(recipe, args.recipe, args.run_dir)
+    print(format_dual_gate_lockin_resume_check(report))
+    return 0 if report.ok else 2
 
 
 def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
@@ -2731,6 +2751,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_plan(args)
     if args.command == "dual-gate-lockin-preflight":
         return command_dual_gate_lockin_preflight(args)
+    if args.command == "dual-gate-lockin-resume-check":
+        return command_dual_gate_lockin_resume_check(args)
     if args.command == "dual-gate-lockin-smoke":
         return command_dual_gate_lockin_smoke(args)
     if args.command == "dual-gate-lockin-active-smoke":

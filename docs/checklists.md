@@ -512,8 +512,11 @@ remain point-guarded.
   templates, and Hall analysis commands.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
+  ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>
   ptm dual-gate-lockin configs\recipes\<dual_gate_lockin_recipe>.yaml --allow-active-sweep --resume-from-run data\raw\<partial_run_folder> --max-hardware-points <N> --hardware-approval-note "<lab note>" --accepted-previous-run data\raw\<accepted_run> --yes --progress --plot --report --gate-stats
   ```
+- [ ] Confirm resume-check prints `Dual-gate lock-in resume check: PASS` and
+  the intended next gate voltages before enabling hardware output.
 - [ ] Confirm the resumed metadata records `resume_from_run`,
   `points_copied_from_resume`, `points_measured_this_run`, and
   `resume_next_point_index`.

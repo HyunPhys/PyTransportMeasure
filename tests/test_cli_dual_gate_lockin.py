@@ -228,6 +228,57 @@ def test_cli_dual_gate_lockin_resume_from_partial_run(tmp_path):
     assert resumed_metadata["resume_from_run"] == str(source_run_dir)
 
 
+def test_cli_dual_gate_lockin_resume_check(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+    assert code == 0
+    run_dir = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[0]
+    points_path = run_dir / "points.csv"
+    with points_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    with points_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows[:2])
+    metadata_path = run_dir / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata.update({"completed": False, "points_written": 2, "remaining_points": 2})
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    assert cli.main(["dual-gate-lockin-resume-check", str(recipe), str(run_dir)]) == 0
+
+
+def test_cli_dual_gate_lockin_resume_check_fails_for_completed_run(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+    assert code == 0
+    run_dir = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[0]
+
+    assert cli.main(["dual-gate-lockin-resume-check", str(recipe), str(run_dir)]) == 2
+
+
 def test_cli_dual_gate_lockin_audit_saved_run(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
     code = cli.main(

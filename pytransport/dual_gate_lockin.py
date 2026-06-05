@@ -178,6 +178,93 @@ class DualGateLockInResumeState:
     source_last_completed_index: int | None
 
 
+@dataclass(frozen=True)
+class DualGateLockInResumeCheck:
+    recipe_path: Path
+    source_run_dir: Path
+    ok: bool
+    message: str
+    planned_points: int
+    copied_points: int
+    remaining_points: int
+    next_point_index: int | None
+    next_gate1_index: int | None
+    next_gate2_index: int | None
+    next_gate1_voltage_v: float | None
+    next_gate2_voltage_v: float | None
+    grid_signature: str
+
+
+def check_dual_gate_lockin_resume(
+    recipe: DualGateLockInRecipe,
+    recipe_path: str | Path,
+    run_dir: str | Path,
+) -> DualGateLockInResumeCheck:
+    planned_grid = planned_dual_gate_lockin_grid(recipe)
+    planned_points = len(planned_grid)
+    grid_signature = dual_gate_lockin_grid_signature(recipe)
+    try:
+        state = load_dual_gate_lockin_resume_state(run_dir, recipe)
+    except ValueError as exc:
+        return DualGateLockInResumeCheck(
+            recipe_path=Path(recipe_path),
+            source_run_dir=Path(run_dir),
+            ok=False,
+            message=str(exc),
+            planned_points=planned_points,
+            copied_points=0,
+            remaining_points=planned_points,
+            next_point_index=None,
+            next_gate1_index=None,
+            next_gate2_index=None,
+            next_gate1_voltage_v=None,
+            next_gate2_voltage_v=None,
+            grid_signature=grid_signature,
+        )
+    next_point = planned_grid[state.next_point_index]
+    return DualGateLockInResumeCheck(
+        recipe_path=Path(recipe_path),
+        source_run_dir=state.source_run_dir,
+        ok=True,
+        message="resume source is compatible",
+        planned_points=planned_points,
+        copied_points=len(state.copied_rows),
+        remaining_points=planned_points - len(state.copied_rows),
+        next_point_index=state.next_point_index,
+        next_gate1_index=int(next_point["gate1_index"]),
+        next_gate2_index=int(next_point["gate2_index"]),
+        next_gate1_voltage_v=float(next_point["gate1_voltage_v"]),
+        next_gate2_voltage_v=float(next_point["gate2_voltage_v"]),
+        grid_signature=grid_signature,
+    )
+
+
+def format_dual_gate_lockin_resume_check(report: DualGateLockInResumeCheck) -> str:
+    lines = [
+        f"Dual-gate lock-in resume check: {'PASS' if report.ok else 'FAIL'}",
+        f"Recipe: {report.recipe_path}",
+        f"Source run: {report.source_run_dir}",
+        f"Message: {report.message}",
+        f"Grid signature: {report.grid_signature}",
+        f"Planned points: {report.planned_points}",
+        f"Copied points: {report.copied_points}",
+        f"Remaining points: {report.remaining_points}",
+    ]
+    if report.next_point_index is not None:
+        lines.extend(
+            [
+                f"Next point index: {report.next_point_index}",
+                f"Next gate indices: gate1={report.next_gate1_index}, gate2={report.next_gate2_index}",
+                (
+                    "Next gate voltages: "
+                    f"Vg1={report.next_gate1_voltage_v:.6g} V, "
+                    f"Vg2={report.next_gate2_voltage_v:.6g} V"
+                ),
+            ]
+        )
+    return "\n".join(lines)
+
+
 def load_dual_gate_lockin_resume_state(
     run_dir: str | Path,
     recipe: DualGateLockInRecipe,

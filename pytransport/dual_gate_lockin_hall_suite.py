@@ -370,6 +370,7 @@ def format_dual_gate_lockin_hall_suite_plan(
             + (f" --zero-field-recipe {audit.zero_hall_recipe}" if audit.zero_hall_recipe is not None else ""),
             *[f"ptm dual-gate-lockin-plan {path}" for _, _, path, _ in suite],
             *[f"ptm dual-gate-lockin-preflight {path}" for _, _, path, _ in suite],
+            *[f"ptm dual-gate-lockin-resume-check {path} data\\raw\\<partial_{recipe.measurement_name}_run>" for _, _, path, recipe in suite],
             "```",
             "",
             "Guarded Hardware Run Templates",
