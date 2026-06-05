@@ -587,8 +587,14 @@ remain point-guarded.
   ptm dual-gate-lockin-hall-suite-lab-smoke-bundle data\hall_packages\<sample_lab_package> --overwrite
   ```
 - [ ] Confirm `lab_smoke/lab_smoke_checklist.md` lists `ptm list-resources`,
-  identify/probe commands for both Keithleys and SR860, and one preflight command
-  per packaged recipe.
+  identify/probe commands for both Keithleys and SR860, one
+  `measurement-parameter-audit` command per packaged recipe, and one preflight
+  command per packaged recipe.
+- [ ] Run the smoke checklist's `measurement-parameter-audit` commands before
+  hardware preflight and confirm each one prints `Hardware-ready: True`.
+- [ ] Confirm the smoke checklist writes one
+  `lab_smoke/<recipe_key>_measurement_parameter_audit.json` artifact per
+  packaged recipe.
 - [ ] Confirm `lab_smoke/lab_smoke_checklist.md` includes `Post-Run Intake And
   Return` with `dual-gate-lockin-hall-suite-intake` and
   `dual-gate-lockin-hall-suite-lab-return-manifest` commands.

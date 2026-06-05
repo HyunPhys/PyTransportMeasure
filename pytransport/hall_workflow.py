@@ -251,6 +251,10 @@ def write_dual_gate_lockin_hall_suite_lab_smoke_bundle(
             _hall_suite_check_command(recipe_paths),
             _hall_suite_plan_command(recipe_paths),
         ],
+        "measurement_parameter_audit": [
+            _hall_suite_measurement_parameter_audit_command(key, path, out)
+            for key, path in recipe_paths.items()
+        ],
         "post_run_intake": [
             _hall_suite_result_intake_command(package_dir, recipe_paths),
             f"ptm dual-gate-lockin-hall-suite-lab-return-manifest {package_dir} --operator-note \"<lab notebook reference>\" --overwrite",
@@ -340,13 +344,19 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
             *commands.get("suite_checks", []),
             "```",
             "",
-            "## 6. Per-Recipe Preflight",
+            "## 6. Per-Recipe Measurement Parameter Audit",
+            "",
+            "```powershell",
+            *commands.get("measurement_parameter_audit", []),
+            "```",
+            "",
+            "## 7. Per-Recipe Preflight",
             "",
             "```powershell",
             *commands.get("preflight", []),
             "```",
             "",
-            "## 7. Post-Run Intake And Return",
+            "## 8. Post-Run Intake And Return",
             "",
             *_format_hall_suite_return_contract(payload.get("return_contract") or {}),
             "",
@@ -362,6 +372,7 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
             "- Every Keithley identify response contains `MODEL 2450`.",
             "- SR860 identify response contains `SR860`.",
             "- Every probe completes without communication errors.",
+            "- Every measurement-parameter audit reports `Hardware-ready: True` before preflight.",
             "- Every dual-gate lock-in preflight reports OK before any hardware output command is run.",
             "- After hardware runs, Hall-suite intake reports PASS before analysis.",
             "",
@@ -415,6 +426,11 @@ def _hall_suite_result_intake_command(package_dir: Path, recipe_paths: dict[str,
     if "zero" in recipe_paths:
         command += " --zero-field-run-dir data\\raw\\<zero_B_run>"
     return command
+
+
+def _hall_suite_measurement_parameter_audit_command(recipe_key: str, recipe_path: Path, output_dir: Path) -> str:
+    json_path = output_dir / f"{recipe_key}_measurement_parameter_audit.json"
+    return f"ptm measurement-parameter-audit dual_gate_lockin_sweep {recipe_path} --json-output {json_path}"
 
 
 def review_dual_gate_lockin_hall_suite_hardware_commands(package_manifest_or_dir: Path) -> dict:

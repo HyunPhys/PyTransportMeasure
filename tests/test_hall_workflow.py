@@ -289,16 +289,21 @@ def test_hall_lab_smoke_bundle_writes_identify_probe_and_preflight_commands(tmp_
     assert len(saved["commands"]["identify"]) == 3
     assert len(saved["commands"]["probe"]) == 3
     assert len(saved["commands"]["preflight"]) == 4
+    assert len(saved["commands"]["measurement_parameter_audit"]) == 4
     assert len(saved["commands"]["post_run_intake"]) == 2
     assert saved["return_contract"]["required_run_roles"] == ["longitudinal", "plus", "minus"]
     assert saved["return_contract"]["optional_run_roles"] == ["zero"]
     assert any("--instrument keithley_2450" in command for command in saved["commands"]["identify"])
     assert any("--instrument srs_sr860" in command for command in saved["commands"]["probe"])
+    assert all("ptm measurement-parameter-audit dual_gate_lockin_sweep" in command for command in saved["commands"]["measurement_parameter_audit"])
+    assert all("--json-output" in command for command in saved["commands"]["measurement_parameter_audit"])
     assert "dual-gate-lockin-hall-suite-intake" in saved["commands"]["post_run_intake"][0]
     assert "--zero-field-run-dir data\\raw\\<zero_B_run>" in saved["commands"]["post_run_intake"][0]
     assert "ptm list-resources" in checklist
+    assert "## 6. Per-Recipe Measurement Parameter Audit" in checklist
+    assert "Hardware-ready: True" in checklist
     assert "Every dual-gate lock-in preflight reports OK" in checklist
-    assert "## 7. Post-Run Intake And Return" in checklist
+    assert "## 8. Post-Run Intake And Return" in checklist
     assert "result_intake.json" in checklist
 
 

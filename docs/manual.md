@@ -584,13 +584,17 @@ ptm dual-gate-lockin-hall-suite-lab-smoke-bundle data\hall_packages\sampleA_cd1_
 This writes `lab_smoke/lab_smoke_checklist.md`,
 `lab_smoke/lab_smoke_bundle.json`, and a saved package validation JSON. The
 checklist contains exact `list-resources`, `identify`, `probe`,
-suite-check/plan, and per-recipe `dual-gate-lockin-preflight` commands for the
-two Keithleys and SR860 declared by the packaged recipes.
+suite-check/plan, per-recipe `measurement-parameter-audit`, and per-recipe
+`dual-gate-lockin-preflight` commands for the two Keithleys and SR860 declared
+by the packaged recipes.
 It also prints the four-terminal AC prerequisite summary when attached, plus
 post-run `dual-gate-lockin-hall-suite-intake` and
 `dual-gate-lockin-hall-suite-lab-return-manifest` command templates. The JSON
 records expected returned run roles and required post-run artifacts so lab
 handoff and return are tied to the same package.
+Run the measurement-parameter audit commands before preflight. Each command
+writes a package-local JSON artifact under `lab_smoke/` and should print
+`Hardware-ready: True`.
 
 Finally, review the active hardware command templates in the package runbook:
 

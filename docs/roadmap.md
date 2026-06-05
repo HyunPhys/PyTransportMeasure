@@ -803,6 +803,12 @@ root.
     SR860 required parameters or positive settle policy are missing
   - include SR860 missing-parameter and settle-policy summaries in package
     manifests and validation
+- [x] Phase 25dad: Hall lab smoke measurement-parameter audit
+  - add per-recipe `ptm measurement-parameter-audit` commands to lab smoke
+    checklists before hardware preflight
+  - save planned JSON audit paths under `lab_smoke/`
+  - make lab smoke pass criteria require `Hardware-ready: True` before
+    connecting preflight/output workflows
 
 ## Next GUI
 
