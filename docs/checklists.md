@@ -490,6 +490,14 @@ remain point-guarded.
 - [ ] For Vxy recipes with `magnetic_field_t`, confirm
   `lockin_hall_carrier_density_mean_per_m2` is present and has the expected
   sign convention.
+- [ ] Generate a consistent Hall-bar Vxx/Vxy recipe set when preparing a real
+  Hall device.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-template configs\recipes\<base_dual_gate_lockin_recipe>.yaml configs\recipes\<hall_suite_dir> --measurement-prefix <sample_device> --magnetic-field-t <B_abs_T> --longitudinal-contact Vxx+ --longitudinal-contact Vxx- --hall-contact Vxy+ --hall-contact Vxy- --channel-length-m <L_m> --channel-width-m <W_m>
+  ```
+- [ ] Confirm the generated suite contains Vxx, `+B` Vxy, `-B` Vxy, optional
+  `0B` Vxy recipes, and a review markdown with plan/preflight/hardware/analysis
+  command templates.
 - [ ] When matched `+B` and `-B` Hall runs are available, run
   `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
   --output-dir data\analysis\<hall_antisym_folder>` and confirm

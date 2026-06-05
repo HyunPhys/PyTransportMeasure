@@ -53,6 +53,7 @@ from .dual_gate_lockin_scaleup import (
     write_dual_gate_lockin_scale_up_recipe,
     write_dual_gate_lockin_scale_up_review,
 )
+from .dual_gate_lockin_hall_suite import write_dual_gate_lockin_hall_suite_template
 from .dual_gate_lockin_smoke import (
     format_dual_gate_lockin_active_smoke_plan,
     format_dual_gate_lockin_smoke_plan,
@@ -390,6 +391,23 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_scale_up_template.add_argument("--review-path", type=Path)
     dual_gate_lockin_scale_up_template.add_argument("--no-review", action="store_true")
     dual_gate_lockin_scale_up_template.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_template = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-template",
+        help="Create Vxx, +B Vxy, -B Vxy, and optional 0B Vxy recipe templates from one base recipe.",
+    )
+    dual_gate_lockin_hall_suite_template.add_argument("base_recipe", type=Path)
+    dual_gate_lockin_hall_suite_template.add_argument("output_dir", type=Path)
+    dual_gate_lockin_hall_suite_template.add_argument("--measurement-prefix")
+    dual_gate_lockin_hall_suite_template.add_argument("--magnetic-field-t", type=float, required=True)
+    dual_gate_lockin_hall_suite_template.add_argument("--longitudinal-contact", action="append", dest="longitudinal_contacts")
+    dual_gate_lockin_hall_suite_template.add_argument("--hall-contact", action="append", dest="hall_contacts")
+    dual_gate_lockin_hall_suite_template.add_argument("--channel-length-m", type=float)
+    dual_gate_lockin_hall_suite_template.add_argument("--channel-width-m", type=float)
+    dual_gate_lockin_hall_suite_template.add_argument("--no-zero-field", action="store_true")
+    dual_gate_lockin_hall_suite_template.add_argument("--run-output-directory", type=Path)
+    dual_gate_lockin_hall_suite_template.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_template.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -1366,6 +1384,30 @@ def command_dual_gate_lockin_scale_up_template(args: argparse.Namespace) -> int:
         candidate_recipe=output_path,
     )
     return command_dual_gate_lockin_scale_up_check(check_args)
+
+
+def command_dual_gate_lockin_hall_suite_template(args: argparse.Namespace) -> int:
+    result = write_dual_gate_lockin_hall_suite_template(
+        args.base_recipe,
+        args.output_dir,
+        measurement_prefix=args.measurement_prefix,
+        magnetic_field_t=args.magnetic_field_t,
+        longitudinal_contacts=args.longitudinal_contacts,
+        hall_contacts=args.hall_contacts,
+        channel_length_m=args.channel_length_m,
+        channel_width_m=args.channel_width_m,
+        include_zero_field=not args.no_zero_field,
+        run_output_directory=args.run_output_directory,
+        safety_dir=args.safety_dir,
+        overwrite=args.overwrite,
+    )
+    print(f"Hall suite directory: {result.output_dir}")
+    print(f"Longitudinal Vxx recipe: {result.longitudinal_recipe}")
+    print(f"Positive-field Vxy recipe: {result.plus_hall_recipe}")
+    print(f"Negative-field Vxy recipe: {result.minus_hall_recipe}")
+    print(f"Zero-field Vxy recipe: {result.zero_hall_recipe if result.zero_hall_recipe is not None else 'not generated'}")
+    print(f"Review: {result.review_path}")
+    return 0
 
 
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
@@ -2635,6 +2677,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_check(args)
     if args.command == "dual-gate-lockin-scale-up-template":
         return command_dual_gate_lockin_scale_up_template(args)
+    if args.command == "dual-gate-lockin-hall-suite-template":
+        return command_dual_gate_lockin_hall_suite_template(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

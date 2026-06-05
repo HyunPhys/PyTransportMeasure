@@ -372,7 +372,13 @@ root.
     `hall_antisym.csv` or `hall_zero_corrected.csv`
   - preserve source kind and source resistance columns in mobility artifacts
   - keep the same longitudinal Vxx sheet-conductivity input contract
-- [ ] Phase 25as: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25as: Hall-bar recipe suite template
+  - add `ptm dual-gate-lockin-hall-suite-template`
+  - generate Vxx, `+B` Vxy, `-B` Vxy, and optional `0B` Vxy recipes from one
+    base dual-gate lock-in recipe
+  - write a review markdown with plan, preflight, guarded hardware, and analysis
+    command templates
+- [ ] Phase 25at: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

@@ -441,6 +441,27 @@ zero-field offset subtraction are available as saved-run analysis commands.
 Mobility extraction can then combine Hall density with longitudinal sheet
 conductivity.
 
+To create a consistent Vxx/Vxy Hall-bar recipe set from one verified base
+dual-gate lock-in recipe, use:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-template configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml configs\recipes\hall_suite_sampleA --measurement-prefix sampleA_cd1 --magnetic-field-t 1.0 --longitudinal-contact Vxx+ --longitudinal-contact Vxx- --hall-contact Vxy+ --hall-contact Vxy- --channel-length-m 5.0e-6 --channel-width-m 2.0e-6
+```
+
+This writes:
+
+- `sampleA_cd1_vxx.yaml`
+- `sampleA_cd1_vxy_plus_b.yaml`
+- `sampleA_cd1_vxy_minus_b.yaml`
+- `sampleA_cd1_vxy_zero_b.yaml`, unless `--no-zero-field` is used
+- `sampleA_cd1_review.md`
+
+The generated recipes keep the base gate Keithley, SR860, gate sweep, safety,
+and topology wiring assumptions, but set the voltage-probe role, magnetic-field
+metadata, voltage contacts, and longitudinal channel dimensions for each run.
+The review markdown includes plan/preflight commands, guarded hardware command
+templates, and the downstream Hall analysis command sequence.
+
 When matched `+B` and `-B` Hall runs are available, use:
 
 ```powershell
