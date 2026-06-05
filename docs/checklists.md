@@ -510,6 +510,15 @@ remain point-guarded.
 - [ ] Confirm the suite plan shows the Vxx/+B/-B/0B measurement order,
   per-recipe plan snapshots, preflight commands, guarded hardware command
   templates, and Hall analysis commands.
+- [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
+  ```powershell
+  ptm dual-gate-lockin configs\recipes\<dual_gate_lockin_recipe>.yaml --allow-active-sweep --resume-from-run data\raw\<partial_run_folder> --max-hardware-points <N> --hardware-approval-note "<lab note>" --accepted-previous-run data\raw\<accepted_run> --yes --progress --plot --report --gate-stats
+  ```
+- [ ] Confirm the resumed metadata records `resume_from_run`,
+  `points_copied_from_resume`, `points_measured_this_run`, and
+  `resume_next_point_index`.
+- [ ] Confirm the original partial run folder is unchanged and the resumed
+  `points.csv` contains the copied prefix plus newly measured remaining points.
 - [ ] When matched `+B` and `-B` Hall runs are available, run
   `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
   --output-dir data\analysis\<hall_antisym_folder>` and confirm

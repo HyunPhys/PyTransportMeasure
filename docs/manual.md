@@ -484,6 +484,24 @@ the Vxx/+B/-B/0B measurement order, prints preflight and guarded hardware comman
 templates, and shows the downstream Hall antisymmetry, zero-field correction,
 and mobility commands.
 
+If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
+resume into a new run directory instead of modifying the old one:
+
+```powershell
+ptm dual-gate-lockin configs\recipes\<dual_gate_lockin_recipe>.yaml --dry-run --resume-from-run data\raw\<partial_run_folder>
+```
+
+For hardware, keep the usual active-sweep guards:
+
+```powershell
+ptm dual-gate-lockin configs\recipes\<dual_gate_lockin_recipe>.yaml --allow-active-sweep --resume-from-run data\raw\<partial_run_folder> --max-hardware-points <N> --hardware-approval-note "<lab note>" --accepted-previous-run data\raw\<accepted_run> --yes --progress --plot --report --gate-stats
+```
+
+The resume source must be an incomplete `dual_gate_lockin_sweep` run with a
+matching planned gate-grid signature. Its `points.csv` must contain a contiguous
+prefix beginning at index 0. The resumed command writes a new run folder, copies
+the previous rows first, then measures only the remaining grid points.
+
 When matched `+B` and `-B` Hall runs are available, use:
 
 ```powershell

@@ -442,6 +442,71 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert "Mean Resistance" in report
 
 
+def test_dual_gate_lockin_resume_copies_prefix_and_measures_remaining_points(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    source_metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_partial_source.yaml",
+    )
+    source_run_dir = Path(source_metadata["run_dir"])
+    source_csv = source_run_dir / "points.csv"
+    with source_csv.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        source_rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    partial_rows = source_rows[:2]
+    with source_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(partial_rows)
+    source_metadata_path = source_run_dir / "metadata.json"
+    saved_source_metadata = json.loads(source_metadata_path.read_text(encoding="utf-8"))
+    saved_source_metadata.update(
+        {
+            "completed": False,
+            "abort_class": "interrupted",
+            "points_written": 2,
+            "remaining_points": 7,
+            "last_completed_index": 1,
+            "next_point_index": 2,
+        }
+    )
+    source_metadata_path.write_text(json.dumps(saved_source_metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    resumed_metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_resume.yaml",
+        resume_from_run=source_run_dir,
+    )
+
+    assert resumed_metadata["completed"] is True
+    assert resumed_metadata["points_written"] == 9
+    assert resumed_metadata["points_copied_from_resume"] == 2
+    assert resumed_metadata["points_measured_this_run"] == 7
+    assert resumed_metadata["resume_from_run"] == str(source_run_dir)
+    assert resumed_metadata["resume_next_point_index"] == 2
+    assert resumed_metadata["recovery_recommendation"] == "run_completed_no_recovery_needed"
+    resumed_run_dir = Path(resumed_metadata["run_dir"])
+    assert resumed_run_dir != source_run_dir
+    resumed_rows = list(csv.DictReader((resumed_run_dir / "points.csv").open(newline="", encoding="utf-8")))
+    assert len(resumed_rows) == 9
+    assert resumed_rows[0]["index"] == partial_rows[0]["index"]
+    assert resumed_rows[1]["index"] == partial_rows[1]["index"]
+    assert resumed_rows[2]["index"] == "2"
+    assert json.loads((source_run_dir / "metadata.json").read_text(encoding="utf-8"))["completed"] is False
+
+
 def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):
     data = dual_gate_lockin_recipe_data(tmp_path)
     data["measurement_geometry"] = {

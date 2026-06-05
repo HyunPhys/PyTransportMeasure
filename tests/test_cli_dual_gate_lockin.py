@@ -174,6 +174,60 @@ def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
     assert (run_dirs[0] / "dual_gate_lockin_stats.csv").exists()
 
 
+def test_cli_dual_gate_lockin_resume_from_partial_run(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+    assert code == 0
+    source_run_dir = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[0]
+    points_path = source_run_dir / "points.csv"
+    with points_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    with points_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows[:2])
+    metadata_path = source_run_dir / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata.update({"completed": False, "abort_class": "interrupted", "points_written": 2, "remaining_points": 2})
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--resume-from-run",
+            str(source_run_dir),
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    run_dirs = sorted((tmp_path / "raw").glob("*dual_gate_lockin_cli*"))
+    assert len(run_dirs) == 2
+    resumed_metadata = json.loads((run_dirs[-1] / "metadata.json").read_text(encoding="utf-8"))
+    assert resumed_metadata["completed"] is True
+    assert resumed_metadata["points_written"] == 4
+    assert resumed_metadata["points_copied_from_resume"] == 2
+    assert resumed_metadata["points_measured_this_run"] == 2
+    assert resumed_metadata["resume_from_run"] == str(source_run_dir)
+
+
 def test_cli_dual_gate_lockin_audit_saved_run(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
     code = cli.main(

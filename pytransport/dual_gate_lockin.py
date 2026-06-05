@@ -110,7 +110,7 @@ class DualGateLockInPoint:
 
 
 class DualGateLockInRunWriter:
-    def __init__(self, output_dir: Path, measurement_name: str):
+    def __init__(self, output_dir: Path, measurement_name: str, resume_rows: list[dict[str, str]] | None = None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.run_dir = unique_run_dir(output_dir, f"{timestamp}_{safe_name(measurement_name)}")
         self.run_dir.mkdir(parents=True, exist_ok=False)
@@ -121,6 +121,8 @@ class DualGateLockInRunWriter:
         self._csv_file = self.csv_path.open("w", newline="", encoding="utf-8")
         self._writer = csv.DictWriter(self._csv_file, fieldnames=DUAL_GATE_LOCKIN_COLUMNS)
         self._writer.writeheader()
+        for row in resume_rows or []:
+            self._writer.writerow({column: row.get(column, "") for column in DUAL_GATE_LOCKIN_COLUMNS})
         self._csv_file.flush()
 
     def write_point(self, point: DualGateLockInPoint) -> None:
@@ -163,6 +165,67 @@ def dual_gate_lockin_grid_signature(recipe: DualGateLockInRecipe) -> str:
     grid = planned_dual_gate_lockin_grid(recipe)
     payload = json.dumps(grid, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+@dataclass(frozen=True)
+class DualGateLockInResumeState:
+    source_run_dir: Path
+    source_metadata_path: Path
+    source_csv_path: Path
+    copied_rows: tuple[dict[str, str], ...]
+    next_point_index: int
+    source_points_written: int
+    source_last_completed_index: int | None
+
+
+def load_dual_gate_lockin_resume_state(
+    run_dir: str | Path,
+    recipe: DualGateLockInRecipe,
+) -> DualGateLockInResumeState:
+    source_run_dir = Path(run_dir)
+    metadata_path = source_run_dir / "metadata.json"
+    csv_path = source_run_dir / "points.csv"
+    if not metadata_path.exists():
+        raise ValueError(f"Resume metadata not found: {metadata_path}")
+    if not csv_path.exists():
+        raise ValueError(f"Resume points CSV not found: {csv_path}")
+    with metadata_path.open("r", encoding="utf-8") as handle:
+        metadata = json.load(handle)
+    if metadata.get("measurement_type") != "dual_gate_lockin_sweep":
+        raise ValueError("Resume source is not a dual_gate_lockin_sweep run")
+    if metadata.get("completed") is True:
+        raise ValueError("Resume source is already completed; use the completed run directly")
+    expected_signature = dual_gate_lockin_grid_signature(recipe)
+    actual_signature = metadata.get("planned_gate_grid_signature")
+    if actual_signature != expected_signature:
+        raise ValueError("Resume source grid signature does not match the current recipe")
+    with csv_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+    indices: list[int] = []
+    for row in rows:
+        try:
+            indices.append(int(row["index"]))
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Resume points CSV contains a row without a valid integer index") from exc
+    expected_indices = list(range(len(rows)))
+    if indices != expected_indices:
+        raise ValueError("Resume points CSV must contain a contiguous prefix starting at index 0")
+    planned_points = dual_gate_lockin_point_count(recipe)
+    if len(rows) >= planned_points:
+        raise ValueError("Resume source already contains all planned points")
+    source_last_completed_index = metadata.get("last_completed_index")
+    if source_last_completed_index is not None:
+        source_last_completed_index = int(source_last_completed_index)
+    return DualGateLockInResumeState(
+        source_run_dir=source_run_dir,
+        source_metadata_path=metadata_path,
+        source_csv_path=csv_path,
+        copied_rows=tuple(rows),
+        next_point_index=len(rows),
+        source_points_written=int(metadata.get("points_written") or len(rows)),
+        source_last_completed_index=source_last_completed_index,
+    )
 
 
 def format_dual_gate_lockin_plan(
@@ -361,12 +424,20 @@ def run_dual_gate_lockin_sweep(
     lockin: LockInAmplifier,
     recipe_path: str | Path | None = None,
     progress_callback: Callable[[DualGateLockInPoint, int], None] | None = None,
+    resume_from_run: str | Path | None = None,
 ) -> dict[str, Any]:
     validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
-    writer = DualGateLockInRunWriter(Path(recipe.output.directory), recipe.measurement_name)
+    resume_state = (
+        load_dual_gate_lockin_resume_state(resume_from_run, recipe) if resume_from_run is not None else None
+    )
+    resume_rows = list(resume_state.copied_rows) if resume_state is not None else None
+    writer = DualGateLockInRunWriter(Path(recipe.output.directory), recipe.measurement_name, resume_rows=resume_rows)
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
-    points_written = 0
+    points_written = len(resume_rows or [])
+    points_copied_from_resume = points_written
+    points_measured_this_run = 0
+    resume_last_row = (resume_rows or [None])[-1]
     gate1_config = build_voltage_source_config(recipe.gate1_instrument, recipe.gate1_sweep.current_compliance_a)
     gate2_config = build_voltage_source_config(recipe.gate2_instrument, recipe.gate2_sweep.current_compliance_a)
     gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
@@ -386,19 +457,37 @@ def run_dual_gate_lockin_sweep(
         "error_message": None,
         "triggered_limit": None,
         "points_written": 0,
+        "points_copied_from_resume": points_copied_from_resume,
+        "points_measured_this_run": 0,
         "planned_points": total_points,
         "planned_gate_grid": planned_dual_gate_lockin_grid(recipe),
         "planned_gate_grid_signature": dual_gate_lockin_grid_signature(recipe),
         "planned_gate_grid_signature_algorithm": "sha256_json_v1",
-        "remaining_points": total_points,
-        "last_completed_index": None,
-        "last_completed_gate1_index": None,
-        "last_completed_gate2_index": None,
-        "last_completed_gate1_voltage_v": None,
-        "last_completed_gate2_voltage_v": None,
-        "next_point_index": 0,
-        "resume_policy": "manual_review_required_restart_from_beginning",
-        "recovery_recommendation": "run_not_completed_review_metadata_and_restart_from_beginning",
+        "remaining_points": max(0, total_points - points_written),
+        "last_completed_index": int(resume_last_row["index"]) if resume_last_row is not None else None,
+        "last_completed_gate1_index": int(resume_last_row["gate1_index"]) if resume_last_row is not None else None,
+        "last_completed_gate2_index": int(resume_last_row["gate2_index"]) if resume_last_row is not None else None,
+        "last_completed_gate1_voltage_v": (
+            float(resume_last_row["gate1_voltage_v"]) if resume_last_row is not None else None
+        ),
+        "last_completed_gate2_voltage_v": (
+            float(resume_last_row["gate2_voltage_v"]) if resume_last_row is not None else None
+        ),
+        "next_point_index": resume_state.next_point_index if resume_state is not None else 0,
+        "resume_policy": (
+            "contiguous_prefix_copy_then_continue" if resume_state is not None else "manual_resume_from_partial_run_supported"
+        ),
+        "resume_from_run": str(resume_state.source_run_dir) if resume_state is not None else None,
+        "resume_source_metadata_path": str(resume_state.source_metadata_path) if resume_state is not None else None,
+        "resume_source_csv_path": str(resume_state.source_csv_path) if resume_state is not None else None,
+        "resume_source_points_written": resume_state.source_points_written if resume_state is not None else None,
+        "resume_source_last_completed_index": (
+            resume_state.source_last_completed_index if resume_state is not None else None
+        ),
+        "resume_next_point_index": resume_state.next_point_index if resume_state is not None else None,
+        "recovery_recommendation": (
+            "resume_in_progress_from_partial_run" if resume_state is not None else "run_not_completed_review_metadata_then_resume_or_restart"
+        ),
         "gate_outputs_enabled": False,
         "outputs_off_after_run": False,
         "source_drain_transport_model": "lockin_r_v_divided_by_nominal_excitation_current",
@@ -475,6 +564,10 @@ def run_dual_gate_lockin_sweep(
         start = time.monotonic()
         point_index = 0
         for gate1_index, gate1_voltage_v in enumerate(gate1_voltages):
+            gate1_row_end_index = point_index + len(gate2_voltages) - 1
+            if resume_state is not None and resume_state.next_point_index > gate1_row_end_index:
+                point_index += len(gate2_voltages)
+                continue
             command_voltage_with_state("gate1", gate1_smu, metadata, float(gate1_voltage_v))
             if recipe.gate1_sweep.settle_s:
                 time.sleep(recipe.gate1_sweep.settle_s)
@@ -483,6 +576,9 @@ def run_dual_gate_lockin_sweep(
                 raise SafetyLimitError("Gate1 instrument compliance was reached", "gate1_instrument_compliance")
             validate_point_current(gate1_current_a, safety)
             for gate2_index, gate2_voltage_v in enumerate(gate2_voltages):
+                if resume_state is not None and point_index < resume_state.next_point_index:
+                    point_index += 1
+                    continue
                 command_voltage_with_state("gate2", gate2_smu, metadata, float(gate2_voltage_v))
                 if recipe.gate2_sweep.settle_s:
                     time.sleep(recipe.gate2_sweep.settle_s)
@@ -523,6 +619,7 @@ def run_dual_gate_lockin_sweep(
                 )
                 writer.write_point(point)
                 points_written += 1
+                points_measured_this_run += 1
                 metadata["last_completed_index"] = point.index
                 metadata["last_completed_gate1_index"] = point.gate1_index
                 metadata["last_completed_gate2_index"] = point.gate2_index
@@ -568,6 +665,7 @@ def run_dual_gate_lockin_sweep(
         lockin.close()
         metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
         metadata["points_written"] = points_written
+        metadata["points_measured_this_run"] = points_measured_this_run
         metadata["remaining_points"] = max(0, total_points - points_written)
         metadata["next_point_index"] = None if metadata["completed"] else points_written
         writer.write_metadata(metadata)

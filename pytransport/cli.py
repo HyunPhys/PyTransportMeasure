@@ -337,6 +337,11 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin.add_argument("--progress", action="store_true")
     dual_gate_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     dual_gate_lockin.add_argument("--preview-points", type=int, default=5)
+    dual_gate_lockin.add_argument(
+        "--resume-from-run",
+        type=Path,
+        help="Create a new run by copying a partial dual-gate lock-in points.csv prefix and measuring remaining points.",
+    )
     dual_gate_lockin.add_argument("--allow-active-sweep", action="store_true", help="Enable the guarded hardware gate sweep path.")
     dual_gate_lockin.add_argument(
         "--max-hardware-points",
@@ -1258,15 +1263,20 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         gate2_smu = Keithley2450(recipe.gate2_instrument.address, recipe.gate2_instrument.timeout_ms)
         lockin = SRS_SR860(recipe.lockin.address or "", recipe.lockin.timeout_ms)
     progress_callback = print_dual_gate_lockin_progress if args.progress else None
-    metadata = run_dual_gate_lockin_sweep(
-        recipe,
-        safety,
-        gate1_smu,
-        gate2_smu,
-        lockin,
-        recipe_path=args.recipe,
-        progress_callback=progress_callback,
-    )
+    try:
+        metadata = run_dual_gate_lockin_sweep(
+            recipe,
+            safety,
+            gate1_smu,
+            gate2_smu,
+            lockin,
+            recipe_path=args.recipe,
+            progress_callback=progress_callback,
+            resume_from_run=args.resume_from_run,
+        )
+    except ValueError as exc:
+        print(f"Dual-gate lock-in resume blocked: {exc}", file=sys.stderr)
+        return 2
     run_dir = Path(metadata["run_dir"])
     print(f"CSV: {metadata['csv_path']}")
     print(f"Metadata: {metadata['metadata_path']}")

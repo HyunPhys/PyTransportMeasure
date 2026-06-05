@@ -389,7 +389,12 @@ root.
   - print one hardware-free Vxx/+B/-B/0B runbook with measurement order,
     preflight commands, guarded hardware templates, and Hall analysis commands
   - stop with a nonzero exit code when the suite consistency check fails
-- [ ] Phase 25av: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25av: Dual-gate lock-in resume-from-partial-run
+  - add `ptm dual-gate-lockin --resume-from-run <partial_run_dir>`
+  - create a new run directory, copy the partial `points.csv` prefix, and
+    continue from the next unmeasured grid point
+  - require the resume source grid signature to match the current recipe
+- [ ] Phase 25aw: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory
