@@ -56,6 +56,8 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert "Method: Drain I-V (drain_iv)" in window.recipe_overview_text.toPlainText()
     assert window.scheme_step_table.rowCount() >= 2
     assert window.scheme_step_table.columnCount() == 12
+    assert window.run_scheme_button.text() == "Dry Run Scheme"
+    assert not window.open_scheme_folder_button.isEnabled()
     window.close()
 
 

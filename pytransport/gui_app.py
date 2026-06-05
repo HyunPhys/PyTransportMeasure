@@ -12,6 +12,7 @@ from .gui_session import GuiSessionLogger
 from .gui_services import (
     GuiFakeSettings,
     GuiSchemaField,
+    GuiSchemeRunResult,
     GuiSchemeStepDraft,
     available_gui_methods,
     create_gui_feedback_bundle,
@@ -33,6 +34,7 @@ from .gui_services import (
     run_gui_doctor_text,
     run_gui_preflight_text,
     run_gui_hardware_text,
+    run_gui_scheme_dry_run_text,
     run_gui_dry_run_text,
     save_recipe_text,
     schema_form_from_text,
@@ -147,6 +149,34 @@ class DryRunWorker(QThread):
 
     def is_stop_requested(self) -> bool:
         return self._stop_requested
+
+
+class SchemeDryRunWorker(QThread):
+    finished_ok = Signal(object)
+    failed = Signal(str)
+    progress = Signal(str)
+
+    def __init__(self, scheme_text: str, scheme_path: str, fake: GuiFakeSettings):
+        super().__init__()
+        self.scheme_text = scheme_text
+        self.scheme_path = scheme_path
+        self.fake = fake
+
+    def run(self) -> None:
+        try:
+            self.finished_ok.emit(
+                run_gui_scheme_dry_run_text(
+                    self.scheme_text,
+                    scheme_path=self.scheme_path,
+                    fake=self.fake,
+                    progress_callback=self.emit_progress,
+                )
+            )
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+    def emit_progress(self, point: Any, total: int) -> None:
+        self.progress.emit(format_gui_progress(point, total))
 
 
 class PreflightWorker(QThread):
@@ -358,7 +388,9 @@ class MainWindow(QMainWindow):
         self.communication_test_worker: CommunicationTestWorker | None = None
         self.preflight_worker: PreflightWorker | None = None
         self.hardware_worker: HardwareRunWorker | None = None
+        self.scheme_worker: SchemeDryRunWorker | None = None
         self.last_result: Any | None = None
+        self.last_scheme_result: GuiSchemeRunResult | None = None
         self._syncing_recipe_widgets = False
         self.workflow_state: dict[str, bool] = {
             "yaml_checked": False,
@@ -485,6 +517,14 @@ class MainWindow(QMainWindow):
         self.plan_scheme_button.clicked.connect(self.show_scheme_plan)
         self.save_scheme_button = QPushButton("Save Scheme As")
         self.save_scheme_button.clicked.connect(self.save_scheme_as)
+        self.run_scheme_button = QPushButton("Dry Run Scheme")
+        self.run_scheme_button.clicked.connect(self.start_scheme_dry_run)
+        self.open_scheme_folder_button = QPushButton("Scheme Folder")
+        self.open_scheme_folder_button.clicked.connect(self.open_scheme_folder)
+        self.open_scheme_folder_button.setEnabled(False)
+        self.open_scheme_report_button = QPushButton("Scheme Report")
+        self.open_scheme_report_button.clicked.connect(self.open_scheme_report)
+        self.open_scheme_report_button.setEnabled(False)
 
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -522,6 +562,10 @@ class MainWindow(QMainWindow):
         self.scheme_plan_text.setReadOnly(True)
         self.scheme_validation_text = QPlainTextEdit()
         self.scheme_validation_text.setReadOnly(True)
+        self.scheme_result_text = QPlainTextEdit()
+        self.scheme_result_text.setReadOnly(True)
+        self.scheme_report_text = QPlainTextEdit()
+        self.scheme_report_text.setReadOnly(True)
         self.scheme_step_table = QTableWidget(0, 12)
         self.scheme_step_table.setHorizontalHeaderLabels(
             [
@@ -749,6 +793,9 @@ class MainWindow(QMainWindow):
         action_row.addWidget(self.validate_scheme_button)
         action_row.addWidget(self.plan_scheme_button)
         action_row.addWidget(self.save_scheme_button)
+        action_row.addWidget(self.run_scheme_button)
+        action_row.addWidget(self.open_scheme_folder_button)
+        action_row.addWidget(self.open_scheme_report_button)
 
         controls_layout.addLayout(top_row)
         controls_layout.addLayout(action_row)
@@ -759,6 +806,8 @@ class MainWindow(QMainWindow):
         scheme_tabs.addTab(self.scheme_editor_text, "Scheme YAML")
         scheme_tabs.addTab(self.scheme_plan_text, "Plan")
         scheme_tabs.addTab(self.scheme_validation_text, "Validation")
+        scheme_tabs.addTab(self.scheme_result_text, "Result")
+        scheme_tabs.addTab(self.scheme_report_text, "Report")
         layout.addWidget(scheme_tabs, stretch=1)
         return container
 
@@ -1070,6 +1119,59 @@ class MainWindow(QMainWindow):
         self.scheme_path_edit.setText(str(path))
         self.status_label.setText(f"Scheme saved: {path}")
         self.log_session(f"Scheme saved: {path}")
+
+    def start_scheme_dry_run(self) -> None:
+        if self.scheme_worker is not None and self.scheme_worker.isRunning():
+            return
+        if not self.apply_scheme_form_to_yaml():
+            return
+        try:
+            fake = self.fake_settings()
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.run_scheme_button.setEnabled(False)
+        self.open_scheme_folder_button.setEnabled(False)
+        self.open_scheme_report_button.setEnabled(False)
+        self.scheme_result_text.setPlainText("Scheme dry-run starting...")
+        self.scheme_report_text.clear()
+        self.log_session("Scheme dry-run starting")
+        self.scheme_worker = SchemeDryRunWorker(self.scheme_editor_text.toPlainText(), self.scheme_path_edit.text(), fake)
+        self.scheme_worker.progress.connect(self.append_scheme_progress)
+        self.scheme_worker.finished_ok.connect(self.handle_scheme_result)
+        self.scheme_worker.failed.connect(self.handle_scheme_failure)
+        self.scheme_worker.finished.connect(lambda: self.run_scheme_button.setEnabled(True))
+        self.scheme_worker.start()
+
+    def append_scheme_progress(self, line: str) -> None:
+        self.scheme_result_text.appendPlainText(line)
+        self.log_session(f"Scheme progress: {line}")
+
+    def handle_scheme_result(self, result: GuiSchemeRunResult) -> None:
+        self.last_scheme_result = result
+        self.scheme_result_text.setPlainText(result.summary_text)
+        self.scheme_report_text.setPlainText(result.report_text)
+        self.open_scheme_folder_button.setEnabled(True)
+        self.open_scheme_report_button.setEnabled(bool(result.artifact_paths.get("report_path")))
+        self.status_label.setText("Scheme dry-run complete")
+        self.log_session(f"Scheme dry-run complete: {result.summary_path}")
+
+    def handle_scheme_failure(self, message: str) -> None:
+        self.scheme_result_text.setPlainText(f"Scheme dry-run failed\n\n{message}")
+        self.status_label.setText("Scheme dry-run failed")
+        self.log_session(f"Scheme dry-run failed: {message}")
+
+    def open_scheme_folder(self) -> None:
+        if self.last_scheme_result is None:
+            return
+        QDesktopServices.openUrl(self.last_scheme_result.scheme_dir.resolve().as_uri())
+
+    def open_scheme_report(self) -> None:
+        if self.last_scheme_result is None:
+            return
+        path = self.last_scheme_result.artifact_paths.get("report_path")
+        if path:
+            QDesktopServices.openUrl(Path(path).resolve().as_uri())
 
     def browse_recipe(self) -> None:
         selected, _ = QFileDialog.getOpenFileName(self, "Open Recipe", str(Path("configs/recipes").resolve()), "YAML (*.yaml *.yml)")

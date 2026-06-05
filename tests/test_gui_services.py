@@ -26,6 +26,7 @@ from pytransport.gui_services import (
     run_gui_communication_test,
     run_gui_preflight_text,
     run_gui_hardware_text,
+    run_gui_scheme_dry_run_text,
     save_recipe_text,
     schema_form_from_text,
     schema_form_text_from_values,
@@ -109,6 +110,40 @@ def test_gui_default_scheme_text_is_loadable():
 
     assert name == "gui_scheme"
     assert [row.type for row in rows] == ["drain_iv", "single_gate"]
+
+
+def test_gui_scheme_dry_run_text_writes_scheme_artifacts(tmp_path):
+    text = scheme_text_from_builder(
+        "gui_scheme_dry_run",
+        True,
+        [
+            GuiSchemeStepDraft(
+                "drain_iv",
+                "small_drain",
+                "../recipes/drain_iv_1k_resistor.yaml",
+                measurement_suffix="_scheme",
+                sweep_start_v="-0.05",
+                sweep_stop_v="0.05",
+            ),
+        ],
+    )
+
+    result = run_gui_scheme_dry_run_text(
+        text,
+        scheme_path="configs/schemes/gui_scheme_dry_run.yaml",
+        fake=GuiFakeSettings(resistance_ohm=1000, noise_std_a=0),
+        index_path=tmp_path / "index.jsonl",
+        draft_dir=tmp_path / "drafts",
+        output_dir=tmp_path / "schemes",
+    )
+
+    assert result.summary_path.exists()
+    assert result.scheme_dir.exists()
+    assert Path(result.artifact_paths["report_path"]).exists()
+    assert Path(result.artifact_paths["scheme_runs_path"]).exists()
+    assert "Scheme dry-run: gui_scheme_dry_run" in result.summary_text
+    assert "Scheme quality: PASS" in result.summary_text
+    assert "# gui_scheme_dry_run" in result.report_text
 
 
 def test_gui_instrument_refresh_formats_resources():

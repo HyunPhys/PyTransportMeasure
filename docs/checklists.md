@@ -57,6 +57,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Schemes workspace can create, validate, plan, and save scheme YAML.
 - [x] GUI Schemes workspace can set common Drain I-V step overrides without
   copying the base recipe file.
+- [x] GUI Schemes workspace can dry-run supported schemes and show the saved
+  scheme result/report.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -406,6 +408,15 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Check Scheme` and confirm validation passes.
 - [ ] Click `Scheme Plan` and confirm the expanded plan and `Overrides` section
   appear.
+- [ ] Set `Dry-run Model` fake resistance to match the recipe quality checks
+  when using resistor-smoke-test recipes.
+- [ ] Click `Dry Run Scheme`.
+- [ ] Confirm `Result` shows the scheme summary path and scheme quality.
+- [ ] Confirm `Report` shows a Markdown scheme report.
+- [ ] Confirm `Scheme Folder` and `Scheme Report` become enabled.
+- [ ] Confirm the saved scheme folder contains `scheme_summary.json`,
+  `scheme_report.md`, `scheme_runs.csv`, `scheme_points.csv`,
+  `scheme_stats.csv`, and, when plottable, `scheme_overlay.svg`.
 - [ ] Change a row to `batch` and set the path to
   `../batches/drain_iv_1k_repeat_linear.yaml`.
 - [ ] Click `Form -> Scheme YAML`, then `Scheme YAML -> Form`, and confirm the

@@ -236,10 +236,15 @@ This roadmap tracks the large development phases. Completed items are checked.
 
 ## Next GUI
 
-- [ ] Phase 24ab: GUI scheme execution and saved scheme review
+- [x] Phase 24ab: GUI scheme dry-run and saved scheme review draft
   - run scheme dry-runs from the GUI
-  - show saved scheme summary/report/artifacts
+  - show saved scheme summary/report/artifacts in the Schemes workspace
+  - export scheme report, runs CSV, points CSV, stats CSV, and overlay SVG
   - keep hardware scheme execution gated behind later smoke tests
+- [ ] Phase 24ac: GUI saved scheme browser
+  - load existing scheme summaries from `data/schemes`
+  - inspect older scheme reports and artifacts from the GUI
+  - compare saved scheme runs without rebuilding the scheme YAML
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation

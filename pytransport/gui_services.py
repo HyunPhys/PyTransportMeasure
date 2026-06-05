@@ -15,6 +15,15 @@ from typing import Any, Callable, Literal
 import yaml
 
 from .ac_lockin import run_ac_lockin_sweep
+from .batch import create_batch_summary, finish_batch_summary, load_batch, resolve_batch_entries
+from .batch_review import (
+    evaluate_batch_quality,
+    update_batch_summary_quality,
+    write_batch_points_csv,
+    write_batch_report,
+    write_batch_runs_csv,
+    write_batch_stats_csv,
+)
 from .feedback_bundle import create_feedback_bundle
 from .doctor import format_doctor_report, run_doctor
 from .inspect import read_run_metadata
@@ -24,10 +33,28 @@ from .method_registry import handler_for_measurement_type
 from .preflight import format_preflight_report, run_preflight_for_recipe
 from .pulse import run_pulse_measurement
 from .quality import evaluate_run_quality, quality_report_to_dict
-from .recipes import load_named_safety_preset, sweep_voltages
+from .recipes import load_named_safety_preset, load_recipe, sweep_voltages
 from .run_index import append_run_index, build_index_record, filter_run_index, read_run_index
 from .runner import run_drain_iv
-from .scheme import SchemeRecipe, format_scheme_plan
+from .scheme import (
+    SchemeRecipe,
+    create_scheme_summary,
+    finish_scheme_summary,
+    format_scheme_plan,
+    load_scheme_step_recipe,
+    load_scheme_step_single_gate_recipe,
+    resolve_scheme_steps,
+)
+from .scheme_review import (
+    evaluate_scheme_quality,
+    format_scheme_quality,
+    update_scheme_summary_quality,
+    write_scheme_overlay_svg,
+    write_scheme_points_csv,
+    write_scheme_report,
+    write_scheme_runs_csv,
+    write_scheme_stats_csv,
+)
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import write_single_gate_stats_csv
 from .visa_utils import list_resources
@@ -59,6 +86,15 @@ class GuiRunResult:
     @property
     def run_dir(self) -> Path:
         return Path(str(self.metadata["run_dir"]))
+
+
+@dataclass(frozen=True)
+class GuiSchemeRunResult:
+    summary_path: Path
+    scheme_dir: Path
+    summary_text: str
+    report_text: str
+    artifact_paths: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -1038,6 +1074,288 @@ def run_gui_dry_run(
         create_plot=create_plot,
         create_report=create_report,
     )
+
+
+def run_gui_scheme_dry_run_text(
+    text: str,
+    scheme_path: str | Path = "configs/schemes/gui_scheme.yaml",
+    safety_dir: str | Path = "configs/safety",
+    fake: GuiFakeSettings | None = None,
+    index_path: str | Path = "data/run_index.jsonl",
+    draft_dir: str | Path = "data/gui_drafts/schemes",
+    output_dir: str | Path = "data/schemes",
+    create_plot: bool = True,
+    create_report: bool = True,
+    create_exports: bool = True,
+    progress_callback: GuiProgressCallback | None = None,
+) -> GuiSchemeRunResult:
+    scheme = load_scheme_from_text(text)
+    draft_path = write_gui_draft_scheme(scheme.name, text, draft_dir)
+    # Resolve recipe/batch paths relative to the scheme path shown in the GUI,
+    # even before that file has been saved.
+    resolution_path = Path(scheme_path)
+    steps = resolve_scheme_steps(scheme, resolution_path)
+    if not steps:
+        raise ValueError("Scheme has no enabled steps")
+    fake_settings = fake or GuiFakeSettings()
+    scheme_dir, scheme_summary = create_scheme_summary(scheme, draft_path, True, output_dir)
+    try:
+        for step in steps:
+            if step.type == "drain_iv":
+                result = run_gui_scheme_drain_iv_step(
+                    step,
+                    fake_settings,
+                    safety_dir=safety_dir,
+                    index_path=index_path,
+                    create_plot=create_plot,
+                    create_report=create_report,
+                    progress_callback=progress_callback,
+                )
+                metadata = result.metadata
+                scheme_summary["steps"].append(_scheme_run_step_record(step, metadata))
+            elif step.type == "single_gate":
+                result = run_gui_scheme_single_gate_step(
+                    step,
+                    fake_settings,
+                    safety_dir=safety_dir,
+                    index_path=index_path,
+                    create_plot=create_plot,
+                    create_report=create_report,
+                    progress_callback=progress_callback,
+                )
+                metadata = result.metadata
+                scheme_summary["steps"].append(_scheme_run_step_record(step, metadata))
+            elif step.type == "batch":
+                batch_exit_code, batch_summary_path = run_gui_scheme_batch_step(
+                    step,
+                    scheme_dir,
+                    fake_settings,
+                    safety_dir=safety_dir,
+                    index_path=index_path,
+                    create_plot=create_plot,
+                    create_report=create_report,
+                    create_exports=create_exports,
+                    progress_callback=progress_callback,
+                )
+                batch_completed = False
+                if batch_summary_path is not None:
+                    batch_data = json.loads(Path(batch_summary_path).read_text(encoding="utf-8"))
+                    batch_completed = bool(batch_data.get("completed"))
+                scheme_summary["steps"].append(
+                    {
+                        "label": step.label,
+                        "type": step.type,
+                        "path": str(step.path),
+                        "repeat_index": step.repeat_index,
+                        "repeat_count": step.repeat_count,
+                        "matrix_label": step.matrix_label,
+                        "matrix_index": step.matrix_index,
+                        "matrix_count": step.matrix_count,
+                        "completed": batch_completed and batch_exit_code == 0,
+                        "error_type": None if batch_exit_code == 0 else "BatchStepFailed",
+                        "batch_summary_path": str(batch_summary_path) if batch_summary_path is not None else None,
+                    }
+                )
+            else:
+                raise ValueError(f"Unsupported scheme step type: {step.type}")
+            if scheme_summary["steps"][-1].get("completed") is not True and scheme.stop_on_error:
+                break
+    finally:
+        summary_path = finish_scheme_summary(scheme_dir, scheme_summary)
+        scheme_quality = evaluate_scheme_quality(summary_path)
+        update_scheme_summary_quality(summary_path, scheme_quality)
+        artifacts: dict[str, str] = {"summary_path": str(summary_path)}
+        report_path = write_scheme_report(summary_path)
+        artifacts["report_path"] = str(report_path)
+        if create_exports:
+            artifacts["scheme_runs_path"] = str(write_scheme_runs_csv(summary_path))
+            artifacts["scheme_points_path"] = str(write_scheme_points_csv(summary_path))
+            artifacts["scheme_stats_path"] = str(write_scheme_stats_csv(summary_path))
+            if create_plot:
+                artifacts["scheme_plot_path"] = str(write_scheme_overlay_svg(summary_path))
+        report_text = report_path.read_text(encoding="utf-8")
+    summary_lines = [
+        f"Scheme dry-run: {scheme.name}",
+        f"Summary: {summary_path}",
+        f"Directory: {scheme_dir}",
+        format_scheme_quality(scheme_quality),
+    ]
+    return GuiSchemeRunResult(
+        summary_path=summary_path,
+        scheme_dir=scheme_dir,
+        summary_text="\n".join(summary_lines),
+        report_text=report_text,
+        artifact_paths=artifacts,
+    )
+
+
+def run_gui_scheme_drain_iv_step(
+    step,
+    fake: GuiFakeSettings,
+    safety_dir: str | Path,
+    index_path: str | Path,
+    create_plot: bool,
+    create_report: bool,
+    progress_callback: GuiProgressCallback | None,
+) -> GuiRunResult:
+    recipe = load_scheme_step_recipe(step)
+    safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+    metadata = run_drain_iv(
+        recipe,
+        safety,
+        FakeSMU(fake.resistance_ohm, fake.noise_std_a),
+        recipe_path=step.path,
+        progress_callback=progress_callback,
+    )
+    metadata.setdefault("measurement_type", "drain_iv")
+    return finalize_gui_run_result(
+        "drain_iv",
+        metadata,
+        index_path=index_path,
+        create_plot=create_plot,
+        create_report=create_report,
+    )
+
+
+def run_gui_scheme_single_gate_step(
+    step,
+    fake: GuiFakeSettings,
+    safety_dir: str | Path,
+    index_path: str | Path,
+    create_plot: bool,
+    create_report: bool,
+    progress_callback: GuiProgressCallback | None,
+) -> GuiRunResult:
+    recipe = load_scheme_step_single_gate_recipe(step)
+    safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+    state = CoupledFakeDeviceState(
+        channel_resistance_ohm=fake.channel_resistance_ohm,
+        gate_leak_resistance_ohm=fake.gate_leak_resistance_ohm,
+        gate_modulation_per_v=fake.gate_modulation_per_v,
+        noise_std_a=fake.noise_std_a,
+    )
+    metadata = run_single_gate_sweep(
+        recipe,
+        safety,
+        CoupledFakeSMU("drain", state),
+        CoupledFakeSMU("gate", state),
+        recipe_path=step.path,
+        progress_callback=progress_callback,
+    )
+    metadata.setdefault("measurement_type", "single_gate_sweep")
+    return finalize_gui_run_result(
+        "single_gate_sweep",
+        metadata,
+        index_path=index_path,
+        create_plot=create_plot,
+        create_report=create_report,
+    )
+
+
+def run_gui_scheme_batch_step(
+    step,
+    scheme_dir: Path,
+    fake: GuiFakeSettings,
+    safety_dir: str | Path,
+    index_path: str | Path,
+    create_plot: bool,
+    create_report: bool,
+    create_exports: bool,
+    progress_callback: GuiProgressCallback | None,
+) -> tuple[int, Path | None]:
+    batch = load_batch(step.path)
+    entries = resolve_batch_entries(batch, step.path)
+    batch_dir, batch_summary = create_batch_summary(batch, step.path, True, scheme_dir / "batches")
+    worst_exit_code = 0
+    summary_path: Path | None = None
+    try:
+        for entry in entries:
+            recipe = load_recipe(entry.recipe_path)
+            safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+            metadata = run_drain_iv(
+                recipe,
+                safety,
+                FakeSMU(fake.resistance_ohm, fake.noise_std_a),
+                recipe_path=entry.recipe_path,
+                progress_callback=progress_callback,
+            )
+            metadata.setdefault("measurement_type", "drain_iv")
+            result = finalize_gui_run_result(
+                "drain_iv",
+                metadata,
+                index_path=index_path,
+                create_plot=create_plot,
+                create_report=create_report,
+            )
+            metadata = result.metadata
+            batch_summary["runs"].append(
+                {
+                    "label": entry.label,
+                    "base_label": entry.base_label,
+                    "repeat_index": entry.repeat_index,
+                    "repeat_count": entry.repeat_count,
+                    "recipe_path": str(entry.recipe_path),
+                    "completed": metadata.get("completed"),
+                    "interrupted": metadata.get("interrupted"),
+                    "error_type": metadata.get("error_type"),
+                    "error_message": metadata.get("error_message"),
+                    "points_written": metadata.get("points_written"),
+                    "run_dir": metadata.get("run_dir"),
+                    "metadata_path": metadata.get("metadata_path"),
+                    "csv_path": metadata.get("csv_path"),
+                    "plot_path": metadata.get("plot_path"),
+                    "report_path": metadata.get("report_path"),
+                    "quality": metadata.get("quality"),
+                }
+            )
+            if metadata.get("error_type"):
+                worst_exit_code = max(worst_exit_code, 2)
+                if batch.stop_on_error:
+                    break
+    finally:
+        summary_path = finish_batch_summary(batch_dir, batch_summary)
+        batch_quality = evaluate_batch_quality(summary_path)
+        update_batch_summary_quality(summary_path, batch_quality)
+        if batch_quality.get("status") == "FAIL":
+            worst_exit_code = max(worst_exit_code, 2)
+        if create_exports:
+            write_batch_runs_csv(summary_path)
+            write_batch_points_csv(summary_path)
+            write_batch_stats_csv(summary_path)
+        if create_report:
+            write_batch_report(summary_path)
+    return worst_exit_code, summary_path
+
+
+def _scheme_run_step_record(step, metadata: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "label": step.label,
+        "type": step.type,
+        "path": str(step.path),
+        "overrides": step.overrides.model_dump(mode="json", exclude_none=True) if step.overrides is not None else None,
+        "repeat_index": step.repeat_index,
+        "repeat_count": step.repeat_count,
+        "matrix_label": step.matrix_label,
+        "matrix_index": step.matrix_index,
+        "matrix_count": step.matrix_count,
+        "completed": metadata.get("completed"),
+        "error_type": metadata.get("error_type"),
+        "run_dir": metadata.get("run_dir"),
+        "metadata_path": metadata.get("metadata_path"),
+        "quality": metadata.get("quality"),
+    }
+
+
+def write_gui_draft_scheme(
+    scheme_name: str,
+    text: str,
+    draft_dir: str | Path = "data/gui_drafts/schemes",
+) -> Path:
+    directory = Path(draft_dir)
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{safe_filename(scheme_name)}.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
 
 
 def finalize_gui_run_result(

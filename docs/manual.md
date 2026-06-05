@@ -486,14 +486,23 @@ Scheme Builder workflow:
 6. Click `Form -> Scheme YAML`.
 7. Click `Check Scheme`.
 8. Click `Scheme Plan` and inspect the expanded workflow.
-9. Click `Save Scheme As` only after validation passes.
+9. Click `Dry Run Scheme` to execute the scheme with fake instruments.
+10. Inspect `Result` and `Report`.
+11. Use `Scheme Folder` or `Scheme Report` to open saved artifacts.
+12. Click `Save Scheme As` only after validation passes.
 
 Drain I-V overrides let one base recipe be reused for several sweep conditions
 without copying the recipe file. For example, a row can set `Suffix` to
 `_small`, `Start V` to `-0.05`, `Stop V` to `0.05`, and `Points` to `5`.
 
-The GUI Scheme Builder currently creates, validates, previews, and saves scheme
-YAML. Scheme execution remains a CLI workflow for this phase:
+The GUI Scheme Builder currently creates, validates, previews, dry-runs, and
+reviews scheme YAML. `Dry Run Scheme` uses the fake settings under `Dry-run
+Model`, writes a draft scheme under `data/gui_drafts/schemes`, and stores
+scheme artifacts under `data/schemes`. Dry-run intervals are skipped so the GUI
+can validate the workflow quickly.
+
+Hardware scheme execution remains a CLI workflow until separate lab smoke tests
+gate it:
 
 ```powershell
 ptm scheme-plan configs/schemes/<scheme>.yaml
