@@ -608,6 +608,9 @@ def format_dual_gate_lockin_hall_suite_lab_return_manifest(payload: dict) -> str
 def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir: Path) -> dict:
     workflow = inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir)
     package_dir = Path(workflow["package_dir"])
+    manifest_path = Path(workflow["package_manifest"])
+    manifest = _load_json_object(manifest_path)
+    workflow_stage_by_key = {stage.get("key"): stage for stage in workflow.get("stages", [])}
     stages: list[dict] = []
 
     def add_stage(key: str, label: str, path: Path, *, ok: bool, details: str = "") -> None:
@@ -625,10 +628,45 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
     add_stage(
         "package_ready",
         "Package ready for lab review",
-        Path(workflow["package_manifest"]),
+        manifest_path,
         ok=bool(workflow.get("ready_for_lab_review")),
         details="base package artifacts",
     )
+    measurement_condition_audits = manifest.get("measurement_condition_audits")
+    measurement_records = (
+        measurement_condition_audits.get("records")
+        if isinstance(measurement_condition_audits, dict)
+        else None
+    )
+    add_stage(
+        "measurement_condition_audits",
+        "Measurement-condition audits",
+        manifest_path,
+        ok=bool(
+            isinstance(measurement_condition_audits, dict)
+            and measurement_condition_audits.get("ok_for_hardware") is True
+            and isinstance(measurement_records, list)
+            and bool(measurement_records)
+        ),
+        details=(
+            f"{len(measurement_records)} records, ok_for_hardware={measurement_condition_audits.get('ok_for_hardware')!r}"
+            if isinstance(measurement_records, list) and isinstance(measurement_condition_audits, dict)
+            else "missing normalized measurement-condition audit block"
+        ),
+    )
+    for key, label in [
+        ("keithley_parameter_audits", "Keithley parameter audits"),
+        ("lockin_setting_audits", "SR860 setting audits"),
+    ]:
+        workflow_stage = workflow_stage_by_key.get(key) or {}
+        path_text = workflow_stage.get("path") or str(package_dir)
+        add_stage(
+            key,
+            label,
+            Path(path_text),
+            ok=bool(workflow_stage.get("ok")),
+            details=str(workflow_stage.get("details") or "not present"),
+        )
     handoff_json = package_dir / "handoff_summary" / "handoff_summary.json"
     handoff = _load_optional_json_object(handoff_json)
     add_stage(
@@ -684,13 +722,19 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         details=str(proposal.get("strategy") or "proposal written") if proposal else "not written",
     )
     state = _hall_suite_lifecycle_state(stages)
+    measurement_conditions_ready = _lifecycle_measurement_conditions_ready(stages)
     return {
         "package_dir": str(package_dir),
         "package_manifest": workflow.get("package_manifest"),
         "package_name": workflow.get("package_name"),
         "state": state,
-        "ready_for_lab_handoff": _stage_ok(stages, "handoff_summary"),
-        "ready_for_analysis": _stage_ok(stages, "lab_return") and _stage_ok(stages, "result_intake"),
+        "measurement_conditions_ready": measurement_conditions_ready,
+        "ready_for_lab_handoff": measurement_conditions_ready and _stage_ok(stages, "handoff_summary"),
+        "ready_for_analysis": (
+            measurement_conditions_ready
+            and _stage_ok(stages, "lab_return")
+            and _stage_ok(stages, "result_intake")
+        ),
         "ready_for_next_scan_decision": _stage_ok(stages, "analysis_review") and _stage_ok(stages, "next_scan_proposal"),
         "stages": stages,
     }
@@ -702,6 +746,7 @@ def format_dual_gate_lockin_hall_suite_lifecycle_status(payload: dict) -> str:
         f"Package: {payload.get('package_name') or 'n/a'}",
         f"Directory: {payload.get('package_dir')}",
         f"Lifecycle state: {payload.get('state')}",
+        f"Measurement conditions ready: {payload.get('measurement_conditions_ready')}",
         "",
         "| Stage | Status | Path | Details |",
         "| --- | --- | --- | --- |",
@@ -1429,18 +1474,35 @@ def _stage_ok(stages: list[dict], key: str) -> bool:
     return any(stage.get("key") == key and stage.get("ok") is True for stage in stages)
 
 
+def _lifecycle_measurement_conditions_ready(stages: list[dict]) -> bool:
+    return (
+        _stage_ok(stages, "measurement_condition_audits")
+        and _stage_ok(stages, "keithley_parameter_audits")
+        and _stage_ok(stages, "lockin_setting_audits")
+    )
+
+
 def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
+    measurement_conditions_ready = _lifecycle_measurement_conditions_ready(stages)
+    if not measurement_conditions_ready:
+        if (
+            _stage_ok(stages, "handoff_summary")
+            or _stage_ok(stages, "result_intake")
+            or _stage_ok(stages, "lab_return")
+            or _stage_ok(stages, "analysis")
+        ):
+            return "measurement_condition_review"
     if _stage_ok(stages, "next_scan_proposal"):
         return "next_scan_proposed"
     if _stage_ok(stages, "analysis_review"):
         return "analysis_reviewed"
     if _stage_ok(stages, "analysis"):
         return "analysis_written"
-    if _stage_ok(stages, "lab_return") and _stage_ok(stages, "result_intake"):
+    if measurement_conditions_ready and _stage_ok(stages, "lab_return") and _stage_ok(stages, "result_intake"):
         return "ready_for_analysis"
     if _stage_ok(stages, "result_intake"):
         return "intake_accepted"
-    if _stage_ok(stages, "handoff_summary"):
+    if measurement_conditions_ready and _stage_ok(stages, "handoff_summary"):
         return "ready_for_lab_handoff"
     if _stage_ok(stages, "package_ready"):
         return "package_ready"

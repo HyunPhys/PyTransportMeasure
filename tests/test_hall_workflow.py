@@ -310,7 +310,12 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
 
     initial = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
     assert initial["state"] == "package_ready"
+    assert initial["measurement_conditions_ready"] is True
     assert initial["ready_for_lab_handoff"] is False
+    initial_stage_by_key = {stage["key"]: stage for stage in initial["stages"]}
+    assert initial_stage_by_key["measurement_condition_audits"]["ok"] is True
+    assert initial_stage_by_key["keithley_parameter_audits"]["ok"] is True
+    assert initial_stage_by_key["lockin_setting_audits"]["ok"] is True
 
     write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
     handoff = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
@@ -340,6 +345,25 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
     returned = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
     assert returned["state"] == "ready_for_analysis"
     assert returned["ready_for_analysis"] is True
+
+
+def test_hall_lifecycle_status_blocks_handoff_when_measurement_condition_audit_regresses(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+    write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    manifest["measurement_condition_audits"]["ok_for_hardware"] = False
+    manifest["measurement_condition_audits"]["records"][0]["ok_for_hardware"] = False
+    package.manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    payload = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    text = format_dual_gate_lockin_hall_suite_lifecycle_status(payload)
+    stage_by_key = {stage["key"]: stage for stage in payload["stages"]}
+
+    assert payload["state"] == "measurement_condition_review"
+    assert payload["measurement_conditions_ready"] is False
+    assert payload["ready_for_lab_handoff"] is False
+    assert stage_by_key["measurement_condition_audits"]["ok"] is False
+    assert "| Measurement-condition audits | REVIEW |" in text
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

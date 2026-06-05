@@ -559,13 +559,18 @@ root.
     next-scan proposal into a single lifecycle status report
   - expose which package stage is ready, missing, or requires review
   - prepare package lifecycle state for GUI package inspection
-- [ ] Phase 25cd: Hall package measurement-condition lifecycle gate
+- [x] Phase 25cd: Hall package measurement-condition lifecycle gate
   - surface Keithley NPLC/range/compliance and SR860 setting audit state in the
     lifecycle report
   - make lifecycle handoff/analysis states explicitly depend on preserved
     measurement-condition artifacts
   - keep Hall-bar package transitions focused on reproducible measurement
     conditions, not only file existence
+- [ ] Phase 25ce: Hall package acquisition-condition drift guard
+  - compare package audit records against returned run metadata before analysis
+  - flag changed Keithley NPLC/range/compliance/source-delay or SR860 settings
+    as measurement-condition drift
+  - keep repeated Hall scans comparable across lab-laptop runs
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

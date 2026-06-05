@@ -598,10 +598,13 @@ next-scan decision:
 ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\sampleA_cd1_lab1 --json-output data\hall_packages\sampleA_cd1_lab1\lifecycle_status.json
 ```
 
-This command summarizes the package manifest, handoff summary, result intake,
-lab-return manifest, Hall analysis, analysis review, and next-scan proposal in
-one table. Use it as the quick lab-notebook status check before deciding what
-the next command should be.
+This command summarizes the package manifest, measurement-condition audits,
+Keithley parameter audits, SR860 setting audits, handoff summary, result
+intake, lab-return manifest, Hall analysis, analysis review, and next-scan
+proposal in one table. `ready_for_lab_handoff` and `ready_for_analysis` stay
+false unless the preserved measurement-condition audits pass. Use it as the
+quick lab-notebook status check before deciding what the next command should
+be.
 
 When intake passes, the full Hall analysis sequence can be run as one command:
 

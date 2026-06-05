@@ -578,6 +578,8 @@ remain point-guarded.
   ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package> --json-output data\hall_packages\<sample_lab_package>\lifecycle_status.json
   ```
 - [ ] Confirm lifecycle state is `ready_for_lab_handoff`.
+- [ ] Confirm lifecycle output says `Measurement conditions ready: True` and
+  the Keithley/SR860 audit stages are PASS.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.
@@ -600,6 +602,8 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package>
   ```
+- [ ] Confirm `ready_for_analysis` was not granted unless measurement-condition
+  audits, Keithley parameter audits, and SR860 setting audits are still PASS.
 - [ ] Confirm the report shows each run acceptance as PASS and no
   `recipe_match`, `grid_signature`, `voltage_probe_role`, or magnetic-field
   errors.

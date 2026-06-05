@@ -554,7 +554,12 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     lifecycle = json.loads(lifecycle_json.read_text(encoding="utf-8"))
     assert lifecycle_code == 0
     assert lifecycle["state"] == "ready_for_lab_handoff"
+    assert lifecycle["measurement_conditions_ready"] is True
     assert lifecycle["ready_for_lab_handoff"] is True
+    lifecycle_stage_by_key = {stage["key"]: stage for stage in lifecycle["stages"]}
+    assert lifecycle_stage_by_key["measurement_condition_audits"]["ok"] is True
+    assert lifecycle_stage_by_key["keithley_parameter_audits"]["ok"] is True
+    assert lifecycle_stage_by_key["lockin_setting_audits"]["ok"] is True
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):
@@ -660,6 +665,7 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     lifecycle = json.loads(lifecycle_json.read_text(encoding="utf-8"))
     assert lifecycle_code == 0
     assert lifecycle["state"] == "ready_for_analysis"
+    assert lifecycle["measurement_conditions_ready"] is True
     assert lifecycle["ready_for_analysis"] is True
 
     code = main(
