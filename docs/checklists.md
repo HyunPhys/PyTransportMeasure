@@ -794,6 +794,14 @@ remain point-guarded.
 - [ ] Confirm the packet's measurement-parameter table shows intentional
   Keithley voltage range, current range, NPLC, source delay, gate sweep, and
   compliance values for both gate SMUs.
+- [ ] Before SR860 hardware preflight, run the combined measurement-condition
+  audit and save the JSON artifact.
+  ```powershell
+  ptm measurement-parameter-audit dual_gate_lockin_sweep configs\recipes\<dual_gate_lockin_recipe>.yaml --json-output docs\<sample>_measurement_audit.json
+  ```
+- [ ] Confirm the audit's SR860 section reports `PASS` for reference,
+  excitation amplitude, input wiring, voltage range, sensitivity, time
+  constant, filter slope, synchronous filter, and settle policy.
 - [ ] Confirm the packet includes `scale-up-check`, `preflight`, `chunk-plan`,
   chunk acquisition, chunk audit, chunk feedback, stitch, and strict audit
   commands.

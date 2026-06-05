@@ -1,10 +1,14 @@
 from pathlib import Path
 
 from pytransport.measurement_parameters import (
+    audit_lockin_hardware_parameters,
     audit_smu_hardware_parameters,
     assert_required_smu_parameters_for_hardware,
+    format_lockin_hardware_parameter_audit,
     format_measurement_parameter_issues,
+    format_measurement_parameter_audit,
     format_smu_hardware_parameter_audit,
+    measurement_parameter_audit_to_dict,
     missing_explicit_nplc,
     missing_required_smu_hardware_parameters,
     smu_hardware_parameter_audit_to_dict,
@@ -172,3 +176,141 @@ def test_smu_hardware_parameter_audit_reports_dual_gate_lockin_roles(tmp_path: P
     assert payload["roles"][1]["missing_required_parameters"] == ["nplc"]
     assert "| gate1 | keithley_2450 | `GPIB0::2::INSTR` | FRONT | 0.2 | 1e-09 | 1 | 0.05 | 1e-09 | PASS |" in text
     assert "MISSING nplc" in text
+
+
+def test_lockin_hardware_parameter_audit_reports_required_sr860_conditions(tmp_path: Path):
+    recipe = DualGateLockInRecipe.model_validate(
+        {
+            "measurement_name": "audit_lockin",
+            "gate1_instrument": {
+                "id": "keithley_2450",
+                "address": "GPIB0::2::INSTR",
+                "voltage_range_v": 0.2,
+                "current_range_a": 1e-9,
+                "nplc": 1.0,
+            },
+            "gate2_instrument": {
+                "id": "keithley_2450",
+                "address": "GPIB0::3::INSTR",
+                "voltage_range_v": 0.2,
+                "current_range_a": 1e-9,
+                "nplc": 1.0,
+            },
+            "lockin": {
+                "enabled": True,
+                "address": "GPIB0::4::INSTR",
+                "reference_source": "internal",
+                "reference_frequency_hz": 17.777,
+                "sine_output_amplitude_v": 0.01,
+                "input_mode": "voltage",
+                "voltage_input": "a-b",
+                "input_coupling": "ac",
+                "input_grounding": "float",
+                "voltage_input_range_v": 0.01,
+                "sensitivity_index": 18,
+                "time_constant_index": 10,
+                "settle_time_constants": 3.0,
+                "filter_slope_db_per_oct": 24,
+                "synchronous_filter": False,
+            },
+            "topology": {
+                "source_contact": "S",
+                "drain_contact": "D",
+                "lockin_input_contacts": ["V1", "V2"],
+                "excitation_contacts": ["S", "D"],
+                "excitation_amplitude_v": 0.01,
+            },
+            "gate1_sweep": {
+                "start_v": -0.1,
+                "stop_v": 0.1,
+                "points": 3,
+                "settle_s": 0,
+                "current_compliance_a": 1e-9,
+            },
+            "gate2_sweep": {
+                "start_v": -0.1,
+                "stop_v": 0.1,
+                "points": 3,
+                "settle_s": 0,
+                "current_compliance_a": 1e-9,
+            },
+            "output": {"directory": tmp_path},
+        }
+    )
+
+    audits = audit_lockin_hardware_parameters(recipe)
+    payload = measurement_parameter_audit_to_dict(recipe)
+    text = format_lockin_hardware_parameter_audit(audits)
+    combined_text = format_measurement_parameter_audit(recipe)
+
+    assert len(audits) == 1
+    assert audits[0].ok_for_hardware is True
+    assert audits[0].settle_policy_ok is True
+    assert payload["ok_for_hardware"] is True
+    assert payload["lockin"]["roles"][0]["time_constant_index"] == 10
+    assert "| lockin | srs_sr860 | `GPIB0::4::INSTR` | internal | 17.777 | 0.01 | voltage | a-b | 0.01 | 18 | 10 | 3 | auto | 24 | False | PASS |" in text
+    assert "SR860 lock-in hardware parameter audit" in combined_text
+
+
+def test_lockin_hardware_parameter_audit_flags_missing_settings_and_settle_policy(tmp_path: Path):
+    recipe = DualGateLockInRecipe.model_validate(
+        {
+            "measurement_name": "audit_lockin_missing",
+            "gate1_instrument": {
+                "id": "keithley_2450",
+                "address": "GPIB0::2::INSTR",
+                "voltage_range_v": 0.2,
+                "current_range_a": 1e-9,
+                "nplc": 1.0,
+            },
+            "gate2_instrument": {
+                "id": "keithley_2450",
+                "address": "GPIB0::3::INSTR",
+                "voltage_range_v": 0.2,
+                "current_range_a": 1e-9,
+                "nplc": 1.0,
+            },
+            "lockin": {
+                "enabled": True,
+                "address": "GPIB0::4::INSTR",
+                "reference_source": "internal",
+                "reference_frequency_hz": 17.777,
+                "input_mode": "voltage",
+                "voltage_input": "a-b",
+                "settle_time_constants": 0.0,
+            },
+            "topology": {
+                "source_contact": "S",
+                "drain_contact": "D",
+                "lockin_input_contacts": ["V1", "V2"],
+                "excitation_contacts": ["S", "D"],
+                "excitation_amplitude_v": 0.01,
+            },
+            "gate1_sweep": {
+                "start_v": -0.1,
+                "stop_v": 0.1,
+                "points": 3,
+                "settle_s": 0,
+                "current_compliance_a": 1e-9,
+            },
+            "gate2_sweep": {
+                "start_v": -0.1,
+                "stop_v": 0.1,
+                "points": 3,
+                "settle_s": 0,
+                "current_compliance_a": 1e-9,
+            },
+            "output": {"directory": tmp_path},
+        }
+    )
+
+    audits = audit_lockin_hardware_parameters(recipe)
+    payload = measurement_parameter_audit_to_dict(recipe)
+    text = format_lockin_hardware_parameter_audit(audits)
+
+    assert audits[0].ok_for_hardware is False
+    assert "sine_output_amplitude_v" in audits[0].missing_required_parameters
+    assert "sensitivity_index" in audits[0].missing_required_parameters
+    assert audits[0].settle_policy_ok is False
+    assert payload["ok_for_hardware"] is False
+    assert "MISSING positive settle policy" in text

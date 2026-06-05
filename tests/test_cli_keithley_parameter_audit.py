@@ -4,9 +4,29 @@ from pathlib import Path
 from pytransport import cli
 
 
-def write_dual_gate_lockin_recipe(tmp_path: Path, *, include_gate2_nplc: bool = True) -> Path:
+def write_dual_gate_lockin_recipe(
+    tmp_path: Path,
+    *,
+    include_gate2_nplc: bool = True,
+    complete_lockin_settings: bool = False,
+) -> Path:
     recipe = tmp_path / "dual_gate_lockin.yaml"
     gate2_nplc = "  nplc: 1.0\n" if include_gate2_nplc else ""
+    lockin_settings = """
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
+  input_mode: voltage
+  voltage_input: a-b
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  settle_time_constants: 3.0
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
+""" if complete_lockin_settings else ""
     output_dir = str(tmp_path / "raw").replace("\\", "/")
     recipe.write_text(
         f"""
@@ -31,6 +51,7 @@ gate2_instrument:
   id: srs_sr860
   address: GPIB0::4::INSTR
   channels: [x, y, r, theta]
+{lockin_settings.rstrip()}
 topology:
   source_contact: S
   drain_contact: D
@@ -81,3 +102,31 @@ def test_cli_keithley_parameter_audit_returns_nonzero_for_missing_nplc(tmp_path)
     assert code == 2
     assert payload["ok_for_hardware"] is False
     assert payload["roles"][1]["missing_required_parameters"] == ["nplc"]
+
+
+def test_cli_measurement_parameter_audit_writes_combined_json_for_complete_recipe(tmp_path):
+    recipe = write_dual_gate_lockin_recipe(tmp_path, complete_lockin_settings=True)
+    output = tmp_path / "measurement_audit.json"
+
+    code = cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe), "--json-output", str(output)])
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == 0
+    assert payload["ok_for_hardware"] is True
+    assert payload["smu"]["ok_for_hardware"] is True
+    assert payload["lockin"]["ok_for_hardware"] is True
+    assert payload["lockin"]["roles"][0]["sensitivity_index"] == 18
+    assert payload["lockin"]["roles"][0]["settle_policy_ok"] is True
+
+
+def test_cli_measurement_parameter_audit_returns_nonzero_for_missing_lockin_conditions(tmp_path):
+    recipe = write_dual_gate_lockin_recipe(tmp_path)
+    output = tmp_path / "measurement_audit.json"
+
+    code = cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe), "--json-output", str(output)])
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == 2
+    assert payload["smu"]["ok_for_hardware"] is True
+    assert payload["lockin"]["ok_for_hardware"] is False
+    assert "sensitivity_index" in payload["lockin"]["roles"][0]["missing_required_parameters"]

@@ -1625,6 +1625,21 @@ range, current range, NPLC, source delay, current compliance, and PASS/MISSING
 status. Treat the JSON output as a lab-notebook artifact when comparing
 repeated Hall-bar scans.
 
+For lock-in methods, run the broader measurement-condition audit as well. This
+prints the Keithley section plus the SR860 reference, excitation amplitude,
+input wiring, input range, sensitivity, time constant, filter slope,
+synchronous filter, and settle policy:
+
+```powershell
+ptm measurement-parameter-audit dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml
+ptm measurement-parameter-audit dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml --json-output docs\dual_gate_lockin_measurement_audit.json
+```
+
+Use `measurement-parameter-audit` before SR860 hardware preflight when the
+measurement depends on lock-in settings. A PASS result means the recipe declares
+the intended Keithley NPLC/ranges and the intended SR860 measurement
+conditions; it does not replace the live hardware preflight/readback.
+
 For the Keithley 2450 four-terminal DC path, use the guarded preflight before
 any active output attempt:
 

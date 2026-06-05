@@ -789,6 +789,14 @@ root.
   - reuse one base recipe for multiple scheme conditions
   - round-trip override YAML through the Schemes table
 
+- [x] Phase 25dab: SR860 measurement parameter audit
+  - add a combined `ptm measurement-parameter-audit` command
+  - report Keithley NPLC/ranges/compliance and SR860 reference/input/range/
+    sensitivity/time-constant/filter/settle conditions together
+  - return nonzero when lock-in hardware recipes omit required measurement
+    conditions
+  - keep the existing Keithley-only audit command for focused checks
+
 ## Next GUI
 
 - [x] Phase 24ab: GUI scheme dry-run and saved scheme review draft
