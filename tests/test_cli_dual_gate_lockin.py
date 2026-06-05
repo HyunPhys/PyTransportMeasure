@@ -854,6 +854,66 @@ def test_cli_dual_gate_lockin_broader_scan_packet_fails_when_missing_nplc(tmp_pa
     assert code == 2
 
 
+def test_cli_dual_gate_lockin_adjust_recipe_updates_measurement_parameters(tmp_path):
+    base_recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    adjusted_recipe = tmp_path / "adjusted.yaml"
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-adjust-recipe",
+            str(base_recipe),
+            str(adjusted_recipe),
+            "--measurement-name",
+            "adjusted_after_feedback",
+            "--gate-nplc",
+            "3",
+            "--gate-settle-s",
+            "0.4",
+            "--lockin-sensitivity-index",
+            "20",
+            "--lockin-time-constant-index",
+            "11",
+            "--lockin-settle-time-constants",
+            "4",
+            "--adjustment-note",
+            "chunk feedback showed noisy but clean leakage",
+        ]
+    )
+
+    assert code == 0
+    text = adjusted_recipe.read_text(encoding="utf-8")
+    assert "measurement_name: adjusted_after_feedback" in text
+    assert "nplc: 3.0" in text
+    assert "settle_s: 0.4" in text
+    assert "sensitivity_index: 20" in text
+    assert "time_constant_index: 11" in text
+    assert "settle_time_constants: 4.0" in text
+    review = adjusted_recipe.with_suffix(".review.md")
+    assert review.exists()
+    review_text = review.read_text(encoding="utf-8")
+    assert "Dual-Gate Lock-In Recipe Adjustment Review" in review_text
+    assert "chunk feedback showed noisy but clean leakage" in review_text
+    assert "ptm dual-gate-lockin-preflight" in review_text
+
+
+def test_cli_dual_gate_lockin_adjust_recipe_rejects_invalid_lockin_index(tmp_path):
+    base_recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    adjusted_recipe = tmp_path / "adjusted_bad.yaml"
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-adjust-recipe",
+            str(base_recipe),
+            str(adjusted_recipe),
+            "--lockin-sensitivity-index",
+            "99",
+        ]
+    )
+
+    assert code == 2
+    assert not adjusted_recipe.exists()
+
+
 def test_cli_dual_gate_lockin_scale_up_template_fails_when_grid_does_not_include_previous(tmp_path):
     previous_run = make_strictly_accepted_previous_run(tmp_path)
     output_recipe = tmp_path / "candidate_bad.yaml"

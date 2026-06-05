@@ -432,11 +432,15 @@ root.
   - summarize several checkpoint chunk audits into one continue/review report
   - report worst leakage and minimum leakage/compliance margins before deciding
     whether to keep chunk size, NPLC, settle time, and SR860 sensitivity
-- [ ] Phase 25be: First lab-feedback recipe adjustment
-  - use lab feedback from the broader packet, chunk audit, chunk feedback, and
-    first measured chunks
-  - adjust chunk size, settle time, NPLC, or SR860 sensitivity before full
-    Vxx/+B/-B/0B acquisition if the data demands it
+- [x] Phase 25be: First lab-feedback recipe adjustment
+  - add `ptm dual-gate-lockin-adjust-recipe`
+  - create adjusted recipes that keep the gate grid/topology while changing
+    NPLC, gate settle time, SR860 sensitivity/time constant, and read-settle
+    parameters after lab feedback
+  - write an adjustment review markdown with plan/preflight commands
+- [ ] Phase 25bf: Hall-suite full acquisition readiness
+  - use the adjusted recipe flow for Vxx/+B/-B/0B suite recipes when needed
+  - decide whether suite-level adjusted recipes should be generated as a group
   - keep point-count guard, previous-run acceptance, and preflight mandatory
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor

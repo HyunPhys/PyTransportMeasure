@@ -521,6 +521,16 @@ The feedback command runs checkpoint audit on every listed chunk, reports the
 worst gate leakage and minimum leakage/compliance margins, and prints a
 continue/stop recommendation. Use this before deciding whether to keep the same
 chunk size, NPLC, settle time, and SR860 sensitivity for the next acquisition.
+If feedback says to change measurement parameters, create an adjusted recipe
+instead of editing the hardware recipe by hand:
+
+```powershell
+ptm dual-gate-lockin-adjust-recipe configs\recipes\<candidate_recipe>.yaml configs\recipes\<adjusted_recipe>.yaml --gate-nplc <NPLC> --gate-settle-s <seconds> --lockin-sensitivity-index <index> --lockin-time-constant-index <index> --lockin-settle-time-constants <N> --adjustment-note "<why these values changed>"
+```
+
+The adjusted recipe keeps the existing gate grid and topology unless you change
+the measurement name or output directory. It writes a review markdown with the
+updated NPLC, settle, and SR860 settings plus plan/preflight commands.
 
 After all chunks are measured, stitch them into one analysis-ready run:
 

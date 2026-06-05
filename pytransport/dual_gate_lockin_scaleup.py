@@ -22,7 +22,7 @@ from .dual_gate_lockin_review import (
     scale_up_blocking_acceptance_issues,
 )
 from .measurement_parameters import missing_required_smu_hardware_parameters
-from .recipes import DualGateLockInRecipe, SafetyPreset
+from .recipes import DualGateLockInRecipe, SafetyPreset, load_yaml
 
 
 def build_dual_gate_lockin_scale_up_recipe_data(
@@ -180,6 +180,186 @@ def write_dual_gate_lockin_scale_up_review(
         max_hardware_points=max_hardware_points,
     )
     path.write_text(text, encoding="utf-8")
+    return path
+
+
+def build_dual_gate_lockin_adjusted_recipe_data(
+    base_recipe_path: str | Path,
+    *,
+    measurement_name: str | None = None,
+    output_directory: str | Path | None = None,
+    gate1_nplc: float | None = None,
+    gate2_nplc: float | None = None,
+    gate_nplc: float | None = None,
+    gate1_settle_s: float | None = None,
+    gate2_settle_s: float | None = None,
+    gate_settle_s: float | None = None,
+    lockin_sensitivity_index: int | None = None,
+    lockin_time_constant_index: int | None = None,
+    lockin_settle_time_constants: float | None = None,
+    lockin_read_settle_s: float | None = None,
+    adjustment_note: str | None = None,
+) -> dict:
+    data = dict(load_yaml(base_recipe_path))
+    if measurement_name is not None:
+        data["measurement_name"] = measurement_name
+    else:
+        data["measurement_name"] = f"{data.get('measurement_name', 'dual_gate_lockin')}_adjusted"
+    if output_directory is not None:
+        data["output"] = {**dict(data.get("output") or {}), "directory": str(output_directory)}
+
+    gate1_nplc_value = gate_nplc if gate1_nplc is None else gate1_nplc
+    gate2_nplc_value = gate_nplc if gate2_nplc is None else gate2_nplc
+    if gate1_nplc_value is not None:
+        data["gate1_instrument"] = {**dict(data.get("gate1_instrument") or {}), "nplc": gate1_nplc_value}
+    if gate2_nplc_value is not None:
+        data["gate2_instrument"] = {**dict(data.get("gate2_instrument") or {}), "nplc": gate2_nplc_value}
+
+    gate1_settle_value = gate_settle_s if gate1_settle_s is None else gate1_settle_s
+    gate2_settle_value = gate_settle_s if gate2_settle_s is None else gate2_settle_s
+    if gate1_settle_value is not None:
+        data["gate1_sweep"] = {**dict(data.get("gate1_sweep") or {}), "settle_s": gate1_settle_value}
+    if gate2_settle_value is not None:
+        data["gate2_sweep"] = {**dict(data.get("gate2_sweep") or {}), "settle_s": gate2_settle_value}
+
+    lockin_updates = {
+        key: value
+        for key, value in {
+            "sensitivity_index": lockin_sensitivity_index,
+            "time_constant_index": lockin_time_constant_index,
+            "settle_time_constants": lockin_settle_time_constants,
+            "read_settle_s": lockin_read_settle_s,
+        }.items()
+        if value is not None
+    }
+    if lockin_updates:
+        data["lockin"] = {**dict(data.get("lockin") or {}), **lockin_updates}
+
+    if adjustment_note:
+        experiment = dict(data.get("experiment") or {})
+        existing_notes = str(experiment.get("notes") or "").strip()
+        experiment["notes"] = f"{existing_notes}\n{adjustment_note}".strip() if existing_notes else adjustment_note
+        data["experiment"] = experiment
+
+    DualGateLockInRecipe.model_validate(data)
+    return data
+
+
+def write_dual_gate_lockin_adjusted_recipe(
+    base_recipe_path: str | Path,
+    output_path: str | Path,
+    *,
+    measurement_name: str | None = None,
+    output_directory: str | Path | None = None,
+    gate1_nplc: float | None = None,
+    gate2_nplc: float | None = None,
+    gate_nplc: float | None = None,
+    gate1_settle_s: float | None = None,
+    gate2_settle_s: float | None = None,
+    gate_settle_s: float | None = None,
+    lockin_sensitivity_index: int | None = None,
+    lockin_time_constant_index: int | None = None,
+    lockin_settle_time_constants: float | None = None,
+    lockin_read_settle_s: float | None = None,
+    adjustment_note: str | None = None,
+    overwrite: bool = False,
+) -> Path:
+    path = Path(output_path)
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"Adjusted recipe already exists: {path}")
+    data = build_dual_gate_lockin_adjusted_recipe_data(
+        base_recipe_path,
+        measurement_name=measurement_name,
+        output_directory=output_directory,
+        gate1_nplc=gate1_nplc,
+        gate2_nplc=gate2_nplc,
+        gate_nplc=gate_nplc,
+        gate1_settle_s=gate1_settle_s,
+        gate2_settle_s=gate2_settle_s,
+        gate_settle_s=gate_settle_s,
+        lockin_sensitivity_index=lockin_sensitivity_index,
+        lockin_time_constant_index=lockin_time_constant_index,
+        lockin_settle_time_constants=lockin_settle_time_constants,
+        lockin_read_settle_s=lockin_read_settle_s,
+        adjustment_note=adjustment_note,
+    )
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8") as handle:
+        yaml.safe_dump(data, handle, sort_keys=False)
+    return path
+
+
+def format_dual_gate_lockin_adjustment_review(
+    base_recipe_path: str | Path,
+    adjusted_recipe_path: str | Path,
+    recipe: DualGateLockInRecipe,
+    safety: SafetyPreset,
+    *,
+    adjustment_note: str | None = None,
+) -> str:
+    plan = format_dual_gate_lockin_plan(recipe, safety, adjusted_recipe_path, preview_points=5)
+    return "\n".join(
+        [
+            "# Dual-Gate Lock-In Recipe Adjustment Review",
+            "",
+            f"- Base recipe: `{base_recipe_path}`",
+            f"- Adjusted recipe: `{adjusted_recipe_path}`",
+            f"- Measurement name: `{recipe.measurement_name}`",
+            f"- Adjustment note: {adjustment_note or 'n/a'}",
+            "",
+            "## Measurement Parameters",
+            "",
+            "| Role | NPLC | Settle (s) | Voltage range (V) | Current range (A) | Compliance (A) |",
+            "| --- | ---: | ---: | ---: | ---: | ---: |",
+            _adjustment_smu_row("gate1", recipe.gate1_instrument, recipe.gate1_sweep),
+            _adjustment_smu_row("gate2", recipe.gate2_instrument, recipe.gate2_sweep),
+            "",
+            f"- Lock-in sensitivity index: {_fmt_optional(recipe.lockin.sensitivity_index)}",
+            f"- Lock-in time constant index: {_fmt_optional(recipe.lockin.time_constant_index)}",
+            f"- Lock-in settle time constants: {_fmt_optional(recipe.lockin.settle_time_constants)}",
+            f"- Lock-in read settle override: {_fmt_optional(recipe.lockin.read_settle_s)} s",
+            "",
+            "## Required Checks Before Hardware",
+            "",
+            "```powershell",
+            f"ptm dual-gate-lockin-plan {adjusted_recipe_path}",
+            f"ptm dual-gate-lockin-preflight {adjusted_recipe_path}",
+            "```",
+            "",
+            "## Adjusted Plan",
+            "",
+            "```text",
+            plan,
+            "```",
+            "",
+        ]
+    )
+
+
+def write_dual_gate_lockin_adjustment_review(
+    review_path: str | Path,
+    base_recipe_path: str | Path,
+    adjusted_recipe_path: str | Path,
+    recipe: DualGateLockInRecipe,
+    safety: SafetyPreset,
+    *,
+    adjustment_note: str | None = None,
+    overwrite: bool = False,
+) -> Path:
+    path = Path(review_path)
+    if path.exists() and not overwrite:
+        raise FileExistsError(f"Adjustment review already exists: {path}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        format_dual_gate_lockin_adjustment_review(
+            base_recipe_path,
+            adjusted_recipe_path,
+            recipe,
+            safety,
+            adjustment_note=adjustment_note,
+        ),
+        encoding="utf-8",
+    )
     return path
 
 
@@ -372,6 +552,14 @@ def _smu_parameter_row(role: str, instrument, sweep) -> str:
         f"{_fmt_optional(instrument.voltage_range_v)} | {_fmt_optional(instrument.current_range_a)} | "
         f"{_fmt_optional(instrument.nplc)} | {_fmt_optional(instrument.source_delay_s)} | "
         f"{sweep_text} | {sweep.current_compliance_a:.6g} |"
+    )
+
+
+def _adjustment_smu_row(role: str, instrument, sweep) -> str:
+    return (
+        f"| {role} | {_fmt_optional(instrument.nplc)} | {sweep.settle_s:.6g} | "
+        f"{_fmt_optional(instrument.voltage_range_v)} | {_fmt_optional(instrument.current_range_a)} | "
+        f"{sweep.current_compliance_a:.6g} |"
     )
 
 

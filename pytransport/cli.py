@@ -60,6 +60,8 @@ from .dual_gate_lockin_scaleup import (
     default_dual_gate_lockin_scale_up_review_path,
     format_dual_gate_lockin_broader_scan_packet,
     write_dual_gate_lockin_broader_scan_packet,
+    write_dual_gate_lockin_adjusted_recipe,
+    write_dual_gate_lockin_adjustment_review,
     write_dual_gate_lockin_scale_up_recipe,
     write_dual_gate_lockin_scale_up_review,
 )
@@ -496,6 +498,30 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_broader_scan_packet.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_broader_scan_packet.add_argument("--output", type=Path)
     dual_gate_lockin_broader_scan_packet.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_adjust_recipe = subparsers.add_parser(
+        "dual-gate-lockin-adjust-recipe",
+        help="Create an adjusted dual-gate lock-in recipe after lab feedback without changing the gate grid.",
+    )
+    dual_gate_lockin_adjust_recipe.add_argument("base_recipe", type=Path)
+    dual_gate_lockin_adjust_recipe.add_argument("output_recipe", type=Path)
+    dual_gate_lockin_adjust_recipe.add_argument("--measurement-name")
+    dual_gate_lockin_adjust_recipe.add_argument("--output-directory", type=Path)
+    dual_gate_lockin_adjust_recipe.add_argument("--gate-nplc", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--gate1-nplc", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--gate2-nplc", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--gate-settle-s", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--gate1-settle-s", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--gate2-settle-s", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--lockin-sensitivity-index", type=int)
+    dual_gate_lockin_adjust_recipe.add_argument("--lockin-time-constant-index", type=int)
+    dual_gate_lockin_adjust_recipe.add_argument("--lockin-settle-time-constants", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--lockin-read-settle-s", type=float)
+    dual_gate_lockin_adjust_recipe.add_argument("--adjustment-note")
+    dual_gate_lockin_adjust_recipe.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_adjust_recipe.add_argument("--review-path", type=Path)
+    dual_gate_lockin_adjust_recipe.add_argument("--no-review", action="store_true")
+    dual_gate_lockin_adjust_recipe.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_suite_template = subparsers.add_parser(
         "dual-gate-lockin-hall-suite-template",
@@ -1689,6 +1715,52 @@ def command_dual_gate_lockin_broader_scan_packet(args: argparse.Namespace) -> in
         and all(chunk.point_count <= args.max_hardware_points for chunk in chunks)
     )
     return 0 if ready else 2
+
+
+def command_dual_gate_lockin_adjust_recipe(args: argparse.Namespace) -> int:
+    try:
+        output_path = write_dual_gate_lockin_adjusted_recipe(
+            args.base_recipe,
+            args.output_recipe,
+            measurement_name=args.measurement_name,
+            output_directory=args.output_directory,
+            gate1_nplc=args.gate1_nplc,
+            gate2_nplc=args.gate2_nplc,
+            gate_nplc=args.gate_nplc,
+            gate1_settle_s=args.gate1_settle_s,
+            gate2_settle_s=args.gate2_settle_s,
+            gate_settle_s=args.gate_settle_s,
+            lockin_sensitivity_index=args.lockin_sensitivity_index,
+            lockin_time_constant_index=args.lockin_time_constant_index,
+            lockin_settle_time_constants=args.lockin_settle_time_constants,
+            lockin_read_settle_s=args.lockin_read_settle_s,
+            adjustment_note=args.adjustment_note,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, ValueError) as exc:
+        print(f"Dual-gate lock-in recipe adjustment failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Adjusted recipe: {output_path}")
+    if not args.no_review:
+        method = handler_for_measurement_type("dual_gate_lockin_sweep")
+        recipe = method.load_recipe(output_path)
+        safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
+        review_path = args.review_path or output_path.with_suffix(".review.md")
+        try:
+            written_review = write_dual_gate_lockin_adjustment_review(
+                review_path,
+                args.base_recipe,
+                output_path,
+                recipe,
+                safety,
+                adjustment_note=args.adjustment_note,
+                overwrite=args.overwrite,
+            )
+        except FileExistsError as exc:
+            print(f"Dual-gate lock-in recipe adjustment failed: {exc}", file=sys.stderr)
+            return 2
+        print(f"Adjustment review: {written_review}")
+    return 0
 
 
 def command_dual_gate_lockin_hall_suite_template(args: argparse.Namespace) -> int:
@@ -3049,6 +3121,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_template(args)
     if args.command == "dual-gate-lockin-broader-scan-packet":
         return command_dual_gate_lockin_broader_scan_packet(args)
+    if args.command == "dual-gate-lockin-adjust-recipe":
+        return command_dual_gate_lockin_adjust_recipe(args)
     if args.command == "dual-gate-lockin-hall-suite-template":
         return command_dual_gate_lockin_hall_suite_template(args)
     if args.command == "dual-gate-lockin-hall-suite-check":

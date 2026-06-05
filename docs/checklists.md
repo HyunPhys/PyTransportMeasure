@@ -536,6 +536,13 @@ remain point-guarded.
   ```
 - [ ] Confirm it prints `Dual-gate lock-in chunk feedback: PASS` before keeping
   the same chunk size, NPLC, settle time, and SR860 sensitivity.
+- [ ] If feedback indicates noisy signal or marginal settling, create an
+  adjusted recipe instead of hand-editing the hardware recipe.
+  ```powershell
+  ptm dual-gate-lockin-adjust-recipe configs\recipes\<candidate_recipe>.yaml configs\recipes\<adjusted_recipe>.yaml --gate-nplc <NPLC> --gate-settle-s <seconds> --lockin-sensitivity-index <index> --lockin-time-constant-index <index> --lockin-settle-time-constants <N> --adjustment-note "<lab feedback>"
+  ```
+- [ ] Confirm the generated review markdown shows the intended NPLC, settle
+  time, SR860 sensitivity, time constant, and preflight command.
 - [ ] Before chunked hardware work, print the chunk runbook.
   ```powershell
   ptm dual-gate-lockin-chunk-plan configs\recipes\<dual_gate_lockin_recipe>.yaml --chunk-size <N> --max-hardware-points <N>
