@@ -661,6 +661,23 @@ setting readback was not available. For real hardware runs, leave the strict
 default in place. Continue to Hall antisymmetry, zero-field correction, and
 mobility analysis only after intake reports PASS.
 
+After intake passes, audit the hardware evidence provenance for all returned
+Hall-suite run folders:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-hardware-evidence-audits data\hall_packages\sampleA_cd1_lab1 --overwrite
+```
+
+This writes `hardware_evidence_audits/hardware_evidence_audits.md` and
+`hardware_evidence_audits/hardware_evidence_audits.json` inside the package,
+plus one per-run audit file for Vxx/+B/-B/0B. The audit rechecks each returned
+run's `metadata.hardware_evidence` block and its saved measurement-parameter
+audit JSON against the run's `metadata.recipe_path`. For real Hall data this is
+where Keithley NPLC, voltage/current ranges, compliance, source delay, and SR860
+evidence provenance become an explicit analysis gate. Add
+`--require-sr860-configure` when the acquisition command was expected to use a
+saved SR860 configure transcript.
+
 After intake passes, record the returned lab run set in the package:
 
 ```powershell
@@ -682,14 +699,15 @@ ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\sampleA_cd1_
 
 This command summarizes the package manifest, measurement-condition audits,
 Keithley parameter audits, SR860 setting audits, lab-smoke
-measurement-parameter audits, handoff summary, result intake,
-acquisition-condition drift audit, lab-return manifest, Hall analysis, analysis
-review, and next-scan proposal in one table. `ready_for_lab_handoff` stays
-false unless the preserved measurement-condition audits and lab-smoke
+measurement-parameter audits, handoff summary, result intake, hardware evidence
+audits, acquisition-condition drift audit, lab-return manifest, Hall analysis,
+analysis review, and next-scan proposal in one table. `ready_for_lab_handoff`
+stays false unless the preserved measurement-condition audits and lab-smoke
 measurement-parameter audit bundle pass.
-`ready_for_analysis` stays false unless result intake, lab-return manifest, and
-acquisition-condition drift audit all pass. Use it as the quick lab-notebook
-status check before deciding what the next command should be.
+`ready_for_analysis` stays false unless result intake, hardware evidence
+audits, lab-return manifest, returned-run snapshot, and acquisition-condition
+drift audit all pass. Use it as the quick lab-notebook status check before
+deciding what the next command should be.
 
 Before analysis, compare the packaged measurement conditions against the
 returned run metadata:
@@ -712,11 +730,12 @@ and topology fields such as Vxx/Vxy voltage contacts and excitation contacts.
 `dual-gate-lockin-hall-suite-analyze` also runs this guard internally and
 refuses analysis if drift is detected.
 
-After running the snapshot and drift audits, rerun lifecycle status. The
-lifecycle state should move from `condition_snapshot_pending` to
-`condition_drift_pending`, then to `ready_for_analysis` once the snapshot,
-drift audit, and lab-return manifest all pass. The lab-return manifest records
-the intake, snapshot, and drift artifact paths together.
+After running the hardware evidence, snapshot, and drift audits, rerun lifecycle
+status. The lifecycle state should move from `hardware_evidence_pending` to
+`condition_snapshot_pending`, then `condition_drift_pending`, and finally
+`ready_for_analysis` once the evidence audit, snapshot, drift audit, and
+lab-return manifest all pass. The lab-return manifest records the intake,
+snapshot, and drift artifact paths together.
 
 After analysis/review/proposal, write one package-local return bundle index for
 the lab notebook:

@@ -717,6 +717,15 @@ remain point-guarded.
   the Vxx/Vxy contact roles match the lab notebook.
 - [ ] Confirm `result_intake.json` records `runs.<role>.topology` for each
   returned run.
+- [ ] Audit returned-run hardware evidence before analysis.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-hardware-evidence-audits data\hall_packages\<sample_lab_package> --overwrite
+  ```
+- [ ] Confirm `hardware_evidence_audits/hardware_evidence_audits.md` says
+  `Accepted for analysis gate: True`.
+- [ ] Confirm lifecycle status shows `Hardware evidence audits` as PASS. Treat a
+  failure as a stop before Hall analysis, especially if Keithley NPLC, voltage
+  range, current range, compliance, or SR860 configure evidence changed.
 - [ ] Write the lab-return manifest after intake PASS.
   ```powershell
   ptm dual-gate-lockin-hall-suite-lab-return-manifest data\hall_packages\<sample_lab_package> --operator-note "<lab notebook reference>" --overwrite
@@ -729,7 +738,8 @@ remain point-guarded.
   ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package>
   ```
 - [ ] Confirm `ready_for_analysis` was not granted unless measurement-condition
-  audits, Keithley parameter audits, and SR860 setting audits are still PASS.
+  audits, Keithley parameter audits, SR860 setting audits, and hardware
+  evidence audits are still PASS.
 - [ ] Write the returned-run condition snapshot table for the lab notebook.
   ```powershell
   ptm dual-gate-lockin-hall-suite-condition-snapshot data\hall_packages\<sample_lab_package>

@@ -887,6 +887,13 @@ root.
   - recheck saved measurement-audit evidence against `metadata.recipe_path`
   - support strict post-run requirements for measurement-audit and SR860
     configure evidence
+- [x] Phase 25daq: Hall suite hardware evidence audit gate
+  - add package-level returned-run hardware evidence audits after Hall result
+    intake
+  - make Hall lifecycle show `Hardware evidence audits` and block
+    `ready_for_analysis` until the package audit passes
+  - preserve Keithley NPLC/range/compliance and SR860 evidence provenance as a
+    Hall-suite analysis prerequisite
 
 ## Next GUI
 

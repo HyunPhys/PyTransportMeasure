@@ -145,6 +145,7 @@ from .hall_analysis import (
 )
 from .hall_workflow import (
     format_dual_gate_lockin_hall_suite_handoff_summary,
+    format_dual_gate_lockin_hall_suite_hardware_evidence_audits,
     format_dual_gate_lockin_hall_suite_hardware_command_review,
     format_dual_gate_lockin_hall_suite_lab_return_manifest,
     format_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits,
@@ -158,6 +159,7 @@ from .hall_workflow import (
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
     write_dual_gate_lockin_hall_suite_handoff_summary,
+    write_dual_gate_lockin_hall_suite_hardware_evidence_audits,
     write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
     write_dual_gate_lockin_hall_suite_lab_return_manifest,
@@ -876,6 +878,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not require SR860 setting readback in saved run metadata.",
     )
     dual_gate_lockin_hall_suite_intake.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_hardware_evidence_audits = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-hardware-evidence-audits",
+        help="Audit hardware evidence provenance for all returned Hall-suite run folders after result intake.",
+    )
+    dual_gate_lockin_hall_suite_hardware_evidence_audits.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_hardware_evidence_audits.add_argument("--result-intake-json", type=Path)
+    dual_gate_lockin_hall_suite_hardware_evidence_audits.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_suite_hardware_evidence_audits.add_argument(
+        "--allow-missing-measurement-audit",
+        action="store_true",
+        help="Do not fail if returned run metadata lacks measurement-parameter audit evidence.",
+    )
+    dual_gate_lockin_hall_suite_hardware_evidence_audits.add_argument(
+        "--require-sr860-configure",
+        action="store_true",
+        help="Require saved SR860 configure evidence in returned run metadata.",
+    )
+    dual_gate_lockin_hall_suite_hardware_evidence_audits.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_suite_condition_drift = subparsers.add_parser(
         "dual-gate-lockin-hall-suite-condition-drift",
@@ -3015,6 +3036,25 @@ def command_dual_gate_lockin_hall_suite_lab_return_manifest(args: argparse.Names
     return 0 if payload["ready_for_analysis"] else 1
 
 
+def command_dual_gate_lockin_hall_suite_hardware_evidence_audits(args: argparse.Namespace) -> int:
+    try:
+        payload = write_dual_gate_lockin_hall_suite_hardware_evidence_audits(
+            args.package_manifest_or_dir,
+            result_intake_json=args.result_intake_json,
+            output_dir=args.output_dir,
+            require_measurement_audit=not args.allow_missing_measurement_audit,
+            require_sr860_configure=args.require_sr860_configure,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite hardware evidence audits failed: {exc}", file=sys.stderr)
+        return 2
+    print(format_dual_gate_lockin_hall_suite_hardware_evidence_audits(payload))
+    print(f"Report: {payload['report_path']}")
+    print(f"JSON: {payload['json_path']}")
+    return 0 if payload["accepted"] else 1
+
+
 def command_dual_gate_lockin_hall_suite_lifecycle_status(args: argparse.Namespace) -> int:
     try:
         payload = inspect_dual_gate_lockin_hall_suite_lifecycle_status(args.package_manifest_or_dir)
@@ -4596,6 +4636,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_package(args)
     if args.command == "dual-gate-lockin-hall-suite-intake":
         return command_dual_gate_lockin_hall_suite_intake(args)
+    if args.command == "dual-gate-lockin-hall-suite-hardware-evidence-audits":
+        return command_dual_gate_lockin_hall_suite_hardware_evidence_audits(args)
     if args.command == "dual-gate-lockin-hall-suite-condition-drift":
         return command_dual_gate_lockin_hall_suite_condition_drift(args)
     if args.command == "dual-gate-lockin-hall-suite-condition-snapshot":

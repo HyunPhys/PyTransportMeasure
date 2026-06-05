@@ -21,6 +21,11 @@ from .dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_next_scan_proposal,
     write_dual_gate_lockin_hall_suite_result_intake,
 )
+from .hardware_evidence import (
+    audit_hardware_evidence,
+    format_hardware_evidence_audit,
+    hardware_evidence_audit_to_dict,
+)
 from .instruments.fake import DualGateFakeDeviceState, DualGateFakeLockIn, DualGateFakeSMU
 from .measurement_parameters import format_measurement_parameter_audit, measurement_parameter_audit_to_dict
 from .recipes import OutputConfig, load_dual_gate_lockin_recipe, load_named_safety_preset
@@ -995,6 +1000,174 @@ def format_dual_gate_lockin_hall_suite_lab_return_manifest(payload: dict) -> str
     return "\n".join(lines)
 
 
+def write_dual_gate_lockin_hall_suite_hardware_evidence_audits(
+    package_manifest_or_dir: Path,
+    *,
+    result_intake_json: Path | None = None,
+    output_dir: Path | None = None,
+    require_measurement_audit: bool = True,
+    require_sr860_configure: bool = False,
+    overwrite: bool = False,
+) -> dict:
+    manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    intake_path = result_intake_json or package_dir / "result_intake.json"
+    intake = _load_json_object(intake_path)
+    if intake.get("accepted") is not True:
+        raise ValueError(f"{intake_path} is not accepted")
+    runs = intake.get("runs")
+    if not isinstance(runs, dict) or not runs:
+        raise ValueError(f"{intake_path} is missing runs")
+    out = output_dir or package_dir / "hardware_evidence_audits"
+    if out.exists() and not overwrite:
+        raise FileExistsError(f"Hall hardware evidence audits already exist: {out}")
+    out.mkdir(parents=True, exist_ok=True)
+
+    records: list[dict] = []
+    for run_key, record in runs.items():
+        run_dir_value = record.get("run_dir") if isinstance(record, dict) else None
+        if not run_dir_value:
+            records.append(
+                {
+                    "run_key": run_key,
+                    "run_dir": None,
+                    "accepted": False,
+                    "json": None,
+                    "markdown": None,
+                    "issues": [
+                        {
+                            "check": "run_dir",
+                            "severity": "error",
+                            "message": "result_intake run record is missing run_dir",
+                        }
+                    ],
+                }
+            )
+            continue
+        run_dir = Path(str(run_dir_value))
+        safe_key = _safe_artifact_name(str(run_key))
+        json_path = out / f"{safe_key}_hardware_evidence_audit.json"
+        report_path = out / f"{safe_key}_hardware_evidence_audit.md"
+        try:
+            audit = audit_hardware_evidence(
+                run_dir,
+                require_measurement_audit=require_measurement_audit,
+                require_sr860_configure=require_sr860_configure,
+            )
+            audit_payload = hardware_evidence_audit_to_dict(audit)
+            json_path.write_text(json.dumps(audit_payload, indent=2, sort_keys=True), encoding="utf-8")
+            report_path.write_text(format_hardware_evidence_audit(audit), encoding="utf-8")
+            records.append(
+                {
+                    "run_key": run_key,
+                    "run_dir": str(run_dir),
+                    "accepted": audit.accepted,
+                    "json": str(json_path),
+                    "markdown": str(report_path),
+                    "issues": audit_payload.get("issues", []),
+                    "measurement_type": audit.measurement_type,
+                    "evidence_present": audit.evidence_present,
+                }
+            )
+        except Exception as exc:
+            records.append(
+                {
+                    "run_key": run_key,
+                    "run_dir": str(run_dir),
+                    "accepted": False,
+                    "json": None,
+                    "markdown": None,
+                    "issues": [
+                        {
+                            "check": "hardware_evidence_audit",
+                            "severity": "error",
+                            "message": f"{type(exc).__name__}: {exc}",
+                        }
+                    ],
+                }
+            )
+
+    accepted = bool(records) and all(record.get("accepted") is True for record in records)
+    payload = {
+        "schema": "pytransport.hall_suite_hardware_evidence_audits.v1",
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "result_intake_json": str(intake_path),
+        "accepted": accepted,
+        "run_count": len(records),
+        "require_measurement_audit": require_measurement_audit,
+        "require_sr860_configure": require_sr860_configure,
+        "records": records,
+    }
+    json_path = out / "hardware_evidence_audits.json"
+    report_path = out / "hardware_evidence_audits.md"
+    payload["json_path"] = str(json_path)
+    payload["report_path"] = str(report_path)
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_hardware_evidence_audits(payload), encoding="utf-8")
+    return payload
+
+
+def format_dual_gate_lockin_hall_suite_hardware_evidence_audits(payload: dict) -> str:
+    lines = [
+        "# Hall Suite Hardware Evidence Audits",
+        "",
+        f"- Package: `{payload.get('package_dir')}`",
+        f"- Result intake: `{payload.get('result_intake_json')}`",
+        f"- Accepted for analysis gate: {payload.get('accepted')}",
+        f"- Require measurement-parameter audit evidence: {payload.get('require_measurement_audit')}",
+        f"- Require SR860 configure evidence: {payload.get('require_sr860_configure')}",
+        "",
+        "| Run | Status | Run folder | Evidence present | Issues |",
+        "| --- | --- | --- | --- | ---: |",
+    ]
+    for record in payload.get("records", []):
+        issues = record.get("issues") if isinstance(record.get("issues"), list) else []
+        lines.append(
+            f"| {record.get('run_key')} | {'PASS' if record.get('accepted') else 'FAIL'} | "
+            f"`{record.get('run_dir') or 'n/a'}` | {record.get('evidence_present')} | {len(issues)} |"
+        )
+    lines.extend(["", "## Audit Files", ""])
+    for record in payload.get("records", []):
+        lines.append(
+            f"- {record.get('run_key')}: `{record.get('markdown') or record.get('json') or 'not written'}`"
+        )
+    lines.extend(
+        [
+            "",
+            "## Lab Use",
+            "",
+            "Run this audit after result intake and before Hall analysis. It checks that returned hardware runs carry the measurement-parameter evidence used at execution time, including Keithley settings such as NPLC, ranges, and compliance.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _hardware_evidence_audits_stage(package_dir: Path) -> dict:
+    path = package_dir / "hardware_evidence_audits" / "hardware_evidence_audits.json"
+    if not path.exists():
+        return {"path": path, "ok": False, "details": "not written"}
+    try:
+        payload = _load_json_object(path)
+    except ValueError:
+        return {"path": path, "ok": False, "details": "invalid JSON"}
+    records = payload.get("records")
+    record_count = len(records) if isinstance(records, list) else 0
+    ok = (
+        payload.get("accepted") is True
+        and isinstance(records, list)
+        and bool(records)
+        and all(isinstance(record, dict) and record.get("accepted") is True for record in records)
+    )
+    return {
+        "path": path,
+        "ok": ok,
+        "details": f"{record_count} run audits, accepted={payload.get('accepted')!r}",
+    }
+
+
 def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir: Path) -> dict:
     workflow = inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir)
     package_dir = Path(workflow["package_dir"])
@@ -1082,6 +1255,14 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         intake_json,
         ok=bool(intake and intake.get("accepted") is True),
         details="accepted" if intake and intake.get("accepted") is True else "missing or not accepted",
+    )
+    hardware_evidence_stage = _hardware_evidence_audits_stage(package_dir)
+    add_stage(
+        "hardware_evidence_audits",
+        "Hardware evidence audits",
+        hardware_evidence_stage["path"],
+        ok=hardware_evidence_stage["ok"],
+        details=hardware_evidence_stage["details"],
     )
     snapshot_json = package_dir / "condition_snapshot.json"
     snapshot = _load_optional_json_object(snapshot_json)
@@ -1175,6 +1356,7 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         "state": state,
         "measurement_conditions_ready": measurement_conditions_ready,
         "lab_smoke_parameters_ready": _stage_ok(stages, "lab_smoke_parameter_audits"),
+        "hardware_evidence_ready": _stage_ok(stages, "hardware_evidence_audits"),
         "ready_for_lab_handoff": (
             measurement_conditions_ready
             and _stage_ok(stages, "lab_smoke_parameter_audits")
@@ -1185,6 +1367,7 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
             and _stage_ok(stages, "lab_smoke_parameter_audits")
             and _stage_ok(stages, "lab_return")
             and _stage_ok(stages, "result_intake")
+            and _stage_ok(stages, "hardware_evidence_audits")
             and _stage_ok(stages, "condition_snapshot")
             and _stage_ok(stages, "condition_drift")
         ),
@@ -1207,6 +1390,7 @@ def format_dual_gate_lockin_hall_suite_lifecycle_status(payload: dict) -> str:
         f"Lifecycle state: {payload.get('state')}",
         f"Measurement conditions ready: {payload.get('measurement_conditions_ready')}",
         f"Lab smoke parameters ready: {payload.get('lab_smoke_parameters_ready')}",
+        f"Hardware evidence ready: {payload.get('hardware_evidence_ready')}",
         "",
         "| Stage | Status | Path | Details |",
         "| --- | --- | --- | --- |",
@@ -2169,6 +2353,11 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
         and not _stage_ok(stages, "lab_smoke_parameter_audits")
     ):
         return "lab_smoke_parameter_review"
+    if _stage_ok(stages, "result_intake") and not _stage_ok(stages, "hardware_evidence_audits"):
+        evidence_stage = next((stage for stage in stages if stage.get("key") == "hardware_evidence_audits"), {})
+        if evidence_stage.get("exists"):
+            return "hardware_evidence_review"
+        return "hardware_evidence_pending"
     if _stage_ok(stages, "result_intake") and not _stage_ok(stages, "condition_snapshot"):
         snapshot_stage = next((stage for stage in stages if stage.get("key") == "condition_snapshot"), {})
         if snapshot_stage.get("exists"):
@@ -2189,6 +2378,7 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
         measurement_conditions_ready
         and _stage_ok(stages, "lab_return")
         and _stage_ok(stages, "result_intake")
+        and _stage_ok(stages, "hardware_evidence_audits")
         and _stage_ok(stages, "condition_snapshot")
         and _stage_ok(stages, "condition_drift")
     ):
@@ -2220,6 +2410,10 @@ def _load_json_object(path: Path) -> dict:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _safe_artifact_name(value: str) -> str:
+    return "".join(char if char.isalnum() or char in "._-" else "_" for char in value).strip("._") or "artifact"
 
 
 def _audit_record_paths(records: list[dict], package_dir: Path) -> list[Path]:

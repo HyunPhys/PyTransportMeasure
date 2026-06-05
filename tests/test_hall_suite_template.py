@@ -829,6 +829,20 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert default_snapshot_code == 0
     default_drift_code = main(["dual-gate-lockin-hall-suite-condition-drift", str(package_dir)])
     assert default_drift_code == 0
+    evidence_code = main(
+        [
+            "dual-gate-lockin-hall-suite-hardware-evidence-audits",
+            str(package_dir),
+            "--allow-missing-measurement-audit",
+            "--overwrite",
+        ]
+    )
+    evidence_payload = json.loads(
+        (package_dir / "hardware_evidence_audits" / "hardware_evidence_audits.json").read_text(encoding="utf-8")
+    )
+    assert evidence_code == 0
+    assert evidence_payload["accepted"] is True
+    assert evidence_payload["run_count"] == 4
 
     return_code = main(
         [
@@ -861,6 +875,8 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert lifecycle["measurement_conditions_ready"] is True
     assert lifecycle["ready_for_analysis"] is True
     lifecycle_stage_by_key = {stage["key"]: stage for stage in lifecycle["stages"]}
+    assert lifecycle["hardware_evidence_ready"] is True
+    assert lifecycle_stage_by_key["hardware_evidence_audits"]["ok"] is True
     assert lifecycle_stage_by_key["condition_snapshot"]["ok"] is True
     assert lifecycle_stage_by_key["condition_drift"]["ok"] is True
 

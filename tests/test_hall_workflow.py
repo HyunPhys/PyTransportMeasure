@@ -2,11 +2,13 @@ import json
 
 import yaml
 
+from pytransport import cli
 from pytransport.dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_acquisition_package,
     write_dual_gate_lockin_hall_suite_template,
 )
 from pytransport.hall_workflow import (
+    format_dual_gate_lockin_hall_suite_hardware_evidence_audits,
     format_dual_gate_lockin_hall_suite_lifecycle_status,
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
@@ -16,6 +18,7 @@ from pytransport.hall_workflow import (
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
     write_dual_gate_lockin_hall_suite_handoff_summary,
+    write_dual_gate_lockin_hall_suite_hardware_evidence_audits,
     write_dual_gate_lockin_hall_suite_lab_return_manifest,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
     write_dual_gate_lockin_hall_suite_lab_smoke_parameter_audits,
@@ -508,6 +511,7 @@ def test_hall_lab_return_manifest_records_accepted_intake(tmp_path):
         ),
         encoding="utf-8",
     )
+    _write_hardware_evidence_audits_marker(package.package_dir)
     (package.package_dir / "condition_drift.json").write_text(
         json.dumps(
             {
@@ -583,8 +587,9 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
         encoding="utf-8",
     )
     pending = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
-    assert pending["state"] == "condition_snapshot_pending"
+    assert pending["state"] == "hardware_evidence_pending"
     assert pending["ready_for_analysis"] is False
+    _write_hardware_evidence_audits_marker(package.package_dir)
     (package.package_dir / "condition_snapshot.json").write_text(
         json.dumps(
             {
@@ -666,6 +671,7 @@ def test_hall_lifecycle_status_blocks_analysis_when_condition_drift_fails(tmp_pa
         ),
         encoding="utf-8",
     )
+    _write_hardware_evidence_audits_marker(package.package_dir)
     (package.package_dir / "condition_drift.json").write_text(
         json.dumps(
             {
@@ -695,8 +701,49 @@ def test_hall_lifecycle_status_blocks_analysis_when_condition_drift_fails(tmp_pa
 
     assert payload["state"] == "acquisition_condition_drift"
     assert payload["ready_for_analysis"] is False
+    assert stage_by_key["hardware_evidence_audits"]["ok"] is True
     assert stage_by_key["condition_drift"]["ok"] is False
     assert "| Acquisition-condition drift | REVIEW |" in text
+
+
+def test_hall_suite_hardware_evidence_audits_gate_returned_runs(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    copied = manifest["copied_recipes"]
+    run_dirs = {}
+    for key in ["longitudinal", "plus", "minus"]:
+        recipe_path = package.package_dir / copied[key]
+        audit_json = tmp_path / f"{key}_measurement_audit.json"
+        assert cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe_path), "--json-output", str(audit_json)]) == 0
+        run_dirs[key] = _write_hardware_evidence_run(tmp_path, key, recipe_path, audit_json)
+
+    intake_path = package.package_dir / "result_intake.json"
+    intake_path.write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "accepted": True,
+                "issues": [],
+                "runs": {key: {"run_dir": str(run_dir), "accepted": True} for key, run_dir in run_dirs.items()},
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    payload = write_dual_gate_lockin_hall_suite_hardware_evidence_audits(package.package_dir)
+    text = format_dual_gate_lockin_hall_suite_hardware_evidence_audits(payload)
+    lifecycle = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    stage_by_key = {stage["key"]: stage for stage in lifecycle["stages"]}
+
+    assert payload["accepted"] is True
+    assert payload["run_count"] == 3
+    assert all(record["accepted"] for record in payload["records"])
+    assert "Accepted for analysis gate: True" in text
+    assert stage_by_key["hardware_evidence_audits"]["ok"] is True
+    assert lifecycle["hardware_evidence_ready"] is True
+    assert lifecycle["state"] == "lab_smoke_parameter_review"
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):
@@ -790,6 +837,49 @@ def _write_small_hall_package(tmp_path):
         package_name="workflow_graphene_package",
         chunk_size=5,
     )
+
+
+def _write_hardware_evidence_audits_marker(package_dir):
+    out = package_dir / "hardware_evidence_audits"
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "hardware_evidence_audits.json").write_text(
+        json.dumps(
+            {
+                "schema": "pytransport.hall_suite_hardware_evidence_audits.v1",
+                "accepted": True,
+                "records": [
+                    {"run_key": "longitudinal", "accepted": True},
+                    {"run_key": "plus", "accepted": True},
+                    {"run_key": "minus", "accepted": True},
+                ],
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _write_hardware_evidence_run(tmp_path, key, recipe_path, audit_json):
+    run_dir = tmp_path / "raw" / key
+    run_dir.mkdir(parents=True)
+    metadata = {
+        "measurement_type": "dual_gate_lockin_sweep",
+        "recipe_path": str(recipe_path),
+        "metadata_path": str(run_dir / "metadata.json"),
+        "completed": True,
+        "dry_run": False,
+        "hardware_evidence": {
+            "schema": "pytransport.hardware_evidence.v1",
+            "measurement_audit_json": str(audit_json),
+            "measurement_audit_evidence_passed": True,
+            "sr860_configure_json": None,
+            "sr860_configure_evidence_passed": False,
+            "preflight_reran_after_evidence_check": True,
+        },
+    }
+    (run_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+    return run_dir
 
 
 def _write_four_terminal_ac_smoke_intake_json(tmp_path, *, accepted=True):
