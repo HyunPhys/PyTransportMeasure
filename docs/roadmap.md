@@ -449,6 +449,11 @@ root.
     preflight outputs, acquisition notes, and analysis commands
   - make the lab-laptop handoff explicit for no-local-hardware development
   - keep the package hardware-free until the researcher runs it in the lab
+- [x] Phase 25bgb: Hall package topology contract
+  - write expected Vxx/Vxy topology into package manifests and runbooks
+  - make Hall-bar contact roles visible before lab-laptop preflight
+  - keep topology visible beside Keithley NPLC/range/compliance and SR860
+    measurement-condition audits
 - [x] Phase 25bh: Hall-suite execution result intake
   - add `ptm dual-gate-lockin-hall-suite-intake`
   - inspect a completed package session from the lab laptop

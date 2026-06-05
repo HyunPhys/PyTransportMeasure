@@ -458,6 +458,10 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert "longitudinal_keithley_audit.json" in runbook_text
     assert "SR860 Measurement Parameter Audits" in runbook_text
     assert "longitudinal_sr860_audit.json" in runbook_text
+    assert "## Topology Contract" in runbook_text
+    assert "| longitudinal | longitudinal |" in runbook_text
+    assert "| plus | hall |" in runbook_text
+    assert "Vxx+, Vxx-" in runbook_text
     assert "lab laptop handoff package" in runbook_text
 
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -470,6 +474,10 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert manifest["keithley_parameter_audits"]["longitudinal"]["json"] == "keithley_audit/longitudinal_keithley_audit.json"
     assert manifest["lockin_setting_audits"]["longitudinal"]["ok_for_hardware"] is True
     assert manifest["lockin_setting_audits"]["longitudinal"]["json"] == "lockin_audit/longitudinal_sr860_audit.json"
+    assert manifest["topology_contract"]["longitudinal"]["voltage_probe_role"] == "longitudinal"
+    assert manifest["topology_contract"]["longitudinal"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert manifest["topology_contract"]["plus"]["voltage_probe_role"] == "hall"
+    assert manifest["topology_contract"]["plus"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
     assert manifest["manifest_schema_version"] == 2
     normalized = manifest["measurement_condition_audits"]
     assert normalized["schema_version"] == 1

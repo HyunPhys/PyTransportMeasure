@@ -563,6 +563,9 @@ remain point-guarded.
   four-terminal AC smoke prerequisite is attached.
 - [ ] Confirm `acquisition_runbook.md` includes `Four-terminal AC smoke intake:
   PASS`, SR860 voltage contacts, excitation contacts, and source NPLC.
+- [ ] Confirm `acquisition_runbook.md` includes `Topology Contract` and that
+  Vxx/Vxy roles, magnetic-field labels, excitation contacts, SR860 voltage
+  contacts, and channel geometry match the lab notebook.
 - [ ] Confirm `acquisition_runbook.md` includes suite-check, suite-plan,
   chunk-plan, Keithley parameter audits, SR860 measurement-parameter audits,
   per-recipe preflight, chunk feedback, adjustment, stitch, and Hall analysis
@@ -575,6 +578,8 @@ remain point-guarded.
   reports `settle_policy_ok: true`.
 - [ ] Confirm `package_manifest.json` contains `measurement_condition_audits`
   with `ok_for_hardware: true` and records for both Keithley and SR860 audits.
+- [ ] Confirm `package_manifest.json` contains `topology_contract` with the
+  same Vxx/Vxy contact roles expected on the Hall-bar wiring diagram.
 - [ ] Confirm `package_manifest.json` contains
   `prerequisites.four_terminal_ac_smoke_intake` with `accepted: true`.
 - [ ] Validate the package manifest and artifact paths before moving it to the

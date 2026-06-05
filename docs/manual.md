@@ -561,6 +561,12 @@ New packages also include `measurement_condition_audits`, a normalized manifest
 block that lists Keithley and SR860 audit records with stable `recipe_key`,
 `instrument`, `audit_type`, `json`, `markdown`, `ok_for_hardware`, and
 `summary` fields for scripts or GUI inspection.
+They also include `topology_contract`, generated from the packaged recipes.
+The runbook prints the same information as a `Topology Contract` table so the
+operator can confirm Vxx/Vxy roles, magnetic field labels, excitation contacts,
+SR860 voltage contacts, and channel geometry before lab-laptop preflight. Treat
+that table together with Keithley NPLC/range/compliance/source-delay and SR860
+settings as the measurement-condition contract for the run.
 
 Before moving a package to the lab laptop, validate its manifest and artifact
 paths:

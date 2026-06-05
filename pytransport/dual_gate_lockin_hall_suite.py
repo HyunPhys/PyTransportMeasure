@@ -418,6 +418,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     copied_recipes = _copy_suite_recipes(audit, recipes_dir)
     keithley_audits = _write_hall_suite_keithley_audits(copied_recipes, package_dir)
     lockin_audits = _write_hall_suite_lockin_audits(copied_recipes, package_dir)
+    topology_contract = _hall_suite_topology_contract(recipes)
     extras = []
     extras.extend(_copy_labeled_files(chunk_feedback_files or [], package_dir / "chunk_feedback", "chunk_feedback"))
     extras.extend(_copy_labeled_files(preflight_files or [], package_dir / "preflight", "preflight"))
@@ -445,6 +446,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
             prerequisites=prerequisites,
             keithley_audits=keithley_audits,
             lockin_audits=lockin_audits,
+            topology_contract=topology_contract,
         ),
         encoding="utf-8",
     )
@@ -464,6 +466,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
         "keithley_parameter_audits": keithley_audits,
         "lockin_setting_audits": lockin_audits,
         "measurement_condition_audits": measurement_condition_audits,
+        "topology_contract": topology_contract,
         "compatible": audit.compatible,
         "point_count": audit.point_count,
         "chunk_size": chunk_size,
@@ -1463,6 +1466,7 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
     prerequisites: dict[str, dict[str, Any]],
     keithley_audits: dict[str, dict[str, Any]],
     lockin_audits: dict[str, dict[str, Any]],
+    topology_contract: dict[str, dict[str, Any]],
 ) -> str:
     copied_audit = audit_dual_gate_lockin_hall_suite(
         copied_recipes["longitudinal"],
@@ -1499,6 +1503,12 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
             "## Measurement Prerequisites",
             "",
             *_format_hall_suite_package_prerequisites(prerequisites),
+            "",
+            "## Topology Contract",
+            "",
+            "| Run | Role | B (T) | Excitation contacts | SR860 voltage contacts | Channel L (m) | Channel W (m) | Layout |",
+            "| --- | --- | ---: | --- | --- | ---: | ---: | --- |",
+            *_format_hall_suite_topology_contract_rows(topology_contract),
             "",
             "## Hardware-Free Checks",
             "",
@@ -3324,6 +3334,33 @@ def _condition_snapshot_topology(recipe: dict[str, Any]) -> dict[str, Any]:
         "bias_resistor_ohm": topology.get("bias_resistor_ohm"),
         "topology_layout": topology.get("topology_layout"),
     }
+
+
+def _hall_suite_topology_contract(recipes: dict[str, DualGateLockInRecipe]) -> dict[str, dict[str, Any]]:
+    return {
+        key: _condition_snapshot_topology(recipe.model_dump(mode="json"))
+        for key, recipe in recipes.items()
+    }
+
+
+def _format_hall_suite_topology_contract_rows(topology_contract: dict[str, dict[str, Any]]) -> list[str]:
+    rows = []
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        if key not in topology_contract:
+            continue
+        topology = topology_contract.get(key) or {}
+        rows.append(
+            "| "
+            f"{key} | "
+            f"{_fmt_optional(topology.get('voltage_probe_role'))} | "
+            f"{_fmt_optional(topology.get('magnetic_field_t'))} | "
+            f"{_fmt_contact_list(topology.get('excitation_contacts'))} | "
+            f"{_fmt_contact_list(topology.get('lockin_input_contacts'))} | "
+            f"{_fmt_optional(topology.get('channel_length_m'))} | "
+            f"{_fmt_optional(topology.get('channel_width_m'))} | "
+            f"{_fmt_optional(topology.get('topology_layout'))} |"
+        )
+    return rows or ["| n/a | n/a | n/a | n/a | n/a | n/a | n/a | n/a |"]
 
 
 def _condition_snapshot_gate(metadata: dict[str, Any], recipe: dict[str, Any], gate: str) -> dict[str, Any]:
