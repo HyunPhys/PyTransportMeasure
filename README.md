@@ -24,7 +24,7 @@ Current verified setup and supported workflows:
   review, with GUI session logs included in feedback bundles and usability
   fixes for collapsed dry-run settings, window resizing, log scrolling,
   workspace-separated instruments/analysis views, instrument refresh and
-  communication tests, and live I-V plotting
+  communication tests, YAML/Form sync status, and live I-V plotting
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -93,6 +93,7 @@ ptm-gui
 - GUI usability pass: [docs/phase37_gui_usability_pass.md](docs/phase37_gui_usability_pass.md)
 - GUI workspace reorganization and live plot: [docs/phase38_gui_workspace_reorg_and_live_plot.md](docs/phase38_gui_workspace_reorg_and_live_plot.md)
 - GUI instrument refresh and communication test: [docs/phase39_gui_instrument_refresh.md](docs/phase39_gui_instrument_refresh.md)
+- GUI recipe sync status: [docs/phase40_gui_recipe_sync_status.md](docs/phase40_gui_recipe_sync_status.md)
 
 ## Hardware Smoke Test
 

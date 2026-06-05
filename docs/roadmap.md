@@ -189,6 +189,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - populate a selectable resource/address field
   - test communication with the selected address
   - clarify recipe tool button names and directions
+- [x] Phase 24q: GUI recipe sync status
+  - show that Recipe YAML is the execution source
+  - warn when form edits have not yet been applied back to YAML
+  - warn when YAML edits may need YAML -> Form sync
 
 ## Next GUI
 

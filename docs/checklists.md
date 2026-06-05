@@ -35,6 +35,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI workspace separates measurement, instruments, and analysis.
 - [x] GUI Instruments workspace can refresh VISA resources and test selected
   address communication.
+- [x] GUI Recipe Tools show YAML/Form sync status and execution-source guidance.
 - [x] GUI plot preview uses a non-stretched points-based plot and live Drain I-V
   plot updates during measurement progress.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
@@ -315,7 +316,11 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Plan` and confirm the plan text matches the selected recipe.
 - [ ] Select `Drain I-V`, open `Drain I-V Form`, edit one non-hardware field,
   and click `Form -> YAML`.
+- [ ] Confirm the Recipe Tools status says form edits are not used until
+  `Form -> YAML`.
 - [ ] Open `Recipe YAML` and confirm the generated YAML reflects the form value.
+- [ ] Edit `Recipe YAML` directly and confirm the status says YAML remains the
+  execution source.
 - [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.

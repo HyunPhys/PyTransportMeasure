@@ -411,6 +411,10 @@ Recipe tool button meanings:
   Drain I-V form.
 - `Form -> YAML`: regenerate the YAML editor contents from the structured form.
 
+The GUI status under `Recipe Tools` tracks this relationship. If YAML is edited,
+YAML remains the execution source and the form may be stale. If the form is
+edited, those values are not used until `Form -> YAML` regenerates the YAML.
+
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under
 `data/gui_drafts` before calling the same core runner used by the CLI.

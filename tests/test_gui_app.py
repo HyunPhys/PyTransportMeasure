@@ -59,6 +59,22 @@ def test_gui_recipe_tool_labels_are_distinct(app):
     assert window.load_form_button.text() == "YAML -> Form"
     assert window.apply_form_button.text() == "Form -> YAML"
     assert window.instrument_address_combo.currentText()
+    assert "Execution source" in window.recipe_sync_status.text()
+    window.close()
+
+
+def test_gui_recipe_sync_status_tracks_yaml_and_form_edits(app):
+    window = MainWindow()
+
+    window.editor_text.appendPlainText("# user note")
+    assert "YAML edited" in window.recipe_sync_status.text()
+
+    field = window.form_fields["measurement_name"]
+    field.setText(field.text() + "_edited")
+    assert "Form edited" in window.recipe_sync_status.text()
+
+    assert window.apply_form_to_editor()
+    assert "YAML regenerated from form" in window.recipe_sync_status.text()
     window.close()
 
 

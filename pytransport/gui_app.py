@@ -323,6 +323,7 @@ class MainWindow(QMainWindow):
         self.preflight_worker: PreflightWorker | None = None
         self.hardware_worker: HardwareRunWorker | None = None
         self.last_result: Any | None = None
+        self._syncing_recipe_widgets = False
         self.session_logger = GuiSessionLogger.create()
 
         self.method_combo = QComboBox()
@@ -405,6 +406,7 @@ class MainWindow(QMainWindow):
         self.editor_text = QPlainTextEdit()
         self.form_fields: dict[str, Any] = {}
         self.form_status = QLabel("Drain I-V form builder")
+        self.recipe_sync_status = QLabel("Execution source: Recipe YAML. Form is a helper editor for common Drain I-V fields.")
         self.validation_text = QPlainTextEdit()
         self.validation_text.setReadOnly(True)
         self.doctor_text = QPlainTextEdit()
@@ -442,6 +444,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(root)
         self.setStyleSheet(APP_STYLESHEET)
         self.build_menu()
+        self.connect_recipe_sync_signals()
         self.apply_default_recipe()
         self.log_session(f"Session log path: {self.session_logger.path}")
 
@@ -493,6 +496,7 @@ class MainWindow(QMainWindow):
         box = QGroupBox("Recipe Tools")
         layout = QVBoxLayout(box)
         help_label = QLabel("File: open/save YAML. Form sync: copy values between the structured form and YAML editor.")
+        self.recipe_sync_status.setWordWrap(True)
         row = QHBoxLayout()
         row.addWidget(self.load_editor_button)
         row.addWidget(self.validate_editor_button)
@@ -501,6 +505,7 @@ class MainWindow(QMainWindow):
         row.addWidget(self.apply_form_button)
         row.addStretch(1)
         layout.addWidget(help_label)
+        layout.addWidget(self.recipe_sync_status)
         layout.addLayout(row)
         return box
 
@@ -636,6 +641,29 @@ class MainWindow(QMainWindow):
         self.form_fields[key] = field
         layout.addRow(label, field)
 
+    def connect_recipe_sync_signals(self) -> None:
+        self.editor_text.textChanged.connect(self.handle_yaml_text_changed)
+        for widget in self.form_fields.values():
+            if isinstance(widget, QComboBox):
+                widget.currentTextChanged.connect(self.handle_form_value_changed)
+            else:
+                widget.textChanged.connect(self.handle_form_value_changed)
+
+    def handle_yaml_text_changed(self) -> None:
+        if self._syncing_recipe_widgets:
+            return
+        self.validation_text.clear()
+        self.recipe_sync_status.setText(
+            "YAML edited. YAML is the execution source. Use YAML -> Form if the form should mirror these edits."
+        )
+
+    def handle_form_value_changed(self) -> None:
+        if self._syncing_recipe_widgets:
+            return
+        self.recipe_sync_status.setText(
+            "Form edited. These values are not used until you click Form -> YAML."
+        )
+
     def build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("File")
         open_recipe = QAction("Open Recipe", self)
@@ -667,12 +695,18 @@ class MainWindow(QMainWindow):
         self.recipe_edit.setText(DEFAULT_RECIPES.get(self.current_method(), ""))
         if hasattr(self, "editor_text"):
             try:
+                self._syncing_recipe_widgets = True
                 self.editor_text.setPlainText(default_recipe_text(self.current_method()))
                 self.validation_text.clear()
                 self.load_form_from_editor(silent=True)
                 self.sync_recipe_address_to_instrument_combo()
+                self.recipe_sync_status.setText(
+                    "Execution source: Recipe YAML. Form is synced from the default recipe."
+                )
             except Exception:
                 pass
+            finally:
+                self._syncing_recipe_widgets = False
         if hasattr(self, "load_form_button"):
             is_drain_iv = self.current_method() == "drain_iv"
             self.load_form_button.setEnabled(is_drain_iv)
@@ -703,13 +737,17 @@ class MainWindow(QMainWindow):
 
     def load_recipe_into_editor(self) -> None:
         try:
+            self._syncing_recipe_widgets = True
             self.editor_text.setPlainText(load_recipe_text(self.recipe_path()))
         except Exception as exc:
             self.show_error(exc)
             return
+        finally:
+            self._syncing_recipe_widgets = False
         self.validation_text.clear()
         self.load_form_from_editor(silent=True)
         self.sync_recipe_address_to_instrument_combo()
+        self.recipe_sync_status.setText("Recipe file loaded. YAML is the execution source; form is synced from YAML.")
         self.status_label.setText("Recipe loaded into editor")
         self.log_session(f"Recipe loaded into editor: {self.recipe_path()}")
 
@@ -718,6 +756,8 @@ class MainWindow(QMainWindow):
             self.form_status.setText("Structured form is available for Drain I-V recipes in this phase.")
             return False
         try:
+            was_syncing = self._syncing_recipe_widgets
+            self._syncing_recipe_widgets = True
             values = drain_iv_form_from_text(self.editor_text.toPlainText())
             self.set_form_values(values)
         except Exception as exc:
@@ -725,7 +765,10 @@ class MainWindow(QMainWindow):
                 self.show_error(exc)
             self.form_status.setText("Could not load Drain I-V form from YAML")
             return False
+        finally:
+            self._syncing_recipe_widgets = was_syncing if "was_syncing" in locals() else False
         self.form_status.setText("Drain I-V form loaded from YAML")
+        self.recipe_sync_status.setText("Form is synced from YAML. YAML remains the execution source.")
         if not silent:
             self.status_label.setText("Form loaded from YAML")
         return True
@@ -740,10 +783,15 @@ class MainWindow(QMainWindow):
             self.show_error(exc)
             self.form_status.setText("Could not apply Drain I-V form")
             return False
-        self.editor_text.setPlainText(text)
+        try:
+            self._syncing_recipe_widgets = True
+            self.editor_text.setPlainText(text)
+        finally:
+            self._syncing_recipe_widgets = False
         self.validation_text.clear()
         self.sync_recipe_address_to_instrument_combo()
         self.form_status.setText("Drain I-V YAML updated from form")
+        self.recipe_sync_status.setText("YAML regenerated from form. YAML is now the execution source for runs.")
         self.status_label.setText("YAML updated from form")
         self.log_session("Drain I-V form applied to YAML editor")
         return True
