@@ -124,6 +124,27 @@ def test_schema_form_round_trips_drain_iv_common_fields():
     assert round_trip["min_points"] == "11"
 
 
+def test_schema_form_treats_blank_optional_numbers_as_none():
+    text = default_recipe_text("drain_iv")
+
+    updated = schema_form_text_from_values(
+        "drain_iv",
+        text,
+        {
+            "instrument.voltage_range_v": "",
+            "instrument.current_range_a": "",
+            "checks.fitted_resistance_ohm.min_ohm": "",
+            "checks.fitted_resistance_ohm.max_ohm": "",
+        },
+    )
+    recipe = load_recipe_from_text("drain_iv", updated)
+
+    assert recipe.instrument.voltage_range_v is None
+    assert recipe.instrument.current_range_a is None
+    assert recipe.checks.fitted_resistance_ohm.min_ohm is None
+    assert recipe.checks.fitted_resistance_ohm.max_ohm is None
+
+
 def test_schema_form_supports_pulse_recipe_values():
     text = default_recipe_text("pulse_measurement")
     sections = schema_form_from_text("pulse_measurement", text)

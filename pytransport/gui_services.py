@@ -305,12 +305,6 @@ def _parse_schema_value(root_schema: dict[str, Any], schema_node: dict[str, Any]
         return None
     if schema_node.get("enum"):
         return text
-    if node_type == "boolean":
-        return _bool_from_text(text or "false")
-    if node_type == "integer":
-        return int(text)
-    if node_type == "number":
-        return float(text)
     if node_type == "array":
         if text == "":
             return []
@@ -326,6 +320,12 @@ def _parse_schema_value(root_schema: dict[str, Any], schema_node: dict[str, Any]
         return parsed or {}
     if text == "":
         return None
+    if node_type == "boolean":
+        return _bool_from_text(text)
+    if node_type == "integer":
+        return int(text)
+    if node_type == "number":
+        return float(text)
     return text
 
 
