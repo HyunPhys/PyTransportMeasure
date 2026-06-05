@@ -673,6 +673,11 @@ root.
     markdown
   - keep older packages valid while making attached prerequisite evidence easy
     to audit before lab-laptop hardware work
+- [x] Phase 25daa: Hall lab smoke return contract
+  - include four-terminal AC prerequisite status in the lab smoke checklist
+  - add post-run Hall-suite intake and lab-return commands to the smoke bundle
+  - save expected returned run roles and required post-run artifacts in
+    `lab_smoke_bundle.json`
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

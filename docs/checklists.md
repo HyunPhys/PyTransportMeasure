@@ -586,6 +586,12 @@ remain point-guarded.
 - [ ] Confirm `lab_smoke/lab_smoke_checklist.md` lists `ptm list-resources`,
   identify/probe commands for both Keithleys and SR860, and one preflight command
   per packaged recipe.
+- [ ] Confirm `lab_smoke/lab_smoke_checklist.md` includes `Post-Run Intake And
+  Return` with `dual-gate-lockin-hall-suite-intake` and
+  `dual-gate-lockin-hall-suite-lab-return-manifest` commands.
+- [ ] Confirm `lab_smoke/lab_smoke_bundle.json` lists expected returned run
+  roles under `return_contract.required_run_roles` and required artifacts such
+  as `result_intake.json` and `lab_return/lab_return_manifest.json`.
 - [ ] Review the active hardware command templates in the package runbook.
   ```powershell
   ptm dual-gate-lockin-hall-suite-hardware-command-review data\hall_packages\<sample_lab_package> --json-output data\hall_packages\<sample_lab_package>\hardware_command_review.json

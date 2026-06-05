@@ -251,7 +251,13 @@ def write_dual_gate_lockin_hall_suite_lab_smoke_bundle(
             _hall_suite_check_command(recipe_paths),
             _hall_suite_plan_command(recipe_paths),
         ],
+        "post_run_intake": [
+            _hall_suite_result_intake_command(package_dir, recipe_paths),
+            f"ptm dual-gate-lockin-hall-suite-lab-return-manifest {package_dir} --operator-note \"<lab notebook reference>\" --overwrite",
+        ],
     }
+    prerequisite_summary = _four_terminal_ac_smoke_prerequisite_from_validation(validation)
+    return_contract = _hall_suite_return_contract(recipe_paths)
     payload = {
         "package_dir": str(package_dir),
         "package_manifest": str(manifest_path),
@@ -260,7 +266,9 @@ def write_dual_gate_lockin_hall_suite_lab_smoke_bundle(
         "safety_dir": str(safety_dir),
         "instrument_count": len(instruments),
         "instruments": instruments,
+        "four_terminal_ac_smoke_prerequisite": prerequisite_summary,
         "recipe_paths": {key: str(path) for key, path in recipe_paths.items()},
+        "return_contract": return_contract,
         "commands": commands,
         "completed": True,
     }
@@ -285,6 +293,10 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
             f"- Package: `{payload.get('package_dir')}`",
             f"- Manifest: `{payload.get('package_manifest')}`",
             f"- Safety dir: `{payload.get('safety_dir')}`",
+            "",
+            "## Measurement Prerequisites",
+            "",
+            *_format_four_terminal_ac_smoke_prerequisite_summary(payload.get("four_terminal_ac_smoke_prerequisite") or {}),
             "",
             "## Instruments",
             "",
@@ -334,17 +346,75 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
             *commands.get("preflight", []),
             "```",
             "",
+            "## 7. Post-Run Intake And Return",
+            "",
+            *_format_hall_suite_return_contract(payload.get("return_contract") or {}),
+            "",
+            "```powershell",
+            *commands.get("post_run_intake", []),
+            "```",
+            "",
             "## Pass Criteria",
             "",
             "- Package validation prints `Valid for lab handoff: True`.",
+            "- Four-terminal AC prerequisite is PASS when attached.",
             "- `ptm list-resources` shows the two Keithley addresses and SR860 address.",
             "- Every Keithley identify response contains `MODEL 2450`.",
             "- SR860 identify response contains `SR860`.",
             "- Every probe completes without communication errors.",
             "- Every dual-gate lock-in preflight reports OK before any hardware output command is run.",
+            "- After hardware runs, Hall-suite intake reports PASS before analysis.",
             "",
         ]
     )
+
+
+def _hall_suite_return_contract(recipe_paths: dict[str, Path]) -> dict:
+    required_roles = ["longitudinal", "plus", "minus"]
+    optional_roles = ["zero"] if "zero" in recipe_paths else []
+    return {
+        "required_run_roles": required_roles,
+        "optional_run_roles": optional_roles,
+        "expected_run_placeholders": {
+            "longitudinal": "data\\raw\\<vxx_run>",
+            "plus": "data\\raw\\<plus_B_run>",
+            "minus": "data\\raw\\<minus_B_run>",
+            **({"zero": "data\\raw\\<zero_B_run>"} if "zero" in recipe_paths else {}),
+        },
+        "required_post_run_artifacts": [
+            "result_intake_report.md",
+            "result_intake.json",
+            "lab_return/lab_return_manifest.md",
+            "lab_return/lab_return_manifest.json",
+        ],
+    }
+
+
+def _format_hall_suite_return_contract(contract: dict) -> list[str]:
+    placeholders = contract.get("expected_run_placeholders") if isinstance(contract.get("expected_run_placeholders"), dict) else {}
+    lines = [
+        "Returned run folders expected by role:",
+        "",
+        "| Role | Placeholder |",
+        "| --- | --- |",
+    ]
+    for role in contract.get("required_run_roles") or []:
+        lines.append(f"| {role} | `{placeholders.get(role) or 'n/a'}` |")
+    for role in contract.get("optional_run_roles") or []:
+        lines.append(f"| {role} | `{placeholders.get(role) or 'n/a'}` |")
+    lines.extend(["", "Required post-run package artifacts:"])
+    lines.extend(f"- `{artifact}`" for artifact in contract.get("required_post_run_artifacts") or [])
+    return lines
+
+
+def _hall_suite_result_intake_command(package_dir: Path, recipe_paths: dict[str, Path]) -> str:
+    command = (
+        f"ptm dual-gate-lockin-hall-suite-intake {package_dir} "
+        "data\\raw\\<vxx_run> data\\raw\\<plus_B_run> data\\raw\\<minus_B_run>"
+    )
+    if "zero" in recipe_paths:
+        command += " --zero-field-run-dir data\\raw\\<zero_B_run>"
+    return command
 
 
 def review_dual_gate_lockin_hall_suite_hardware_commands(package_manifest_or_dir: Path) -> dict:

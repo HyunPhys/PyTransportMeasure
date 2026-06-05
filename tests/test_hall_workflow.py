@@ -289,10 +289,56 @@ def test_hall_lab_smoke_bundle_writes_identify_probe_and_preflight_commands(tmp_
     assert len(saved["commands"]["identify"]) == 3
     assert len(saved["commands"]["probe"]) == 3
     assert len(saved["commands"]["preflight"]) == 4
+    assert len(saved["commands"]["post_run_intake"]) == 2
+    assert saved["return_contract"]["required_run_roles"] == ["longitudinal", "plus", "minus"]
+    assert saved["return_contract"]["optional_run_roles"] == ["zero"]
     assert any("--instrument keithley_2450" in command for command in saved["commands"]["identify"])
     assert any("--instrument srs_sr860" in command for command in saved["commands"]["probe"])
+    assert "dual-gate-lockin-hall-suite-intake" in saved["commands"]["post_run_intake"][0]
+    assert "--zero-field-run-dir data\\raw\\<zero_B_run>" in saved["commands"]["post_run_intake"][0]
     assert "ptm list-resources" in checklist
     assert "Every dual-gate lock-in preflight reports OK" in checklist
+    assert "## 7. Post-Run Intake And Return" in checklist
+    assert "result_intake.json" in checklist
+
+
+def test_hall_lab_smoke_bundle_reports_four_terminal_ac_prerequisite(tmp_path):
+    intake_json = _write_four_terminal_ac_smoke_intake_json(tmp_path)
+    template = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="workflow_graphene_smoke_prereq",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    _shrink_suite_recipes(
+        [
+            template.longitudinal_recipe,
+            template.plus_hall_recipe,
+            template.minus_hall_recipe,
+            template.zero_hall_recipe,
+        ]
+    )
+    package = write_dual_gate_lockin_hall_suite_acquisition_package(
+        template.longitudinal_recipe,
+        template.plus_hall_recipe,
+        template.minus_hall_recipe,
+        tmp_path / "packages",
+        zero_hall_recipe=template.zero_hall_recipe,
+        package_name="workflow_graphene_smoke_prereq_package",
+        chunk_size=5,
+        four_terminal_ac_smoke_intake_json=intake_json,
+    )
+
+    payload = write_dual_gate_lockin_hall_suite_lab_smoke_bundle(package.package_dir)
+
+    smoke_dir = package.package_dir / "lab_smoke"
+    checklist = (smoke_dir / "lab_smoke_checklist.md").read_text(encoding="utf-8")
+    saved = json.loads((smoke_dir / "lab_smoke_bundle.json").read_text(encoding="utf-8"))
+    assert payload["four_terminal_ac_smoke_prerequisite"]["present"] is True
+    assert saved["four_terminal_ac_smoke_prerequisite"]["ok"] is True
+    assert "## Measurement Prerequisites" in checklist
+    assert "Status: PASS" in checklist
 
 
 def test_hall_hardware_command_review_accepts_guarded_package_runbook(tmp_path):

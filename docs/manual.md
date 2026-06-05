@@ -581,6 +581,11 @@ This writes `lab_smoke/lab_smoke_checklist.md`,
 checklist contains exact `list-resources`, `identify`, `probe`,
 suite-check/plan, and per-recipe `dual-gate-lockin-preflight` commands for the
 two Keithleys and SR860 declared by the packaged recipes.
+It also prints the four-terminal AC prerequisite summary when attached, plus
+post-run `dual-gate-lockin-hall-suite-intake` and
+`dual-gate-lockin-hall-suite-lab-return-manifest` command templates. The JSON
+records expected returned run roles and required post-run artifacts so lab
+handoff and return are tied to the same package.
 
 Finally, review the active hardware command templates in the package runbook:
 
