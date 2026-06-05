@@ -74,6 +74,7 @@ from .dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_adjusted_recipes,
     write_dual_gate_lockin_hall_suite_analysis,
     write_dual_gate_lockin_hall_suite_analysis_review,
+    write_dual_gate_lockin_hall_suite_approved_next_scan_recipes,
     write_dual_gate_lockin_hall_suite_next_scan_proposal,
     write_dual_gate_lockin_hall_suite_result_intake,
     write_dual_gate_lockin_hall_suite_template,
@@ -683,6 +684,18 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("--output", type=Path)
     dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("--json-output", type=Path)
     dual_gate_lockin_hall_suite_next_scan_proposal.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_approved_next_scan = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-approved-next-scan",
+        help="Write approved next-scan Hall-suite recipes from an advisory proposal and lab approval note.",
+    )
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("proposal_json_or_analysis_dir", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("output_dir", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--approval-note", required=True)
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--measurement-prefix")
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--run-output-directory", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_approved_next_scan.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2104,6 +2117,29 @@ def command_dual_gate_lockin_hall_suite_next_scan_proposal(args: argparse.Namesp
     return 0
 
 
+def command_dual_gate_lockin_hall_suite_approved_next_scan(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_approved_next_scan_recipes(
+            args.proposal_json_or_analysis_dir,
+            args.output_dir,
+            approval_note=args.approval_note,
+            measurement_prefix=args.measurement_prefix,
+            run_output_directory=args.run_output_directory,
+            safety_dir=args.safety_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite approved next scan failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Approved next-scan suite directory: {result.output_dir}")
+    print(f"Longitudinal: {result.longitudinal_recipe}")
+    print(f"+B Hall: {result.plus_hall_recipe}")
+    print(f"-B Hall: {result.minus_hall_recipe}")
+    print(f"0B Hall: {result.zero_hall_recipe if result.zero_hall_recipe is not None else 'not written'}")
+    print(f"Review: {result.review_path}")
+    return 0
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3405,6 +3441,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_review(args)
     if args.command == "dual-gate-lockin-hall-suite-next-scan-proposal":
         return command_dual_gate_lockin_hall_suite_next_scan_proposal(args)
+    if args.command == "dual-gate-lockin-hall-suite-approved-next-scan":
+        return command_dual_gate_lockin_hall_suite_approved_next_scan(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

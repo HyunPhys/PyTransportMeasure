@@ -593,6 +593,28 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert proposal_payload["strategy"] == "refine_charge_neutrality_region"
     assert "NPLC" in proposal_text
 
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-approved-next-scan",
+            str(analysis_dir),
+            str(tmp_path / "approved_suite"),
+            "--approval-note",
+            "approved in lab notebook NB-001 after reviewing sign change",
+            "--measurement-prefix",
+            "approved_graphene",
+        ]
+    )
+    assert code == 0
+    approved_recipe = load_dual_gate_lockin_recipe(tmp_path / "approved_suite" / "approved_graphene_vxx.yaml")
+    proposed_gate1 = proposal_payload["proposed_gate_grid"]["gate1"]
+    proposed_gate2 = proposal_payload["proposed_gate_grid"]["gate2"]
+    assert approved_recipe.gate1_sweep.start_v == proposed_gate1["start_v"]
+    assert approved_recipe.gate1_sweep.stop_v == proposed_gate1["stop_v"]
+    assert approved_recipe.gate1_sweep.points == proposed_gate1["points"]
+    assert approved_recipe.gate2_sweep.start_v == proposed_gate2["start_v"]
+    assert approved_recipe.gate1_instrument.nplc == 1.0
+    assert (tmp_path / "approved_suite" / "approved_graphene_approved_next_scan_review.md").exists()
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(
@@ -662,3 +684,14 @@ def test_cli_dual_gate_lockin_hall_suite_review_rejects_missing_analysis_artifac
     code = main(["dual-gate-lockin-hall-suite-next-scan-proposal", str(analysis_dir)])
     assert code == 2
     assert not (analysis_dir / "hall_suite_next_scan_proposal.json").exists()
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-approved-next-scan",
+            str(analysis_dir),
+            str(tmp_path / "blocked_approved_suite"),
+            "--approval-note",
+            "should fail because proposal is missing",
+        ]
+    )
+    assert code == 2

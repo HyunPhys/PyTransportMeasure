@@ -568,6 +568,20 @@ packaged recipe settings so the lab can preserve Keithley NPLC, voltage range,
 current range, compliance, settle time, and SR860 settings unless a lab-notebook
 approval explicitly changes them.
 
+Once the proposal is approved in the lab notebook, generate the next Hall-suite
+recipes:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-approved-next-scan data\hall_packages\sampleA_cd1_lab1\hall_analysis configs\recipes\sampleA_cd1_next --approval-note "Approved in lab notebook NB-001 after reviewing Hall sign change" --measurement-prefix sampleA_cd1_next
+```
+
+This command refuses to write recipes without `--approval-note`. It applies the
+approved gate start/stop/point counts from the proposal, but copies the
+packaged recipe measurement settings by default: Keithley NPLC, voltage range,
+current range, compliance, source delay, gate settle time, and SR860 settings.
+After generation, run `dual-gate-lockin-hall-suite-check` and create a new
+acquisition package before any hardware run.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

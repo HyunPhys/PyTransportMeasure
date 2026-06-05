@@ -589,6 +589,17 @@ remain point-guarded.
   explicitly approves a change.
 - [ ] Approve the next gate window/spacing in the lab notebook before creating
   adjusted hardware recipes or acquisition packages.
+- [ ] Generate approved next-scan recipes only with a lab approval note.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-approved-next-scan data\hall_packages\<sample_lab_package>\hall_analysis configs\recipes\<approved_next_suite> --approval-note "<lab notebook approval>" --measurement-prefix <approved_prefix>
+  ```
+- [ ] Confirm the generated review says the command only applied the approved
+  gate grid and preserved Keithley NPLC/range/compliance/source-delay and SR860
+  settings by default.
+- [ ] Run suite check on the approved recipes before packaging or hardware use.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-check configs\recipes\<approved_next_suite>\<prefix>_vxx.yaml configs\recipes\<approved_next_suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<approved_next_suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<approved_next_suite>\<prefix>_vxy_zero_b.yaml
+  ```
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

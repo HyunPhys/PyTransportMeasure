@@ -471,11 +471,17 @@ root.
   - keep lab approval mandatory before writing any hardware recipe
   - preserve Keithley NPLC/range/compliance and SR860 settings unless the
     proposal explicitly calls out why they should change
-- [ ] Phase 25bl: Approved next-scan recipe generation
+- [x] Phase 25bl: Approved next-scan recipe generation
   - turn an approved next-scan proposal into adjusted Hall-suite recipes
   - require an approval note before writing hardware recipes
   - keep NPLC/range/compliance/SR860 settings unchanged by default and record
     any deliberate measurement-setting changes
+- [ ] Phase 25bm: Approved next-scan acquisition package
+  - package the approved next-scan recipe suite with the proposal and approval
+    review artifacts
+  - include a hardware runbook that highlights changed gate grid and preserved
+    NPLC/range/compliance/SR860 settings
+  - keep chunked acquisition and post-run intake as the default hardware path
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

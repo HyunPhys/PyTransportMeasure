@@ -133,6 +133,16 @@ class HallSuiteNextScanProposal:
     json_path: Path
 
 
+@dataclass(frozen=True)
+class HallSuiteApprovedNextScanResult:
+    output_dir: Path
+    longitudinal_recipe: Path
+    plus_hall_recipe: Path
+    minus_hall_recipe: Path
+    zero_hall_recipe: Path | None
+    review_path: Path
+
+
 def write_dual_gate_lockin_hall_suite_template(
     base_recipe_path: str | Path,
     output_dir: str | Path,
@@ -902,6 +912,155 @@ def format_dual_gate_lockin_hall_suite_next_scan_proposal(payload: dict[str, Any
     return "\n".join(lines)
 
 
+def write_dual_gate_lockin_hall_suite_approved_next_scan_recipes(
+    proposal_json_or_analysis_dir: str | Path,
+    output_dir: str | Path,
+    *,
+    approval_note: str,
+    measurement_prefix: str | None = None,
+    run_output_directory: str | Path | None = None,
+    safety_dir: str | Path = "configs/safety",
+    overwrite: bool = False,
+) -> HallSuiteApprovedNextScanResult:
+    if not approval_note or not approval_note.strip():
+        raise ValueError("approval_note is required before writing next-scan hardware recipes")
+    proposal_json_path = _resolve_next_scan_proposal_json_path(proposal_json_or_analysis_dir)
+    proposal = _load_next_scan_proposal_json(proposal_json_path)
+    if proposal.get("requires_lab_approval") is not True:
+        raise ValueError("next-scan proposal does not declare a lab approval gate")
+    if proposal.get("hardware_recipe_written") is not False:
+        raise ValueError("next-scan proposal must be advisory and must not already mark hardware recipes as written")
+
+    package_manifest_path = _proposal_package_manifest_path(proposal)
+    package_manifest = _load_package_manifest(package_manifest_path)
+    package_dir = package_manifest_path.parent
+    recipe_paths = _package_recipe_paths(package_manifest, package_dir)
+    audit = audit_dual_gate_lockin_hall_suite(
+        recipe_paths["longitudinal"],
+        recipe_paths["plus"],
+        recipe_paths["minus"],
+        zero_hall_recipe=recipe_paths.get("zero"),
+    )
+    if not audit.compatible:
+        raise ValueError("packaged Hall suite is not compatible; cannot generate approved next-scan recipes")
+
+    input_recipes = _load_suite_recipes(audit)
+    prefix = measurement_prefix or f"{input_recipes['longitudinal'].measurement_name}_approved_next_scan"
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    proposed_grid = proposal.get("proposed_gate_grid") if isinstance(proposal.get("proposed_gate_grid"), dict) else {}
+    output_paths: dict[str, Path] = {}
+    for key, _, input_path, recipe in _suite_key_entries(audit, input_recipes):
+        measurement_name = _suite_adjusted_measurement_name(prefix, recipe)
+        output_path = out / f"{measurement_name}.yaml"
+        data = _build_approved_next_scan_recipe_data(
+            input_path,
+            measurement_name=measurement_name,
+            proposed_gate_grid=proposed_grid,
+            approval_note=approval_note.strip(),
+            output_directory=run_output_directory,
+        )
+        _write_recipe(output_path, data, overwrite=overwrite)
+        output_paths[key] = output_path
+
+    output_audit = audit_dual_gate_lockin_hall_suite(
+        output_paths["longitudinal"],
+        output_paths["plus"],
+        output_paths["minus"],
+        zero_hall_recipe=output_paths.get("zero"),
+    )
+    if not output_audit.compatible:
+        raise ValueError("approved next-scan Hall suite failed consistency check after writing recipes")
+    review_path = out / f"{prefix}_approved_next_scan_review.md"
+    if review_path.exists() and not overwrite:
+        raise FileExistsError(f"Approved next-scan review already exists: {review_path}")
+    safety = load_named_safety_preset(input_recipes["longitudinal"].safety_preset, safety_dir)
+    review_path.write_text(
+        format_dual_gate_lockin_hall_suite_approved_next_scan_review(
+            proposal_json_path,
+            proposal,
+            input_audit=audit,
+            output_audit=output_audit,
+            safety=safety,
+            approval_note=approval_note.strip(),
+        ),
+        encoding="utf-8",
+    )
+    return HallSuiteApprovedNextScanResult(
+        out,
+        output_paths["longitudinal"],
+        output_paths["plus"],
+        output_paths["minus"],
+        output_paths.get("zero"),
+        review_path,
+    )
+
+
+def format_dual_gate_lockin_hall_suite_approved_next_scan_review(
+    proposal_json_path: Path,
+    proposal: dict[str, Any],
+    *,
+    input_audit: HallSuiteAudit,
+    output_audit: HallSuiteAudit,
+    safety: SafetyPreset,
+    approval_note: str,
+) -> str:
+    current = proposal.get("current_gate_grid") if isinstance(proposal.get("current_gate_grid"), dict) else {}
+    proposed = proposal.get("proposed_gate_grid") if isinstance(proposal.get("proposed_gate_grid"), dict) else {}
+    return "\n".join(
+        [
+            "# Approved Hall-Suite Next-Scan Recipes",
+            "",
+            f"- Proposal JSON: `{proposal_json_path}`",
+            f"- Strategy: `{proposal.get('strategy')}`",
+            f"- Approval note: {approval_note}",
+            f"- Safety preset: {safety.name}",
+            "",
+            "## Gate Grid Change",
+            "",
+            "| Axis | Previous start (V) | Previous stop (V) | Previous points | New start (V) | New stop (V) | New points |",
+            "| --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+            _proposal_grid_row("gate1", current, proposed),
+            _proposal_grid_row("gate2", current, proposed),
+            "",
+            "## Input Suite",
+            "",
+            "```text",
+            format_hall_suite_audit(input_audit),
+            "```",
+            "",
+            "## Output Suite",
+            "",
+            "```text",
+            format_hall_suite_audit(output_audit),
+            "```",
+            "",
+            "## Measurement Settings Policy",
+            "",
+            "- This generator only applies the approved gate grid from the proposal.",
+            "- Keithley NPLC, voltage range, current range, compliance, source delay, and SR860 settings are copied from the packaged recipes.",
+            "- If any of those measurement settings need to change, use the explicit adjustment workflow and record the reason in the lab notebook.",
+            "",
+            "## Required Before Hardware",
+            "",
+            "```powershell",
+            (
+                f"ptm dual-gate-lockin-hall-suite-check {output_audit.longitudinal_recipe} "
+                f"{output_audit.plus_hall_recipe} {output_audit.minus_hall_recipe}"
+                + (f" --zero-field-recipe {output_audit.zero_hall_recipe}" if output_audit.zero_hall_recipe is not None else "")
+            ),
+            (
+                f"ptm dual-gate-lockin-hall-suite-package {output_audit.longitudinal_recipe} "
+                f"{output_audit.plus_hall_recipe} {output_audit.minus_hall_recipe} data\\hall_packages --chunk-size <N> "
+                f"--package-name <approved_package>"
+                + (f" --zero-field-recipe {output_audit.zero_hall_recipe}" if output_audit.zero_hall_recipe is not None else "")
+            ),
+            "```",
+            "",
+        ]
+    )
+
+
 def format_dual_gate_lockin_hall_suite_result_intake(
     manifest_path: Path,
     manifest: dict[str, Any],
@@ -1659,11 +1818,78 @@ def _resolve_analysis_review_json_path(review_json_or_analysis_dir: str | Path) 
     return path
 
 
+def _resolve_next_scan_proposal_json_path(proposal_json_or_analysis_dir: str | Path) -> Path:
+    path = Path(proposal_json_or_analysis_dir)
+    if path.is_dir():
+        path = path / "hall_suite_next_scan_proposal.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Hall suite next-scan proposal JSON does not exist: {path}")
+    return path
+
+
 def _load_analysis_review_json(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _load_next_scan_proposal_json(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def _proposal_package_manifest_path(proposal: dict[str, Any]) -> Path:
+    settings = proposal.get("preserve_measurement_settings") if isinstance(proposal.get("preserve_measurement_settings"), dict) else {}
+    source = settings.get("source")
+    if not source or source == "not available":
+        raise ValueError("proposal does not include a package manifest source for recipe generation")
+    path = Path(str(source))
+    if not path.exists():
+        raise FileNotFoundError(f"Package manifest from proposal does not exist: {path}")
+    return path
+
+
+def _build_approved_next_scan_recipe_data(
+    base_recipe_path: str | Path,
+    *,
+    measurement_name: str,
+    proposed_gate_grid: dict[str, Any],
+    approval_note: str,
+    output_directory: str | Path | None,
+) -> dict[str, Any]:
+    data = dict(load_yaml(base_recipe_path))
+    data["measurement_name"] = measurement_name
+    if output_directory is not None:
+        data["output"] = {**dict(data.get("output") or {}), "directory": str(output_directory)}
+    _apply_proposed_gate_axis(data, "gate1_sweep", proposed_gate_grid.get("gate1"))
+    _apply_proposed_gate_axis(data, "gate2_sweep", proposed_gate_grid.get("gate2"))
+    experiment = dict(data.get("experiment") or {})
+    existing_notes = str(experiment.get("notes") or "").strip()
+    note = f"Approved next-scan proposal: {approval_note}"
+    experiment["notes"] = f"{existing_notes}\n{note}".strip() if existing_notes else note
+    data["experiment"] = experiment
+    DualGateLockInRecipe.model_validate(data)
+    return data
+
+
+def _apply_proposed_gate_axis(data: dict[str, Any], sweep_key: str, proposed_axis: Any) -> None:
+    if not isinstance(proposed_axis, dict):
+        raise ValueError(f"proposal is missing {sweep_key} gate axis")
+    start = _optional_float(proposed_axis.get("start_v"))
+    stop = _optional_float(proposed_axis.get("stop_v"))
+    points_value = proposed_axis.get("points")
+    if start is None or stop is None or points_value is None:
+        raise ValueError(f"proposal {sweep_key} axis must include start_v, stop_v, and points")
+    try:
+        points = int(points_value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"proposal {sweep_key} points must be an integer") from exc
+    if points < 2:
+        raise ValueError(f"proposal {sweep_key} points must be at least 2")
+    data[sweep_key] = {**dict(data.get(sweep_key) or {}), "start_v": start, "stop_v": stop, "points": points}
 
 
 def _read_required_csv(path: Path, expected_columns: list[str]) -> list[dict[str, str]]:
