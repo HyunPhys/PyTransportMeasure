@@ -500,8 +500,12 @@ accepted run metadata and only change the gate grid:
 ptm dual-gate-lockin-scale-up-template data\raw\<accepted_limited_run_folder> configs/recipes/dual_gate_lockin_3x3_candidate.yaml --gate1-start-v -0.1 --gate1-stop-v 0.1 --gate1-points 3 --gate2-start-v -0.1 --gate2-stop-v 0.1 --gate2-points 3 --measurement-name dual_gate_lockin_3x3_candidate
 ```
 
-The template command writes the candidate recipe and immediately runs the same
-hardware-free scale-up check.
+The template command writes the candidate recipe, writes a companion
+`dual_gate_lockin_3x3_candidate.review.md`, and immediately runs the same
+hardware-free scale-up check. The review file contains the scale-up check
+command, preflight command, hardware run command template, and full candidate
+plan. Use `--review-path` to choose a different review file or `--no-review`
+when scripting.
 
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,

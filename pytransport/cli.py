@@ -48,7 +48,11 @@ from .dual_gate_review import (
     write_dual_gate_stats_csv,
 )
 from .dual_gate_lockin import dual_gate_lockin_point_count, run_dual_gate_lockin_sweep
-from .dual_gate_lockin_scaleup import write_dual_gate_lockin_scale_up_recipe
+from .dual_gate_lockin_scaleup import (
+    default_dual_gate_lockin_scale_up_review_path,
+    write_dual_gate_lockin_scale_up_recipe,
+    write_dual_gate_lockin_scale_up_review,
+)
 from .dual_gate_lockin_smoke import (
     format_dual_gate_lockin_active_smoke_plan,
     format_dual_gate_lockin_smoke_plan,
@@ -378,6 +382,8 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_scale_up_template.add_argument("--gate2-points", type=int, required=True)
     dual_gate_lockin_scale_up_template.add_argument("--measurement-name")
     dual_gate_lockin_scale_up_template.add_argument("--output-directory", type=Path)
+    dual_gate_lockin_scale_up_template.add_argument("--review-path", type=Path)
+    dual_gate_lockin_scale_up_template.add_argument("--no-review", action="store_true")
     dual_gate_lockin_scale_up_template.add_argument("--overwrite", action="store_true")
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
@@ -1298,6 +1304,20 @@ def command_dual_gate_lockin_scale_up_template(args: argparse.Namespace) -> int:
         overwrite=args.overwrite,
     )
     print(f"Candidate recipe: {output_path}")
+    if not args.no_review:
+        method = handler_for_measurement_type("dual_gate_lockin_sweep")
+        recipe = method.load_recipe(output_path)
+        safety = load_named_safety_preset(recipe.safety_preset)
+        review_path = args.review_path or default_dual_gate_lockin_scale_up_review_path(output_path)
+        written_review = write_dual_gate_lockin_scale_up_review(
+            review_path,
+            args.accepted_run_dir,
+            output_path,
+            recipe,
+            safety,
+            overwrite=args.overwrite,
+        )
+        print(f"Scale-up review: {written_review}")
     print()
     check_args = argparse.Namespace(
         accepted_run_dir=args.accepted_run_dir,

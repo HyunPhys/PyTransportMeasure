@@ -347,7 +347,11 @@ root.
   - reuse the shared SR860 setting comparison path outside preflight
   - save active-run SR860 setting readback checks in metadata
   - block gate output when runtime SR860 readback contradicts the recipe
-- [ ] Phase 25am: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25am: Scale-up review packet
+  - have `dual-gate-lockin-scale-up-template` write a companion review markdown
+  - include scale-up check, preflight, hardware command template, and full plan
+  - keep actual broader hardware execution tied to lab feedback
+- [ ] Phase 25an: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

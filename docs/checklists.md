@@ -457,6 +457,9 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-scale-up-template data\raw\<accepted_limited_run_folder> configs/recipes/dual_gate_lockin_3x3_candidate.yaml --gate1-start-v -0.1 --gate1-stop-v 0.1 --gate1-points 3 --gate2-start-v -0.1 --gate2-stop-v 0.1 --gate2-points 3 --measurement-name dual_gate_lockin_3x3_candidate
   ```
+- [ ] Open the generated `.review.md` file and confirm it contains the
+  scale-up check command, preflight command, hardware command template, and
+  candidate plan.
 - [ ] Confirm the raised hardware run prints
   `Dual-gate lock-in scale-up compatibility: PASS` before preflight/output.
 - [ ] Confirm runs with raised hardware point guards save `metadata.json`

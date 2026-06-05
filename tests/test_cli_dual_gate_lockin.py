@@ -493,6 +493,14 @@ def test_cli_dual_gate_lockin_scale_up_template_writes_compatible_candidate(tmp_
     assert "measurement_name: broader_candidate" in text
     assert "directory: " in text
     assert "points: 3" in text
+    review = output_recipe.with_suffix(".review.md")
+    assert review.exists()
+    review_text = review.read_text(encoding="utf-8")
+    assert "Dual-Gate Lock-In Scale-Up Review" in review_text
+    assert "ptm dual-gate-lockin-scale-up-check" in review_text
+    assert "ptm dual-gate-lockin-preflight" in review_text
+    assert "--accepted-previous-run" in review_text
+    assert "Candidate points: 9" in review_text
 
 
 def test_cli_dual_gate_lockin_scale_up_template_fails_when_grid_does_not_include_previous(tmp_path):
