@@ -354,6 +354,13 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_audit.add_argument("--write-report", action="store_true")
     dual_gate_lockin_audit.add_argument("--output", type=Path)
 
+    dual_gate_lockin_scale_up_check = subparsers.add_parser(
+        "dual-gate-lockin-scale-up-check",
+        help="Check whether an accepted dual-gate lock-in run can justify a candidate broader recipe without hardware.",
+    )
+    dual_gate_lockin_scale_up_check.add_argument("accepted_run_dir", type=Path)
+    dual_gate_lockin_scale_up_check.add_argument("candidate_recipe", type=Path)
+
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
     ac_lockin_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
@@ -1216,6 +1223,29 @@ def command_dual_gate_lockin_audit(args: argparse.Namespace) -> int:
         )
         print(f"Dual-gate lock-in acceptance report: {output_path}")
     return 0 if audit.accepted else 2
+
+
+def command_dual_gate_lockin_scale_up_check(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.candidate_recipe)
+    acceptance = audit_dual_gate_lockin_run(args.accepted_run_dir, require_lockin_settings=True)
+    print(format_dual_gate_lockin_acceptance(acceptance))
+    print()
+    if not acceptance.accepted:
+        print(
+            "Dual-gate lock-in scale-up check failed: accepted run did not pass strict acceptance audit.",
+            file=sys.stderr,
+        )
+        return 2
+    scale_up = audit_dual_gate_lockin_scale_up(args.accepted_run_dir, recipe)
+    print(format_dual_gate_lockin_scale_up_audit(scale_up))
+    if not scale_up.compatible:
+        print(
+            "Dual-gate lock-in scale-up check failed: candidate recipe is not compatible with the accepted run.",
+            file=sys.stderr,
+        )
+        return 2
+    return 0
 
 
 def command_ac_lockin_plan(args: argparse.Namespace) -> int:
@@ -2432,6 +2462,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin(args)
     if args.command == "dual-gate-lockin-audit":
         return command_dual_gate_lockin_audit(args)
+    if args.command == "dual-gate-lockin-scale-up-check":
+        return command_dual_gate_lockin_scale_up_check(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
     if args.command == "ac-lockin-preflight":

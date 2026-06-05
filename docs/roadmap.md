@@ -298,7 +298,12 @@ root.
   - require compatible geometry, topology, lock-in settings, gate SMU settings,
     compliance policy, and grid subset
   - save scale-up compatibility state in `hardware_guard`
-- [ ] Phase 25ac: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ac: Dual-gate lock-in scale-up pre-check CLI
+  - add `ptm dual-gate-lockin-scale-up-check`
+  - run strict acceptance and scale-up compatibility checks without hardware
+    output
+  - use this as the final dry gate before a raised-point hardware run
+- [ ] Phase 25ad: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

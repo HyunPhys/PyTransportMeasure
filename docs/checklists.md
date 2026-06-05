@@ -427,6 +427,10 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-audit data\raw\<accepted_limited_run_folder> --write-report
   ```
+- [ ] Check the candidate broader recipe without enabling hardware output.
+  ```powershell
+  ptm dual-gate-lockin-scale-up-check data\raw\<accepted_limited_run_folder> configs/recipes/<candidate_broader_recipe>.yaml
+  ```
 - [ ] Confirm the raised hardware run prints
   `Dual-gate lock-in scale-up compatibility: PASS` before preflight/output.
 - [ ] Confirm runs with raised hardware point guards save `metadata.json`

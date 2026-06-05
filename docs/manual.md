@@ -454,6 +454,17 @@ Use this for short lab-context notes such as
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 25 --hardware-approval-note "2x2 accepted; expanding to 5x5" --accepted-previous-run data\raw\<accepted_limited_run_folder> --progress --plot --report --gate-stats
 ```
 
+Before enabling hardware output, you can run the same accepted-run and
+scale-up compatibility checks without starting a measurement:
+
+```powershell
+ptm dual-gate-lockin-scale-up-check data\raw\<accepted_limited_run_folder> configs/recipes/<candidate_broader_recipe>.yaml
+```
+
+The command must print both `Dual-gate lock-in acceptance: PASS` and
+`Dual-gate lock-in scale-up compatibility: PASS` before the candidate recipe is
+used for a raised-point hardware run.
+
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,
 `last_completed_index`, last completed gate voltages, `next_point_index`,

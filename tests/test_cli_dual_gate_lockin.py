@@ -386,6 +386,27 @@ def test_cli_dual_gate_lockin_blocks_raised_guard_when_previous_grid_not_in_cand
     assert not (tmp_path / "raw").exists()
 
 
+def test_cli_dual_gate_lockin_scale_up_check_passes_for_compatible_candidate(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(["dual-gate-lockin-scale-up-check", str(previous_run), str(recipe)])
+
+    assert code == 0
+
+
+def test_cli_dual_gate_lockin_scale_up_check_fails_for_incompatible_candidate(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    text = recipe.read_text(encoding="utf-8")
+    text = text.replace("  input_grounding: float\n", "  input_grounding: ground\n")
+    recipe.write_text(text, encoding="utf-8")
+
+    code = cli.main(["dual-gate-lockin-scale-up-check", str(previous_run), str(recipe)])
+
+    assert code == 2
+
+
 def test_cli_dual_gate_lockin_active_sweep_blocks_when_too_many_points(tmp_path, monkeypatch):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 
