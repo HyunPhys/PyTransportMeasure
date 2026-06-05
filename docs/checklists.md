@@ -504,11 +504,15 @@ remain point-guarded.
   `hall_zero_corrected_resistance_ohm` and
   `hall_carrier_density_per_m2`.
 - [ ] After a matching longitudinal Vxx run is available, run
-  `ptm dual-gate-lockin-hall-mobility data\analysis\<hall_antisym_folder>
+  `ptm dual-gate-lockin-hall-mobility data\analysis\<hall_density_folder>
   data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>`
   and confirm `hall_mobility.csv`, `hall_mobility_report.md`, and
   `hall_mobility_metadata.json` are written.
+- [ ] Confirm `<hall_density_folder>` may be either the antisymmetry output
+  folder or the zero-field-corrected output folder, depending on which Hall
+  measurement set is available.
 - [ ] Confirm `hall_mobility.csv` contains `hall_carrier_density_per_m2`,
+  `hall_source_kind`, `hall_source_resistance_ohm`,
   `longitudinal_sheet_conductivity_s_per_sq`,
   `mobility_signed_m2_per_v_s`, and
   `mobility_magnitude_cm2_per_v_s`.

@@ -469,8 +469,12 @@ After a matching longitudinal Vxx dual-gate lock-in run is available, combine
 its sheet conductivity with the Hall density:
 
 ```powershell
-ptm dual-gate-lockin-hall-mobility data\analysis\<hall_antisym_folder> data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>
+ptm dual-gate-lockin-hall-mobility data\analysis\<hall_density_folder> data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>
 ```
+
+Here `hall_density_folder` can be either a folder containing
+`hall_antisym.csv` or a folder containing `hall_zero_corrected.csv`. Passing the
+CSV path directly also works.
 
 This writes `hall_mobility.csv`, `hall_mobility_report.md`, and
 `hall_mobility_metadata.json`. The command requires the longitudinal run to be

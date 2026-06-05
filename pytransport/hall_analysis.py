@@ -32,8 +32,11 @@ HALL_ANTISYM_COLUMNS = [
 HALL_MOBILITY_COLUMNS = [
     "gate1_voltage_v",
     "gate2_voltage_v",
+    "hall_source_kind",
     "hall_carrier_density_per_m2",
+    "hall_source_resistance_ohm",
     "hall_antisym_resistance_ohm",
+    "hall_zero_corrected_resistance_ohm",
     "field_even_resistance_ohm",
     "longitudinal_sheet_conductivity_s_per_sq",
     "longitudinal_sheet_resistance_ohm_per_sq",
@@ -71,7 +74,8 @@ class HallMobilityResult:
     report_path: Path
     metadata_path: Path
     points: int
-    hall_antisym_source: Path
+    hall_density_source: Path
+    hall_source_kind: str
     longitudinal_run_dir: Path
 
 
@@ -189,12 +193,12 @@ def write_dual_gate_lockin_hall_antisym(
 
 
 def write_dual_gate_lockin_hall_mobility(
-    hall_antisym_source: str | Path,
+    hall_density_source: str | Path,
     longitudinal_run_dir: str | Path,
     output_dir: str | Path | None = None,
     overwrite: bool = False,
 ) -> HallMobilityResult:
-    hall_source_path = Path(hall_antisym_source)
+    hall_source_path = Path(hall_density_source)
     longitudinal_path = Path(longitudinal_run_dir)
     output_path = Path(output_dir) if output_dir is not None else hall_source_path.with_name(
         f"{hall_source_path.name}_mobility"
@@ -203,8 +207,8 @@ def write_dual_gate_lockin_hall_mobility(
         raise FileExistsError(f"Output directory already exists and is not empty: {output_path}")
     output_path.mkdir(parents=True, exist_ok=True)
 
-    hall_csv = _resolve_hall_antisym_csv(hall_source_path)
-    hall_rows = _read_hall_antisym_rows(hall_csv)
+    hall_csv, hall_source_kind = _resolve_hall_density_csv(hall_source_path)
+    hall_rows = _read_hall_density_rows(hall_csv, hall_source_kind)
     longitudinal_metadata = read_dual_gate_lockin_metadata(longitudinal_path)
     _validate_longitudinal_metadata(longitudinal_metadata)
     longitudinal_points = read_dual_gate_lockin_points(longitudinal_path)
@@ -233,8 +237,11 @@ def write_dual_gate_lockin_hall_mobility(
             {
                 "gate1_voltage_v": key[0],
                 "gate2_voltage_v": key[1],
+                "hall_source_kind": hall_source_kind,
                 "hall_carrier_density_per_m2": density,
+                "hall_source_resistance_ohm": hall_row["hall_source_resistance_ohm"],
                 "hall_antisym_resistance_ohm": hall_row["hall_antisym_resistance_ohm"],
+                "hall_zero_corrected_resistance_ohm": hall_row["hall_zero_corrected_resistance_ohm"],
                 "field_even_resistance_ohm": hall_row["field_even_resistance_ohm"],
                 "longitudinal_sheet_conductivity_s_per_sq": sheet_conductivity,
                 "longitudinal_sheet_resistance_ohm_per_sq": sheet_resistance,
@@ -260,7 +267,10 @@ def write_dual_gate_lockin_hall_mobility(
         json.dump(
             {
                 "created_at": datetime.now().isoformat(timespec="seconds"),
-                "hall_antisym_csv": str(hall_csv),
+                "hall_density_csv": str(hall_csv),
+                "hall_density_source_kind": hall_source_kind,
+                "hall_antisym_csv": str(hall_csv) if hall_source_kind == "antisym" else None,
+                "hall_zero_corrected_csv": str(hall_csv) if hall_source_kind == "zero_corrected" else None,
                 "longitudinal_run_dir": str(longitudinal_path),
                 "points": len(rows),
                 "output_csv": str(output_csv),
@@ -272,7 +282,15 @@ def write_dual_gate_lockin_hall_mobility(
             sort_keys=True,
             default=str,
         )
-    return HallMobilityResult(output_csv, report_path, metadata_path, len(rows), hall_csv, longitudinal_path)
+    return HallMobilityResult(
+        output_csv,
+        report_path,
+        metadata_path,
+        len(rows),
+        hall_csv,
+        hall_source_kind,
+        longitudinal_path,
+    )
 
 
 def write_dual_gate_lockin_hall_zero_corrected(
@@ -439,7 +457,7 @@ def format_hall_zero_corrected_report(
 
 
 def format_hall_mobility_report(
-    hall_antisym_csv: str | Path,
+    hall_density_csv: str | Path,
     longitudinal_run_dir: str | Path,
     rows: list[dict[str, Any]],
 ) -> str:
@@ -458,7 +476,8 @@ def format_hall_mobility_report(
         [
             "# Hall Mobility Report",
             "",
-            f"- Hall antisym CSV: `{hall_antisym_csv}`",
+            f"- Hall density CSV: `{hall_density_csv}`",
+            f"- Hall source kind: `{rows[0]['hall_source_kind'] if rows else 'n/a'}`",
             f"- Longitudinal Vxx run: `{longitudinal_run_dir}`",
             f"- Matched gate points: {len(rows)}",
             f"- Hall carrier density range: {_fmt(min(density_values) if density_values else None, ' m^-2')} to {_fmt(max(density_values) if density_values else None, ' m^-2')}",
@@ -523,16 +542,49 @@ def _validate_longitudinal_metadata(metadata: dict[str, Any]) -> None:
         raise ValueError("longitudinal run voltage_probe_role must be longitudinal")
 
 
-def _resolve_hall_antisym_csv(path: Path) -> Path:
+def _resolve_hall_density_csv(path: Path) -> tuple[Path, str]:
     if path.is_dir():
-        return path / "hall_antisym.csv"
-    return path
+        antisym = path / "hall_antisym.csv"
+        zero_corrected = path / "hall_zero_corrected.csv"
+        if antisym.exists() and zero_corrected.exists():
+            raise ValueError(f"{path} contains both hall_antisym.csv and hall_zero_corrected.csv; pass one CSV path")
+        if antisym.exists():
+            return antisym, "antisym"
+        if zero_corrected.exists():
+            return zero_corrected, "zero_corrected"
+        raise FileNotFoundError(f"Missing Hall density CSV in {path}: expected hall_antisym.csv or hall_zero_corrected.csv")
+    if path.name == "hall_zero_corrected.csv":
+        return path, "zero_corrected"
+    if path.name == "hall_antisym.csv":
+        return path, "antisym"
+    return path, _infer_hall_density_csv_kind(path)
 
 
-def _read_hall_antisym_rows(path: Path) -> dict[tuple[float, float], dict[str, float | None]]:
+def _infer_hall_density_csv_kind(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing Hall density CSV: {path}")
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        fields = set(reader.fieldnames or [])
+    if "hall_antisym_resistance_ohm" in fields:
+        return "antisym"
+    if "hall_zero_corrected_resistance_ohm" in fields:
+        return "zero_corrected"
+    raise ValueError(f"{path} is not a supported Hall density CSV")
+
+
+def _read_hall_density_rows(path: Path, source_kind: str) -> dict[tuple[float, float], dict[str, float | str | None]]:
+    if source_kind == "antisym":
+        return _read_hall_antisym_rows(path)
+    if source_kind == "zero_corrected":
+        return _read_hall_zero_corrected_rows(path)
+    raise ValueError(f"unsupported Hall density source kind: {source_kind}")
+
+
+def _read_hall_antisym_rows(path: Path) -> dict[tuple[float, float], dict[str, float | str | None]]:
     if not path.exists():
         raise FileNotFoundError(f"Missing Hall antisym CSV: {path}")
-    rows: dict[tuple[float, float], dict[str, float | None]] = {}
+    rows: dict[tuple[float, float], dict[str, float | str | None]] = {}
     with path.open("r", newline="", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
         missing = set(HALL_ANTISYM_COLUMNS) - set(reader.fieldnames or [])
@@ -543,9 +595,36 @@ def _read_hall_antisym_rows(path: Path) -> dict[tuple[float, float], dict[str, f
             if key in rows:
                 raise ValueError(f"duplicate Hall antisym gate point: {key}")
             rows[key] = {
+                "hall_source_kind": "antisym",
                 "hall_carrier_density_per_m2": _csv_float(row["hall_carrier_density_per_m2"]),
+                "hall_source_resistance_ohm": _csv_float(row["hall_antisym_resistance_ohm"]),
                 "hall_antisym_resistance_ohm": _csv_float(row["hall_antisym_resistance_ohm"]),
+                "hall_zero_corrected_resistance_ohm": None,
                 "field_even_resistance_ohm": _csv_float(row["field_even_resistance_ohm"]),
+            }
+    return rows
+
+
+def _read_hall_zero_corrected_rows(path: Path) -> dict[tuple[float, float], dict[str, float | str | None]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing Hall zero-corrected CSV: {path}")
+    rows: dict[tuple[float, float], dict[str, float | str | None]] = {}
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        missing = set(HALL_ZERO_CORRECTED_COLUMNS) - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"{path} is not a Hall zero-corrected CSV; missing {sorted(missing)}")
+        for row in reader:
+            key = (float(row["gate1_voltage_v"]), float(row["gate2_voltage_v"]))
+            if key in rows:
+                raise ValueError(f"duplicate Hall zero-corrected gate point: {key}")
+            rows[key] = {
+                "hall_source_kind": "zero_corrected",
+                "hall_carrier_density_per_m2": _csv_float(row["hall_carrier_density_per_m2"]),
+                "hall_source_resistance_ohm": _csv_float(row["hall_zero_corrected_resistance_ohm"]),
+                "hall_antisym_resistance_ohm": None,
+                "hall_zero_corrected_resistance_ohm": _csv_float(row["hall_zero_corrected_resistance_ohm"]),
+                "field_even_resistance_ohm": None,
             }
     return rows
 

@@ -227,7 +227,30 @@ def test_hall_mobility_combines_antisym_and_longitudinal_run(tmp_path):
     assert "Hall Mobility Report" in result.report_path.read_text(encoding="utf-8")
     metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
     assert metadata["points"] == 3
+    assert metadata["hall_density_source_kind"] == "antisym"
     assert "hall_antisym_csv" in metadata
+
+
+def test_hall_mobility_combines_zero_corrected_and_longitudinal_run(tmp_path):
+    field = write_hall_run(tmp_path / "field_b", 1.0, [2e-6, 3e-6, 4e-6])
+    zero = write_hall_run(tmp_path / "zero_b", 0.0, [0.5e-6, 0.5e-6, 0.5e-6])
+    corrected = write_dual_gate_lockin_hall_zero_corrected(field, zero, tmp_path / "zero_corrected")
+    longitudinal = write_longitudinal_run(tmp_path / "longitudinal", [1e-4, 2e-4, 3e-4])
+
+    result = write_dual_gate_lockin_hall_mobility(corrected.output_csv, longitudinal, tmp_path / "mobility")
+
+    assert result.points == 3
+    assert result.hall_source_kind == "zero_corrected"
+    rows = list(csv.DictReader(result.output_csv.open(newline="", encoding="utf-8")))
+    density = float(rows[0]["hall_carrier_density_per_m2"])
+    expected_mobility = abs(1e-4) / (ELEMENTARY_CHARGE_C * abs(density))
+    assert rows[0]["hall_source_kind"] == "zero_corrected"
+    assert rows[0]["hall_antisym_resistance_ohm"] == ""
+    assert float(rows[0]["hall_zero_corrected_resistance_ohm"]) > 0
+    assert float(rows[0]["mobility_magnitude_m2_per_v_s"]) == pytest.approx(expected_mobility)
+    metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
+    assert metadata["hall_density_source_kind"] == "zero_corrected"
+    assert metadata["hall_zero_corrected_csv"] == str(corrected.output_csv)
 
 
 def test_hall_mobility_rejects_non_longitudinal_run(tmp_path):

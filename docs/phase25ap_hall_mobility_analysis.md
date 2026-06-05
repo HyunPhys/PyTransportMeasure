@@ -7,7 +7,8 @@ maps without adding new hardware-control behavior.
 
 This phase combines:
 
-- an antisymmetrized Hall artifact from matched `+B` and `-B` Vxy runs
+- a Hall density artifact from either matched `+B`/`-B` Vxy runs or a
+  finite-field Vxy run corrected by a `B=0` offset run
 - a completed longitudinal Vxx dual-gate lock-in run with sheet conductivity
 
 The result is a gate-grid mobility table and report.
@@ -15,16 +16,17 @@ The result is a gate-grid mobility table and report.
 ## Command
 
 ```powershell
-ptm dual-gate-lockin-hall-mobility data\analysis\<hall_antisym_folder> data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>
+ptm dual-gate-lockin-hall-mobility data\analysis\<hall_density_folder> data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>
 ```
 
-The first argument can be either a folder containing `hall_antisym.csv` or the
-CSV path itself.
+The first argument can be a folder containing `hall_antisym.csv`, a folder
+containing `hall_zero_corrected.csv`, or either CSV path directly.
 
 ## Required Inputs
 
-- `hall_antisym.csv` with matched `gate1_voltage_v` and `gate2_voltage_v`
-  points, `hall_carrier_density_per_m2`, and `hall_antisym_resistance_ohm`.
+- `hall_antisym.csv` or `hall_zero_corrected.csv` with matched
+  `gate1_voltage_v` and `gate2_voltage_v` points and
+  `hall_carrier_density_per_m2`.
 - A completed `dual_gate_lockin_sweep` longitudinal run.
 - The longitudinal metadata must contain `voltage_probe_role: longitudinal`.
 - The longitudinal points must contain
@@ -39,6 +41,8 @@ CSV path itself.
 CSV columns include:
 
 - `hall_carrier_density_per_m2`
+- `hall_source_kind`
+- `hall_source_resistance_ohm`
 - `longitudinal_sheet_conductivity_s_per_sq`
 - `longitudinal_sheet_resistance_ohm_per_sq`
 - `mobility_signed_m2_per_v_s`

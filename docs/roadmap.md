@@ -367,7 +367,12 @@ root.
   - add `ptm dual-gate-lockin-hall-zero-correct`
   - subtract matched `B=0` Hall resistance from finite-field Hall resistance
   - write corrected Hall resistance and carrier density artifacts
-- [ ] Phase 25ar: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ar: Mobility source generalization
+  - allow `ptm dual-gate-lockin-hall-mobility` to accept either
+    `hall_antisym.csv` or `hall_zero_corrected.csv`
+  - preserve source kind and source resistance columns in mobility artifacts
+  - keep the same longitudinal Vxx sheet-conductivity input contract
+- [ ] Phase 25as: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

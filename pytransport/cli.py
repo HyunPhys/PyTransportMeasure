@@ -421,9 +421,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     dual_gate_lockin_hall_mobility = subparsers.add_parser(
         "dual-gate-lockin-hall-mobility",
-        help="Combine Hall antisymmetry data with a longitudinal Vxx run into mobility artifacts.",
+        help="Combine Hall density data with a longitudinal Vxx run into mobility artifacts.",
     )
-    dual_gate_lockin_hall_mobility.add_argument("hall_antisym_source", type=Path)
+    dual_gate_lockin_hall_mobility.add_argument("hall_density_source", type=Path)
     dual_gate_lockin_hall_mobility.add_argument("longitudinal_run_dir", type=Path)
     dual_gate_lockin_hall_mobility.add_argument("--output-dir", type=Path)
     dual_gate_lockin_hall_mobility.add_argument("--overwrite", action="store_true")
@@ -1404,7 +1404,7 @@ def command_dual_gate_lockin_hall_zero_correct(args: argparse.Namespace) -> int:
 
 def command_dual_gate_lockin_hall_mobility(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_mobility(
-        args.hall_antisym_source,
+        args.hall_density_source,
         args.longitudinal_run_dir,
         output_dir=args.output_dir,
         overwrite=args.overwrite,
@@ -1413,6 +1413,7 @@ def command_dual_gate_lockin_hall_mobility(args: argparse.Namespace) -> int:
     print(f"Hall mobility report: {result.report_path}")
     print(f"Hall mobility metadata: {result.metadata_path}")
     print(f"Points: {result.points}")
+    print(f"Hall source kind: {result.hall_source_kind}")
     return 0
 
 
