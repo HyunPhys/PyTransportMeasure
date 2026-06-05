@@ -55,6 +55,8 @@ Important modules:
 - `pytransport/scheme.py`: scheme recipe resolution and overrides.
 - `pytransport/method_registry.py`: saved-run summary, plot, report, campaign,
   and plan dispatch by `measurement_type`.
+- `pytransport/measurement_modes.py`: hardware-facing execution matrix for
+  two-terminal DC, four-terminal DC, AC lock-in, and Hall-suite development.
 - `pytransport/*_review.py`: summary, plot, report, CSV, and stats exporters.
 - `pytransport/cli.py`: `ptm` command-line interface.
 
@@ -76,6 +78,19 @@ Important modules:
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
 | GUI | Dry-run desktop foundation | `ptm-gui` |
+
+For the measurement-focused execution matrix, run:
+
+```powershell
+ptm measurement-modes --verbose
+ptm measurement-modes --json-output docs\measurement_modes.json
+```
+
+This matrix is the current source of truth for the major Hall-bar graphene
+development path: two-terminal DC, four-terminal DC, two-terminal AC,
+four-terminal AC, and Hall-suite dual-gate lock-in runs. It separates
+`hardware_verified`, `hardware_smoke_ready`, `dry_run_ready`, and `planned`
+paths so convenience/UI work does not hide the actual measurement readiness.
 
 ## Installation
 

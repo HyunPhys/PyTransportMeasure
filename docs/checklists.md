@@ -13,6 +13,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Dual-gate lock-in workflow is dry-run verified and preflight-gated.
 - [x] SR860 / AC lock-in workflow is dry-run verified.
 - [x] Two-terminal AC lock-in hardware smoke path is available after preflight.
+- [x] Measurement-mode execution matrix tracks two-terminal DC, four-terminal
+  DC, two-terminal AC, four-terminal AC, and Hall-suite dual-gate readiness.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.

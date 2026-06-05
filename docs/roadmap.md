@@ -592,11 +592,16 @@ root.
   - surface return bundle index existence in lifecycle status
   - let package lifecycle mark post-analysis return bundles as archived for lab
     notebook handoff
-- [ ] Phase 25ck: Hall measurement-mode execution matrix
+- [x] Phase 25ck: Hall measurement-mode execution matrix
   - define the next measurement-focused implementation matrix for two-terminal
     DC, four-terminal DC, two-terminal AC, four-terminal AC, and Hall-suite
     dual-gate runs
   - keep convenience/UI work secondary to hardware-facing measurement paths
+- [ ] Phase 25cl: Four-terminal DC design gate
+  - inspect Keithley 2450 remote-sense / 4-wire SCPI path before enabling any
+    four-terminal DC output
+  - design recipe schema, contact topology guard, preflight, and dry-run runner
+    for DC four-probe measurement
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -145,6 +145,11 @@ from .instruments.fake import (
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
+from .measurement_modes import (
+    format_measurement_mode_matrix,
+    measurement_mode_matrix_payload,
+    write_measurement_mode_matrix_json,
+)
 from .measurement_parameters import (
     audit_smu_hardware_parameters,
     assert_explicit_nplc_for_hardware,
@@ -256,6 +261,14 @@ def build_parser() -> argparse.ArgumentParser:
     probe.add_argument("--instrument", default="keithley_2450", choices=["keithley_2450", "srs_sr860"])
     probe.add_argument("--address", required=True)
     probe.add_argument("--timeout-ms", type=int, default=10000)
+
+    measurement_modes = subparsers.add_parser(
+        "measurement-modes",
+        help="Show the hardware-facing measurement mode execution matrix.",
+    )
+    measurement_modes.add_argument("--verbose", action="store_true", help="Include commands, guards, and limitations.")
+    measurement_modes.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    measurement_modes.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
 
     run = subparsers.add_parser("run", help="Run a Drain I-V recipe.")
     run.add_argument("recipe", type=Path)
@@ -1234,6 +1247,17 @@ def command_probe(args: argparse.Namespace) -> int:
         return 0
     finally:
         smu.close()
+
+
+def command_measurement_modes(args: argparse.Namespace) -> int:
+    if args.json_output:
+        output_path = write_measurement_mode_matrix_json(args.json_output)
+        print(f"Measurement mode matrix JSON: {output_path}")
+    if args.json:
+        print(json.dumps(measurement_mode_matrix_payload(), indent=2, sort_keys=True))
+    elif not args.json_output:
+        print(format_measurement_mode_matrix(verbose=args.verbose))
+    return 0
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -3770,6 +3794,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_identify(args)
     if args.command == "probe":
         return command_probe(args)
+    if args.command == "measurement-modes":
+        return command_measurement_modes(args)
     if args.command == "run":
         return command_run(args)
     if args.command == "single-gate-plan":
