@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .dual_gate_lockin import planned_dual_gate_lockin_grid
+from .measurement_context import format_contact_list, format_geometry, format_lockin_contact_context
 from .dual_gate_review import fmt
 from .preflight import compare_lockin_settings, lockin_settings_ok
 from .recipes import DualGateLockInRecipe
@@ -73,6 +74,10 @@ class DualGateLockInScaleUpAudit:
 class DualGateLockInSummary:
     run_dir: Path
     measurement_name: str
+    measurement_geometry: str
+    topology_layout: str | None
+    lockin_voltage_contacts: str
+    excitation_contacts: str
     completed: bool | None
     points: int
     gate1_points: int
@@ -748,6 +753,8 @@ def _optional_float(value: Any) -> float | None:
 def summarize_dual_gate_lockin_run(run_dir: str | Path) -> DualGateLockInSummary:
     path = Path(run_dir)
     metadata = read_dual_gate_lockin_metadata(path)
+    recipe = metadata.get("recipe") or {}
+    topology = recipe.get("topology") or {}
     points = read_dual_gate_lockin_points(path)
     gate1_voltages = [float(point["gate1_voltage_v"]) for point in points]
     gate2_voltages = [float(point["gate2_voltage_v"]) for point in points]
@@ -764,6 +771,10 @@ def summarize_dual_gate_lockin_run(run_dir: str | Path) -> DualGateLockInSummary
     return DualGateLockInSummary(
         run_dir=path,
         measurement_name=metadata.get("measurement_name") or path.name,
+        measurement_geometry=format_geometry(recipe.get("measurement_geometry") or {}),
+        topology_layout=topology.get("device_layout"),
+        lockin_voltage_contacts=format_contact_list(topology.get("lockin_input_contacts") or []),
+        excitation_contacts=format_contact_list(topology.get("excitation_contacts") or []),
         completed=metadata.get("completed"),
         points=len(points),
         gate1_points=len({float(point["gate1_voltage_v"]) for point in points}),
@@ -791,6 +802,10 @@ def format_dual_gate_lockin_summary(summary: DualGateLockInSummary) -> str:
     lines = [
         f"Dual-gate lock-in run: {summary.run_dir}",
         f"Measurement: {summary.measurement_name}",
+        f"Geometry: {summary.measurement_geometry}",
+        f"Topology layout: {summary.topology_layout or 'n/a'}",
+        f"Lock-in voltage contacts: {summary.lockin_voltage_contacts}",
+        f"Excitation contacts: {summary.excitation_contacts}",
         f"Completed: {summary.completed}",
         f"Points: {summary.points}",
         f"Gate1 points: {summary.gate1_points}",
@@ -947,7 +962,9 @@ def format_dual_gate_lockin_report(run_dir: str | Path) -> str:
     metadata = read_dual_gate_lockin_metadata(path)
     recipe = metadata.get("recipe") or {}
     experiment = recipe.get("experiment") or {}
+    measurement_geometry = recipe.get("measurement_geometry") or {}
     lockin = recipe.get("lockin") or {}
+    topology = recipe.get("topology") or {}
     summary = summarize_dual_gate_lockin_run(path)
     stats_rows = dual_gate_lockin_stats_rows(path)
     lines = [
@@ -965,6 +982,10 @@ def format_dual_gate_lockin_report(run_dir: str | Path) -> str:
         f"- Lock-in conductance range: {fmt(summary.lockin_conductance_min_s, ' S')} to {fmt(summary.lockin_conductance_max_s, ' S')}",
         f"- Max abs gate1 leakage: {fmt(summary.gate1_leakage_abs_max_a, ' A')}",
         f"- Max abs gate2 leakage: {fmt(summary.gate2_leakage_abs_max_a, ' A')}",
+        "",
+        "## Measurement Context",
+        "",
+        *[f"- {line}" for line in format_lockin_contact_context(measurement_geometry, lockin, topology)],
         "",
         "## Experiment",
         "",

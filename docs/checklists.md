@@ -473,7 +473,8 @@ remain point-guarded.
 - [ ] Confirm `dual_gate_lockin_stats.csv` includes
   `lockin_resistance_mean_ohm` and `lockin_conductance_mean_s`.
 - [ ] Confirm `dual_gate_lockin_report.md` lists nominal source-drain current,
-  resistance range, and conductance range.
+  resistance range, conductance range, measurement geometry, lock-in voltage
+  contacts, and excitation contacts.
 - [ ] Confirm generic saved-run commands work.
   ```powershell
   ptm summarize data\raw\<dual_gate_lockin_run_folder>

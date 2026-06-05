@@ -273,9 +273,15 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert summary.points == 9
     assert summary.gate1_points == 3
     assert summary.gate2_points == 3
+    assert summary.measurement_geometry == "two_terminal, 2-terminal"
+    assert summary.topology_layout == "hall_bar"
+    assert summary.lockin_voltage_contacts == "Vxx+, Vxx-"
+    assert summary.excitation_contacts == "S, D"
     assert summary.lockin_resistance_max_ohm is not None
     assert summary.lockin_conductance_min_s is not None
-    assert "Dual-gate lock-in run:" in format_dual_gate_lockin_summary(summary)
+    summary_text = format_dual_gate_lockin_summary(summary)
+    assert "Dual-gate lock-in run:" in summary_text
+    assert "Lock-in voltage contacts: Vxx+, Vxx-" in summary_text
     stats_path = write_dual_gate_lockin_stats_csv(run_dir)
     stats_rows = list(csv.DictReader(stats_path.open(newline="", encoding="utf-8")))
     assert stats_path.name == "dual_gate_lockin_stats.csv"
@@ -284,6 +290,9 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert write_dual_gate_lockin_heatmap_svg(run_dir).name == "dual_gate_lockin_heatmap.svg"
     assert write_dual_gate_lockin_report(run_dir).name == "dual_gate_lockin_report.md"
     report = (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
+    assert "## Measurement Context" in report
+    assert "- Lock-in voltage contacts: Vxx+, Vxx-" in report
+    assert "- Excitation contacts: S, D" in report
     assert "## Recovery" in report
     assert "Mean Resistance" in report
 
@@ -318,6 +327,14 @@ def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):
     assert saved_metadata["recipe"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
     assert saved_metadata["recipe"]["topology"]["excitation_contacts"] == ["S", "D"]
     assert saved_metadata["outputs_off_after_run"] is True
+    summary = summarize_dual_gate_lockin_run(Path(metadata["run_dir"]))
+    assert summary.measurement_geometry.startswith("four_terminal, 4-terminal")
+    assert summary.lockin_voltage_contacts == "Vxx+, Vxx-"
+    report_path = write_dual_gate_lockin_report(Path(metadata["run_dir"]))
+    report = report_path.read_text(encoding="utf-8")
+    assert "Measurement geometry: four_terminal, 4-terminal" in report
+    assert "- Lock-in voltage contacts: Vxx+, Vxx-" in report
+    assert "- Excitation contacts: S, D" in report
 
 
 def test_dual_gate_lockin_four_terminal_rejects_voltage_contact_overlap(tmp_path):

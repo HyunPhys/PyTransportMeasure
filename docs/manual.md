@@ -387,7 +387,9 @@ Review artifacts include:
 - `dual_gate_lockin_heatmap.svg`: mean lock-in R over the gate1/gate2 grid.
 - `dual_gate_lockin_stats.csv`: per-gate-pair lock-in, derived transport, and
   leakage statistics.
-- `dual_gate_lockin_report.md`: human-readable run report.
+- `dual_gate_lockin_report.md`: human-readable run report. It records the
+  measurement geometry, lock-in voltage contacts, excitation contacts, and
+  source-drain excitation/current assumptions.
 
 The `topology` block is required for this method:
 
@@ -535,7 +537,8 @@ For `four_terminal` lock-in recipes, the SR860 recipe block must use
 `input_mode: voltage` and `voltage_input: a-b`. Dual-gate Hall-bar lock-in
 recipes also require two distinct `topology.lockin_input_contacts`, two distinct
 `topology.excitation_contacts`, and no overlap between those voltage and
-excitation contacts.
+excitation contacts. Reports generated from these runs include the same context
+so an exported run folder remains interpretable even away from the recipe file.
 
 ## Campaign
 

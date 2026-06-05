@@ -325,7 +325,12 @@ root.
   - require dual-gate Hall-bar voltage contacts to be separate from excitation
     contacts before runner execution
   - add AC lock-in and dual-gate lock-in four-terminal dry-run recipes
-- [ ] Phase 25ah: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ah: Lock-in measurement-context reporting
+  - add shared geometry/contact context formatting for lock-in artifacts
+  - include lock-in input mode and voltage input in AC lock-in reports
+  - include Hall-bar voltage contacts and excitation contacts in dual-gate
+    lock-in summary and report artifacts
+- [ ] Phase 25ai: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

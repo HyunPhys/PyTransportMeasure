@@ -6,6 +6,7 @@ import pytest
 
 from pytransport.ac_lockin import ac_lockin_point_count, format_ac_lockin_plan, run_ac_lockin_sweep
 from pytransport.ac_lockin_review import (
+    format_ac_lockin_report,
     format_ac_lockin_summary,
     summarize_ac_lockin_run,
     write_ac_lockin_plot_svg,
@@ -135,6 +136,9 @@ def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert "AC lock-in run:" in format_ac_lockin_summary(summary)
     assert write_ac_lockin_plot_svg(run_dir).name == "ac_lockin_plot.svg"
     assert write_ac_lockin_report(run_dir).name == "ac_lockin_report.md"
+    report = format_ac_lockin_report(run_dir)
+    assert "- Lock-in input mode: voltage" in report
+    assert "- Lock-in voltage input: a" in report
 
 
 def test_ac_lockin_four_terminal_differential_voltage_dry_run(tmp_path):
@@ -158,6 +162,9 @@ def test_ac_lockin_four_terminal_differential_voltage_dry_run(tmp_path):
     assert saved_metadata["recipe"]["measurement_geometry"]["method"] == "four_terminal"
     assert saved_metadata["recipe"]["measurement_geometry"]["terminal_count"] == 4
     assert saved_metadata["recipe"]["lockin"]["voltage_input"] == "a-b"
+    report = format_ac_lockin_report(Path(metadata["run_dir"]))
+    assert "Measurement geometry: four_terminal, 4-terminal" in report
+    assert "- Lock-in voltage input: a-b" in report
 
 
 def test_ac_lockin_compliance_stop_saves_partial_and_turns_off(tmp_path):
