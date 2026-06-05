@@ -13,7 +13,7 @@ from .io import RunWriter
 from .model import MeasurementPoint
 from .recipes import DrainIVRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_point_current, validate_recipe_against_safety
-from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
+from .smu_config import build_voltage_source_config, read_voltage_source_config_if_available, voltage_source_config_snapshot
 
 
 def run_drain_iv(
@@ -46,6 +46,7 @@ def run_drain_iv(
         "instrument_idn": None,
         "instrument_probe": None,
         "configured_smu": voltage_source_config_snapshot(smu_config),
+        "configured_smu_readback": None,
         "current_limit_command": None,
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
@@ -62,6 +63,7 @@ def run_drain_iv(
         metadata["instrument_idn"] = probe.get("idn")
         smu.configure_voltage_source(smu_config)
         metadata["current_limit_command"] = getattr(smu, "current_limit_command", None)
+        metadata["configured_smu_readback"] = read_voltage_source_config_if_available(smu)
         smu.output_on()
 
         start = time.monotonic()

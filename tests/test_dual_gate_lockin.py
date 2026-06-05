@@ -197,6 +197,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
     assert saved_metadata["configured_gate1_smu"]["nplc"] == pytest.approx(1.0)
     assert saved_metadata["configured_gate2_smu"]["current_range_a"] == pytest.approx(1e-9)
+    assert saved_metadata["configured_gate1_smu_readback"]["current_nplc"] == "1"
+    assert saved_metadata["configured_gate2_smu_readback"]["source_current_limit"] == "1e-08"
 
     summary = summarize_dual_gate_lockin_run(run_dir)
     assert summary.points == 9
@@ -276,6 +278,8 @@ def test_dual_gate_lockin_active_gate_smoke_writes_readout_and_turns_outputs_off
     saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
     assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
     assert saved_metadata["configured_gate2_smu"]["current_range_a"] == pytest.approx(1e-9)
+    assert saved_metadata["configured_gate1_smu_readback"]["source_function"] == "VOLT"
+    assert saved_metadata["configured_gate2_smu_readback"]["current_range"] == "1e-09"
 
 
 def test_dual_gate_lockin_active_gate_smoke_compliance_stop_turns_outputs_off(tmp_path):

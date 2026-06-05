@@ -113,6 +113,7 @@ def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert saved_metadata["lockin_probe"]["idn"] == "FAKE,LOCKIN,SR860-DRY-RUN,0"
     assert saved_metadata["configured_source_smu"]["current_compliance_a"] == pytest.approx(1e-6)
     assert saved_metadata["configured_source_smu"]["voltage_range_v"] == pytest.approx(0.1)
+    assert saved_metadata["configured_source_smu_readback"]["voltage_range"] == "0.1"
 
     summary = summarize_ac_lockin_run(run_dir)
     assert summary.points == 5

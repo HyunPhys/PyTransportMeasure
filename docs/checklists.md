@@ -512,6 +512,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   interrupt.
 - [ ] Open `metadata.json` and confirm the relevant `configured_*_smu`
   snapshot records the intended compliance, range, terminal, and NPLC values.
+- [ ] Confirm the matching `configured_*_smu_readback` exists. If any value is
+  `ERROR ...`, keep the run artifacts but review the corresponding Keithley
+  query before trusting broader scans.
 
 ## Pulse Measurement Dry-Run Checklist
 

@@ -22,6 +22,16 @@ def voltage_source_config_snapshot(config: SMUVoltageSourceConfig) -> dict[str, 
     return asdict(config)
 
 
+def read_voltage_source_config_if_available(smu: Any) -> dict[str, str | None] | None:
+    reader = getattr(smu, "read_voltage_source_config", None)
+    if reader is None:
+        return None
+    try:
+        return reader()
+    except Exception as exc:
+        return {"readback_error": f"{type(exc).__name__}: {exc}"}
+
+
 def _get(source: Any, key: str) -> Any:
     if isinstance(source, dict):
         return source.get(key)

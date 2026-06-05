@@ -19,7 +19,7 @@ from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import AcLockInRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_ac_lockin_recipe_against_safety, validate_point_current
-from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
+from .smu_config import build_voltage_source_config, read_voltage_source_config_if_available, voltage_source_config_snapshot
 
 
 AC_LOCKIN_COLUMNS = [
@@ -205,6 +205,7 @@ def run_ac_lockin_sweep(
         "source_instrument_probe": None,
         "lockin_probe": None,
         "configured_source_smu": voltage_source_config_snapshot(source_config),
+        "configured_source_smu_readback": None,
         "lockin_time_constant_s": lockin_tc_s,
         "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
         "lockin_read_settle_s": lockin_settle_s,
@@ -220,6 +221,7 @@ def run_ac_lockin_sweep(
         metadata["source_instrument_probe"] = source_smu.probe()
         metadata["lockin_probe"] = lockin.probe()
         source_smu.configure_voltage_source(source_config)
+        metadata["configured_source_smu_readback"] = read_voltage_source_config_if_available(source_smu)
         source_smu.output_on()
 
         start = time.monotonic()

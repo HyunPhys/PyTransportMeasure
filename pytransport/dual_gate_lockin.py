@@ -24,7 +24,7 @@ from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import DualGateLockInRecipe, SafetyPreset, gate_voltages_from_config
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
-from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
+from .smu_config import build_voltage_source_config, read_voltage_source_config_if_available, voltage_source_config_snapshot
 from .ac_lockin import format_lockin_settings
 
 
@@ -322,6 +322,8 @@ def run_dual_gate_lockin_sweep(
         "lockin_probe": None,
         "configured_gate1_smu": voltage_source_config_snapshot(gate1_config),
         "configured_gate2_smu": voltage_source_config_snapshot(gate2_config),
+        "configured_gate1_smu_readback": None,
+        "configured_gate2_smu_readback": None,
         "lockin_time_constant_s": lockin_tc_s,
         "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
         "lockin_read_settle_s": lockin_settle_s,
@@ -340,6 +342,8 @@ def run_dual_gate_lockin_sweep(
         metadata["lockin_probe"] = lockin.probe()
         gate1_smu.configure_voltage_source(gate1_config)
         gate2_smu.configure_voltage_source(gate2_config)
+        metadata["configured_gate1_smu_readback"] = read_voltage_source_config_if_available(gate1_smu)
+        metadata["configured_gate2_smu_readback"] = read_voltage_source_config_if_available(gate2_smu)
         gate1_smu.output_on()
         gate2_smu.output_on()
         metadata["gate_outputs_enabled"] = True

@@ -86,6 +86,11 @@ The order varies across examples, but the important pieces are:
 - Set current limit on the voltage source: `SOUR:VOLT:ILIM <A>`
 - Optionally set a voltage range: `SOUR:VOLT:RANG <V>`
 - Turn output on only after configuration is complete
+- Query readback after configuration and before output when auditing hardware
+  runs:
+  `SOUR:FUNC?`, `SENS:FUNC?`, `ROUT:TERM?`, `SENS:CURR:NPLC?`,
+  `SENS:CURR:RANG?`, `SENS:CURR:RANG:AUTO?`, `SOUR:VOLT:RANG?`,
+  `SOUR:VOLT:READ:BACK?`, and the accepted current-limit query.
 
 Manual examples:
 

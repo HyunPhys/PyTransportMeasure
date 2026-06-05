@@ -935,6 +935,12 @@ the instrument layer. Look for `configured_smu`, `configured_source_smu`,
 voltage range, current range, terminal selection, and NPLC, and are saved even
 for partial or failed runs.
 
+When the instrument supports it, metadata also stores a best-effort readback
+under the matching `configured_*_smu_readback` key. For the Keithley 2450, this
+is collected after source/measure configuration and before output is enabled.
+Use it to compare intended settings against the instrument response for NPLC,
+range/autorange, terminal, voltage readback, and source current limit.
+
 For the first AC/lock-in hardware smoke test, use:
 
 ```powershell

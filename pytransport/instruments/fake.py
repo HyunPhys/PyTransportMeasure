@@ -9,6 +9,32 @@ from dataclasses import dataclass
 from .base import LockInReading, SMUVoltageSourceConfig
 
 
+def fake_voltage_source_config_readback(config: SMUVoltageSourceConfig | None) -> dict[str, str | None]:
+    if config is None:
+        return {
+            "source_function": None,
+            "sense_function": None,
+            "terminal": None,
+            "current_nplc": None,
+            "current_range": None,
+            "current_range_auto": None,
+            "voltage_range": None,
+            "voltage_readback": None,
+            "source_current_limit": None,
+        }
+    return {
+        "source_function": "VOLT",
+        "sense_function": "CURR",
+        "terminal": config.terminal,
+        "current_nplc": None if config.nplc is None else f"{config.nplc:.12g}",
+        "current_range": None if config.current_range_a is None else f"{config.current_range_a:.12g}",
+        "current_range_auto": "1" if config.current_range_a is None else "0",
+        "voltage_range": None if config.voltage_range_v is None else f"{config.voltage_range_v:.12g}",
+        "voltage_readback": "1",
+        "source_current_limit": f"{config.current_compliance_a:.12g}",
+    }
+
+
 class FakeSMU:
     def __init__(self, resistance_ohm: float = 10_000_000.0, noise_std_a: float = 1e-10):
         self.resistance_ohm = resistance_ohm
@@ -17,6 +43,7 @@ class FakeSMU:
         self.current_compliance_a = 1e-6
         self.is_output_on = False
         self.connected = False
+        self.last_voltage_source_config: SMUVoltageSourceConfig | None = None
 
     def connect(self) -> None:
         self.connected = True
@@ -35,7 +62,11 @@ class FakeSMU:
         }
 
     def configure_voltage_source(self, config: SMUVoltageSourceConfig) -> None:
+        self.last_voltage_source_config = config
         self.current_compliance_a = config.current_compliance_a
+
+    def read_voltage_source_config(self) -> dict[str, str | None]:
+        return fake_voltage_source_config_readback(self.last_voltage_source_config)
 
     def set_voltage(self, voltage_v: float) -> None:
         self.voltage_v = voltage_v
@@ -89,6 +120,7 @@ class CoupledFakeSMU:
         self.current_compliance_a = 1e-6
         self.is_output_on = False
         self.connected = False
+        self.last_voltage_source_config: SMUVoltageSourceConfig | None = None
 
     def connect(self) -> None:
         self.connected = True
@@ -109,7 +141,11 @@ class CoupledFakeSMU:
         }
 
     def configure_voltage_source(self, config: SMUVoltageSourceConfig) -> None:
+        self.last_voltage_source_config = config
         self.current_compliance_a = config.current_compliance_a
+
+    def read_voltage_source_config(self) -> dict[str, str | None]:
+        return fake_voltage_source_config_readback(self.last_voltage_source_config)
 
     def set_voltage(self, voltage_v: float) -> None:
         if self.role == "drain":
@@ -146,6 +182,7 @@ class DualGateFakeSMU:
         self.current_compliance_a = 1e-6
         self.is_output_on = False
         self.connected = False
+        self.last_voltage_source_config: SMUVoltageSourceConfig | None = None
 
     def connect(self) -> None:
         self.connected = True
@@ -169,7 +206,11 @@ class DualGateFakeSMU:
         }
 
     def configure_voltage_source(self, config: SMUVoltageSourceConfig) -> None:
+        self.last_voltage_source_config = config
         self.current_compliance_a = config.current_compliance_a
+
+    def read_voltage_source_config(self) -> dict[str, str | None]:
+        return fake_voltage_source_config_readback(self.last_voltage_source_config)
 
     def set_voltage(self, voltage_v: float) -> None:
         if self.role == "drain":

@@ -1,6 +1,10 @@
 import pytest
 
-from pytransport.smu_config import build_voltage_source_config, voltage_source_config_snapshot
+from pytransport.smu_config import (
+    build_voltage_source_config,
+    read_voltage_source_config_if_available,
+    voltage_source_config_snapshot,
+)
 
 
 def test_build_voltage_source_config_from_instrument_dict():
@@ -26,3 +30,13 @@ def test_build_voltage_source_config_from_instrument_dict():
         "terminal": "FRONT",
         "nplc": 1.0,
     }
+
+
+def test_read_voltage_source_config_if_available_reports_missing_and_errors():
+    assert read_voltage_source_config_if_available(object()) is None
+
+    class BrokenReader:
+        def read_voltage_source_config(self):
+            raise RuntimeError("boom")
+
+    assert read_voltage_source_config_if_available(BrokenReader()) == {"readback_error": "RuntimeError: boom"}

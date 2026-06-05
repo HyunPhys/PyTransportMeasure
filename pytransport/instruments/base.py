@@ -44,6 +44,9 @@ class SourceMeasureUnit(Protocol):
     def configure_voltage_source(self, config: SMUVoltageSourceConfig) -> None:
         ...
 
+    def read_voltage_source_config(self) -> dict[str, str | None]:
+        ...
+
     def set_voltage(self, voltage_v: float) -> None:
         ...
 

@@ -126,6 +126,9 @@ def test_dual_gate_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert saved_metadata["configured_drain_smu"]["nplc"] == pytest.approx(1.0)
     assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
     assert saved_metadata["configured_gate2_smu"]["current_range_a"] == pytest.approx(1e-9)
+    assert saved_metadata["configured_drain_smu_readback"]["current_nplc"] == "1"
+    assert saved_metadata["configured_gate1_smu_readback"]["source_current_limit"] == "1e-08"
+    assert saved_metadata["configured_gate2_smu_readback"]["current_range"] == "1e-09"
 
     summary = summarize_dual_gate_run(run_dir)
     assert summary.points == 45

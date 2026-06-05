@@ -235,7 +235,12 @@ root.
   - save normalized compliance/range/terminal/NPLC snapshots in run metadata
   - cover Drain I-V, single-gate, dual-gate, AC lock-in, dual-gate lock-in,
     active-gate smoke, and pulse paths
-- [ ] Phase 25p: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25p: SMU configuration readback
+  - add optional source-voltage config readback to the SMU interface
+  - query Keithley source/sense function, terminal, NPLC, ranges, voltage
+    readback, and accepted current-limit value after configure and before output
+  - save best-effort `configured_*_smu_readback` metadata across runners
+- [ ] Phase 25q: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

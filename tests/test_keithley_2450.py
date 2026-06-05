@@ -18,6 +18,24 @@ class FakeVisaInstrument:
             return "KEITHLEY INSTRUMENTS,MODEL 2450,1234567,1.0"
         if command == "*LANG?":
             return self.language
+        if command == ":SOUR:FUNC?":
+            return "VOLT"
+        if command == ":SENS:FUNC?":
+            return '"CURR"'
+        if command == ":ROUT:TERM?":
+            return "FRON"
+        if command == ":SENS:CURR:NPLC?":
+            return "1.0"
+        if command == ":SENS:CURR:RANG?":
+            return "0.0002"
+        if command == ":SENS:CURR:RANG:AUTO?":
+            return "0"
+        if command == ":SOUR:VOLT:RANG?":
+            return "0.2"
+        if command == ":SOUR:VOLT:READ:BACK?":
+            return "1"
+        if command == ":SOUR:VOLT:ILIMIT?":
+            return "0.0002"
         assert command == ":SYST:ERR?"
         if self.errors:
             return self.errors.pop(0)
@@ -71,3 +89,30 @@ def test_keithley_probe_reads_identity_language_and_error():
     assert result["idn"].startswith("KEITHLEY INSTRUMENTS,MODEL 2450")
     assert result["language"] == "SCPI"
     assert result["system_error"] == '0,"No error"'
+
+
+def test_keithley_voltage_source_config_readback_uses_accepted_current_limit_query():
+    smu = Keithley2450("FAKE")
+    smu._inst = FakeVisaInstrument()
+    smu.configure_voltage_source(
+        SMUVoltageSourceConfig(
+            current_compliance_a=2e-4,
+            voltage_range_v=0.2,
+            current_range_a=2e-4,
+            terminal="FRONT",
+            nplc=1.0,
+        )
+    )
+
+    readback = smu.read_voltage_source_config()
+
+    assert readback["source_function"] == "VOLT"
+    assert readback["sense_function"] == '"CURR"'
+    assert readback["terminal"] == "FRON"
+    assert readback["current_nplc"] == "1.0"
+    assert readback["current_range"] == "0.0002"
+    assert readback["current_range_auto"] == "0"
+    assert readback["voltage_range"] == "0.2"
+    assert readback["voltage_readback"] == "1"
+    assert readback["source_current_limit"] == "0.0002"
+    assert readback["source_current_limit_query"] == ":SOUR:VOLT:ILIMIT?"

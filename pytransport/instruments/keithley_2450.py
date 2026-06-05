@@ -63,6 +63,21 @@ class Keithley2450:
         self.inst.write(command)
         self._raise_on_error(context)
 
+    def _query_optional(self, command: str) -> str:
+        try:
+            response = str(self.inst.query(command)).strip()
+            error = self._query_error()
+            if self._is_no_error(error):
+                return response
+            self.inst.write("*CLS")
+            return f"ERROR after {command}: {error}"
+        except Exception as exc:
+            try:
+                self.inst.write("*CLS")
+            except Exception:
+                pass
+            return f"ERROR during {command}: {type(exc).__name__}: {exc}"
+
     def _set_current_limit(self, current_compliance_a: float) -> None:
         candidates = [
             ":SOUR:VOLT:ILIM {value}",
@@ -102,6 +117,23 @@ class Keithley2450:
         self._write_checked(":SOUR:VOLT:READ:BACK ON", "voltage readback configuration")
         self._set_current_limit(config.current_compliance_a)
         self._write_checked(":SOUR:VOLT 0", "initial voltage configuration")
+
+    def read_voltage_source_config(self) -> dict[str, str | None]:
+        current_limit_query = None
+        if self.current_limit_command is not None:
+            current_limit_query = self.current_limit_command.split(" {value}", maxsplit=1)[0] + "?"
+        return {
+            "source_function": self._query_optional(":SOUR:FUNC?"),
+            "sense_function": self._query_optional(":SENS:FUNC?"),
+            "terminal": self._query_optional(":ROUT:TERM?"),
+            "current_nplc": self._query_optional(":SENS:CURR:NPLC?"),
+            "current_range": self._query_optional(":SENS:CURR:RANG?"),
+            "current_range_auto": self._query_optional(":SENS:CURR:RANG:AUTO?"),
+            "voltage_range": self._query_optional(":SOUR:VOLT:RANG?"),
+            "voltage_readback": self._query_optional(":SOUR:VOLT:READ:BACK?"),
+            "source_current_limit": None if current_limit_query is None else self._query_optional(current_limit_query),
+            "source_current_limit_query": current_limit_query,
+        }
 
     def set_voltage(self, voltage_v: float) -> None:
         self.inst.write(f":SOUR:VOLT {voltage_v}")
