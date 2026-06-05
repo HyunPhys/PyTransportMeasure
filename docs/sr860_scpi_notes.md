@@ -60,6 +60,9 @@ confirmation prompt, and it saves a write/readback transcript.
 `ptm sr860-configure-check` verifies the saved transcript against the current
 recipe without touching hardware, so stale configure evidence is caught before
 preflight or active SMU output.
+`ptm ac-lockin-preflight` and `ptm dual-gate-lockin-preflight` can also take
+`--sr860-configure-json` to require the same evidence check as part of live
+preflight.
 
 ## Smoke-Test Commands
 

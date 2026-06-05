@@ -163,6 +163,12 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ```
 - [ ] If the configure check fails, rerun command review/configure or restore the
   recipe that produced the transcript before hardware preflight.
+- [ ] If the measurement depends on software-applied SR860 settings, pass the
+  configure JSON into lock-in preflight so stale evidence blocks the run.
+  ```powershell
+  ptm ac-lockin-preflight configs\recipes\<ac_recipe>.yaml --sr860-configure-json docs\sr860_configure.json
+  ptm dual-gate-lockin-preflight configs\recipes\<dual_gate_lockin_recipe>.yaml --sr860-configure-json docs\sr860_configure.json
+  ```
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

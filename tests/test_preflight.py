@@ -1,3 +1,6 @@
+import json
+
+from pytransport import cli
 from pytransport.preflight import (
     format_ac_lockin_preflight_report,
     format_dual_gate_lockin_preflight_report,
@@ -8,6 +11,8 @@ from pytransport.preflight import (
     run_preflight,
     run_single_gate_preflight,
 )
+from pytransport.recipes import load_ac_lockin_recipe, load_dual_gate_lockin_recipe
+from pytransport.sr860_config import review_sr860_config_commands
 
 
 LOCKIN_SETTING_PROBE = {
@@ -24,6 +29,31 @@ LOCKIN_SETTING_PROBE = {
     "setting_filter_slope_index": "3",
     "setting_synchronous_filter": "0",
 }
+
+
+def write_matching_sr860_configure_json(recipe, path):
+    review = review_sr860_config_commands(recipe)
+    steps = [
+        {
+            "index": command["index"],
+            "field": command["field"],
+            "command": command["command"],
+            "query": command["query"],
+            "expected_readback": command["expected_readback"],
+            "actual_readback": command["expected_readback"],
+            "matched": True,
+        }
+        for command in review["commands"]
+    ]
+    payload = {
+        "schema": "pytransport.sr860_configure.v1",
+        "completed": True,
+        "review": review,
+        "apply": {"matched": True, "steps": steps},
+        "hardware_approval_note": "test evidence",
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    return path
 
 
 def test_run_preflight_ok():
@@ -154,6 +184,40 @@ def test_run_ac_lockin_preflight_ok():
     assert "AC lock-in preflight OK: True" in text
 
 
+def test_run_ac_lockin_preflight_can_require_sr860_configure_evidence(tmp_path):
+    recipe_path = "configs/recipes/ac_lockin_hardware_smoke.yaml"
+    configure_json = write_matching_sr860_configure_json(
+        load_ac_lockin_recipe(recipe_path),
+        tmp_path / "sr860_configure.json",
+    )
+
+    report = run_ac_lockin_preflight(
+        recipe_path,
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::4::INSTR"),
+        source_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        lockin_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
+            "error_status": "0",
+            "lia_status": "0",
+            **LOCKIN_SETTING_PROBE,
+        },
+        sr860_configure_json=configure_json,
+    )
+
+    text = format_ac_lockin_preflight_report(report)
+
+    assert report.ok is True
+    assert report.sr860_configure_evidence["ok"] is True
+    assert "SR860 configure evidence check" in text
+    assert "OK: True" in text
+
+
 def test_run_ac_lockin_four_terminal_preflight_accepts_differential_voltage_input():
     differential_probe = {**LOCKIN_SETTING_PROBE, "setting_voltage_input": "1"}
 
@@ -282,6 +346,135 @@ def test_run_dual_gate_lockin_preflight_ok():
     assert "Gate1/gate2/lock-in addresses distinct: True" in text
     assert "all expected settings match: True" in text
     assert "Dual-gate lock-in preflight OK: True" in text
+
+
+def test_run_dual_gate_lockin_preflight_blocks_stale_sr860_configure_evidence(tmp_path):
+    recipe_path = "configs/recipes/dual_gate_lockin_dry_run.yaml"
+    configure_json = write_matching_sr860_configure_json(
+        load_dual_gate_lockin_recipe(recipe_path),
+        tmp_path / "sr860_configure.json",
+    )
+    payload = json.loads(configure_json.read_text(encoding="utf-8"))
+    payload["apply"]["steps"][0]["actual_readback"] = "1"
+    configure_json.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = run_dual_gate_lockin_preflight(
+        recipe_path,
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
+        gate_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": f"KEITHLEY INSTRUMENTS,MODEL 2450,{address},1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        lockin_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
+            "error_status": "0",
+            "lia_status": "0",
+            **LOCKIN_SETTING_PROBE,
+        },
+        sr860_configure_json=configure_json,
+    )
+
+    text = format_dual_gate_lockin_preflight_report(report)
+
+    assert report.ok is False
+    assert report.sr860_configure_evidence["ok"] is False
+    assert "SR860 configure evidence check" in text
+    assert "apply_steps_match_recipe: FAIL" in text
+    assert "Dual-gate lock-in preflight OK: False" in text
+
+
+def test_cli_ac_lockin_preflight_passes_sr860_configure_json(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_preflight(recipe, safety_dir, sr860_configure_json=None):
+        captured["recipe"] = recipe
+        captured["safety_dir"] = safety_dir
+        captured["sr860_configure_json"] = sr860_configure_json
+        source = lockin = type(
+            "FakeInstrument",
+            (),
+            {"ok": True, "label": "fake", "address": "FAKE", "address_found": True, "probe": {}, "probe_error": None},
+        )()
+        return type(
+            "FakeReport",
+            (),
+            {
+                "recipe_path": str(recipe),
+                "validation_ok": True,
+                "validation_error": None,
+                "visa_resources": (),
+                "distinct_addresses": True,
+                "source": source,
+                "lockin": lockin,
+                "lockin_settings": (),
+                "sr860_configure_evidence": {"ok": True, "checks": []},
+                "ok": True,
+            },
+        )()
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", fake_preflight)
+
+    code = cli.main(
+        [
+            "ac-lockin-preflight",
+            "configs/recipes/ac_lockin_hardware_smoke.yaml",
+            "--sr860-configure-json",
+            str(tmp_path / "sr860_configure.json"),
+        ]
+    )
+
+    assert code == 0
+    assert captured["sr860_configure_json"] == tmp_path / "sr860_configure.json"
+
+
+def test_cli_dual_gate_lockin_preflight_passes_sr860_configure_json(monkeypatch, tmp_path):
+    captured = {}
+
+    def fake_preflight(recipe, safety_dir, sr860_configure_json=None):
+        captured["recipe"] = recipe
+        captured["safety_dir"] = safety_dir
+        captured["sr860_configure_json"] = sr860_configure_json
+        instrument = type(
+            "FakeInstrument",
+            (),
+            {"ok": True, "label": "fake", "address": "FAKE", "address_found": True, "probe": {}, "probe_error": None},
+        )()
+        return type(
+            "FakeReport",
+            (),
+            {
+                "recipe_path": str(recipe),
+                "validation_ok": True,
+                "validation_error": None,
+                "visa_resources": (),
+                "distinct_addresses": True,
+                "topology_lines": (),
+                "scan_readiness_lines": (),
+                "gate1": instrument,
+                "gate2": instrument,
+                "lockin": instrument,
+                "lockin_settings": (),
+                "sr860_configure_evidence": {"ok": True, "checks": []},
+                "ok": True,
+            },
+        )()
+
+    monkeypatch.setattr(cli, "run_dual_gate_lockin_preflight", fake_preflight)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-preflight",
+            "configs/recipes/dual_gate_lockin_dry_run.yaml",
+            "--sr860-configure-json",
+            str(tmp_path / "sr860_configure.json"),
+        ]
+    )
+
+    assert code == 0
+    assert captured["sr860_configure_json"] == tmp_path / "sr860_configure.json"
 
 
 def test_run_dual_gate_lockin_four_terminal_preflight_accepts_differential_voltage_input():

@@ -862,6 +862,10 @@ root.
     current recipe
   - fail stale transcripts when recipe SR860 settings or readback evidence drift
   - keep the check hardware-free so it can run before lab preflight
+- [x] Phase 25dal: SR860 configure preflight gate
+  - add optional `--sr860-configure-json` to AC and dual-gate lock-in preflight
+  - make stale configure evidence block preflight when the option is supplied
+  - keep SR860 writes separate from measurement runners
 
 ## Next GUI
 

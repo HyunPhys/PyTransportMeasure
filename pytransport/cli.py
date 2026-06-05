@@ -477,6 +477,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_preflight.add_argument("recipe", type=Path)
     dual_gate_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_preflight.add_argument(
+        "--sr860-configure-json",
+        type=Path,
+        help="Require a saved SR860 configure transcript to match the current recipe during preflight.",
+    )
 
     dual_gate_lockin_resume_check = subparsers.add_parser(
         "dual-gate-lockin-resume-check",
@@ -1033,6 +1038,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     ac_lockin_preflight.add_argument("recipe", type=Path)
     ac_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    ac_lockin_preflight.add_argument(
+        "--sr860-configure-json",
+        type=Path,
+        help="Require a saved SR860 configure transcript to match the current recipe during preflight.",
+    )
 
     ac_lockin = subparsers.add_parser("ac-lockin", help="Run an AC/lock-in bias sweep recipe.")
     ac_lockin.add_argument("recipe", type=Path)
@@ -1835,7 +1845,14 @@ def command_dual_gate_lockin_chunk_plan(args: argparse.Namespace) -> int:
 
 
 def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
-    report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+    if args.sr860_configure_json is None:
+        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+    else:
+        report = run_dual_gate_lockin_preflight(
+            args.recipe,
+            args.safety_dir,
+            sr860_configure_json=args.sr860_configure_json,
+        )
     print(format_dual_gate_lockin_preflight_report(report))
     return 0 if report.ok else 1
 
@@ -2968,7 +2985,14 @@ def command_ac_lockin_plan(args: argparse.Namespace) -> int:
 
 
 def command_ac_lockin_preflight(args: argparse.Namespace) -> int:
-    report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
+    if args.sr860_configure_json is None:
+        report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
+    else:
+        report = run_ac_lockin_preflight(
+            args.recipe,
+            args.safety_dir,
+            sr860_configure_json=args.sr860_configure_json,
+        )
     print(format_ac_lockin_preflight_report(report))
     return 0 if report.ok else 2
 

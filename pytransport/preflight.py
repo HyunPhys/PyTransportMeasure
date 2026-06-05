@@ -13,6 +13,11 @@ from .lockin_settings import (
     compare_lockin_settings,
     lockin_settings_ok,
 )
+from .sr860_config import (
+    check_sr860_configure_evidence,
+    format_sr860_configure_evidence_check,
+    load_sr860_configure_json,
+)
 from .dual_gate_lockin import format_dual_gate_lockin_scan_readiness
 from .recipes import (
     AcLockInRecipe,
@@ -85,6 +90,7 @@ class AcLockInPreflightReport:
     source: InstrumentPreflight
     lockin: InstrumentPreflight
     lockin_settings: tuple[LockInSettingCheck, ...] = ()
+    sr860_configure_evidence: dict[str, Any] | None = None
 
     @property
     def ok(self) -> bool:
@@ -94,6 +100,7 @@ class AcLockInPreflightReport:
             and self.source.ok
             and self.lockin.ok
             and lockin_settings_ok(self.lockin_settings)
+            and evidence_check_ok(self.sr860_configure_evidence)
         )
 
 
@@ -110,6 +117,7 @@ class DualGateLockInPreflightReport:
     lockin: InstrumentPreflight
     scan_readiness_lines: tuple[str, ...] = ()
     lockin_settings: tuple[LockInSettingCheck, ...] = ()
+    sr860_configure_evidence: dict[str, Any] | None = None
 
     @property
     def ok(self) -> bool:
@@ -120,6 +128,7 @@ class DualGateLockInPreflightReport:
             and self.gate2.ok
             and self.lockin.ok
             and lockin_settings_ok(self.lockin_settings)
+            and evidence_check_ok(self.sr860_configure_evidence)
         )
 
 
@@ -221,6 +230,7 @@ def run_ac_lockin_preflight(
     resource_lister: Callable[[], tuple[str, ...]] = list_resources,
     source_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
     lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    sr860_configure_json: str | Path | None = None,
 ) -> AcLockInPreflightReport:
     recipe = load_ac_lockin_recipe(recipe_path)
     return run_ac_lockin_preflight_for_recipe(
@@ -230,6 +240,7 @@ def run_ac_lockin_preflight(
         resource_lister,
         source_probe_factory,
         lockin_probe_factory,
+        sr860_configure_json,
     )
 
 
@@ -240,6 +251,7 @@ def run_ac_lockin_preflight_for_recipe(
     resource_lister: Callable[[], tuple[str, ...]] = list_resources,
     source_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
     lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    sr860_configure_json: str | Path | None = None,
 ) -> AcLockInPreflightReport:
     validation_ok = True
     validation_error = None
@@ -275,6 +287,7 @@ def run_ac_lockin_preflight_for_recipe(
         source=source,
         lockin=lockin,
         lockin_settings=compare_lockin_settings(recipe.lockin.model_dump(mode="json"), lockin.probe),
+        sr860_configure_evidence=build_sr860_configure_evidence_check(recipe, sr860_configure_json),
     )
 
 
@@ -284,6 +297,7 @@ def run_dual_gate_lockin_preflight(
     resource_lister: Callable[[], tuple[str, ...]] = list_resources,
     gate_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
     lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    sr860_configure_json: str | Path | None = None,
 ) -> DualGateLockInPreflightReport:
     recipe = load_dual_gate_lockin_recipe(recipe_path)
     return run_dual_gate_lockin_preflight_for_recipe(
@@ -293,6 +307,7 @@ def run_dual_gate_lockin_preflight(
         resource_lister,
         gate_probe_factory,
         lockin_probe_factory,
+        sr860_configure_json,
     )
 
 
@@ -303,6 +318,7 @@ def run_dual_gate_lockin_preflight_for_recipe(
     resource_lister: Callable[[], tuple[str, ...]] = list_resources,
     gate_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
     lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    sr860_configure_json: str | Path | None = None,
 ) -> DualGateLockInPreflightReport:
     validation_ok = True
     validation_error = None
@@ -349,7 +365,35 @@ def run_dual_gate_lockin_preflight_for_recipe(
         lockin=lockin,
         scan_readiness_lines=tuple(format_dual_gate_lockin_scan_readiness(recipe)),
         lockin_settings=compare_lockin_settings(recipe.lockin.model_dump(mode="json"), lockin.probe),
+        sr860_configure_evidence=build_sr860_configure_evidence_check(recipe, sr860_configure_json),
     )
+
+
+def build_sr860_configure_evidence_check(recipe: Any, sr860_configure_json: str | Path | None) -> dict[str, Any] | None:
+    if sr860_configure_json is None:
+        return None
+    try:
+        payload = check_sr860_configure_evidence(recipe, load_sr860_configure_json(sr860_configure_json))
+        return {"path": str(sr860_configure_json), **payload}
+    except Exception as exc:
+        return {
+            "schema": "pytransport.sr860_configure_evidence_check.v1",
+            "path": str(sr860_configure_json),
+            "ok": False,
+            "expected_command_count": None,
+            "transcript_command_count": None,
+            "checks": [
+                {
+                    "name": "load_configure_json",
+                    "passed": False,
+                    "message": f"{type(exc).__name__}: {exc}",
+                }
+            ],
+        }
+
+
+def evidence_check_ok(payload: dict[str, Any] | None) -> bool:
+    return True if payload is None else payload.get("ok") is True
 
 
 def run_instrument_preflight(
@@ -506,6 +550,7 @@ def format_ac_lockin_preflight_report(report: AcLockInPreflightReport) -> str:
             lines.append("  - skipped")
         lines.append(f"- ok: {instrument.ok}")
     lines.extend(format_lockin_setting_checks(report.lockin_settings))
+    lines.extend(format_sr860_configure_evidence_section(report.sr860_configure_evidence))
     lines.extend(["", f"AC lock-in preflight OK: {report.ok}"])
     return "\n".join(lines)
 
@@ -549,6 +594,7 @@ def format_dual_gate_lockin_preflight_report(report: DualGateLockInPreflightRepo
             lines.append("  - skipped")
         lines.append(f"- ok: {instrument.ok}")
     lines.extend(format_lockin_setting_checks(report.lockin_settings))
+    lines.extend(format_sr860_configure_evidence_section(report.sr860_configure_evidence))
     lines.extend(["", f"Dual-gate lock-in preflight OK: {report.ok}"])
     return "\n".join(lines)
 
@@ -564,3 +610,9 @@ def format_lockin_setting_checks(checks: tuple[LockInSettingCheck, ...]) -> list
         )
     lines.append(f"- all expected settings match: {lockin_settings_ok(checks)}")
     return lines
+
+
+def format_sr860_configure_evidence_section(payload: dict[str, Any] | None) -> list[str]:
+    if payload is None:
+        return []
+    return ["", format_sr860_configure_evidence_check(payload)]

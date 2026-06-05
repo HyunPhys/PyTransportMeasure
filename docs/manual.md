@@ -1712,6 +1712,18 @@ This is hardware-free. It fails if the recipe's SR860 settings changed after the
 configure run, if the saved transcript was incomplete, or if any write/readback
 step did not match.
 
+For AC and dual-gate lock-in preflight, you can require the same configure
+evidence gate inside live preflight:
+
+```powershell
+ptm ac-lockin-preflight configs\recipes\ac_lockin_hardware_smoke.yaml --sr860-configure-json docs\sr860_configure.json
+ptm dual-gate-lockin-preflight configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml --sr860-configure-json docs\sr860_configure.json
+```
+
+When this option is present, preflight reports `OK: False` if the saved
+configure transcript is stale or incomplete, even when VISA communication and
+live SR860 setting readback pass.
+
 To audit a whole recipe folder before a lab-laptop handoff, use:
 
 ```powershell
