@@ -169,6 +169,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ptm ac-lockin-preflight configs\recipes\<ac_recipe>.yaml --sr860-configure-json docs\sr860_configure.json
   ptm dual-gate-lockin-preflight configs\recipes\<dual_gate_lockin_recipe>.yaml --sr860-configure-json docs\sr860_configure.json
   ```
+- [ ] Also pass the same `--sr860-configure-json` to the guarded hardware command
+  because hardware commands rerun preflight internally before output/readout.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

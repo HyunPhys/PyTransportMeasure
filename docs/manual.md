@@ -1724,6 +1724,19 @@ When this option is present, preflight reports `OK: False` if the saved
 configure transcript is stale or incomplete, even when VISA communication and
 live SR860 setting readback pass.
 
+The guarded hardware commands that rerun lock-in preflight can also carry this
+same evidence gate:
+
+```powershell
+ptm ac-lockin configs\recipes\ac_lockin_hardware_smoke.yaml --sr860-configure-json docs\sr860_configure.json --yes
+ptm dual-gate-lockin-smoke configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml --sr860-configure-json docs\sr860_configure.json
+ptm dual-gate-lockin-active-smoke configs\recipes\dual_gate_lockin_limited_active.yaml --gate1-v 0 --gate2-v 0 --sr860-configure-json docs\sr860_configure.json --yes
+ptm dual-gate-lockin configs\recipes\dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 4 --sr860-configure-json docs\sr860_configure.json --yes
+```
+
+Dry-runs ignore this hardware evidence path. For real hardware, use it when the
+measurement depends on SR860 settings applied from software.
+
 To audit a whole recipe folder before a lab-laptop handoff, use:
 
 ```powershell

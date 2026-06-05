@@ -960,6 +960,47 @@ def test_cli_dual_gate_lockin_active_sweep_blocks_when_too_many_points(tmp_path,
     assert not (tmp_path / "raw").exists()
 
 
+def test_cli_dual_gate_lockin_active_sweep_passes_sr860_configure_json_to_preflight(tmp_path, monkeypatch):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+    configure_json = tmp_path / "sr860_configure.json"
+    captured = {}
+
+    def fake_preflight(recipe_path, safety_dir, sr860_configure_json=None):
+        captured["recipe_path"] = recipe_path
+        captured["safety_dir"] = safety_dir
+        captured["sr860_configure_json"] = sr860_configure_json
+        return DualGateLockInPreflightReport(
+            recipe_path=str(recipe_path),
+            validation_ok=True,
+            validation_error=None,
+            visa_resources=("GPIB0::2::INSTR", "GPIB0::3::INSTR"),
+            distinct_addresses=True,
+            topology_lines=("Layout: hall_bar",),
+            gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", False, None, None),
+        )
+
+    monkeypatch.setattr(cli, "run_dual_gate_lockin_preflight", fake_preflight)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--allow-active-sweep",
+            "--max-hardware-points",
+            "4",
+            "--sr860-configure-json",
+            str(configure_json),
+            "--yes",
+        ]
+    )
+
+    assert code == 2
+    assert captured["sr860_configure_json"] == configure_json
+    assert not (tmp_path / "raw").exists()
+
+
 def test_cli_dual_gate_lockin_preflight_command(tmp_path, monkeypatch):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 

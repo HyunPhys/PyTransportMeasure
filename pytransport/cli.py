@@ -516,6 +516,11 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_smoke.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_smoke.add_argument("--progress", action="store_true")
     dual_gate_lockin_smoke.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
+    dual_gate_lockin_smoke.add_argument(
+        "--sr860-configure-json",
+        type=Path,
+        help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
 
     dual_gate_lockin_active_smoke = subparsers.add_parser(
         "dual-gate-lockin-active-smoke",
@@ -537,6 +542,11 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_active_smoke.add_argument("--progress", action="store_true")
     dual_gate_lockin_active_smoke.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     dual_gate_lockin_active_smoke.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
+    dual_gate_lockin_active_smoke.add_argument(
+        "--sr860-configure-json",
+        type=Path,
+        help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
 
     dual_gate_lockin = subparsers.add_parser("dual-gate-lockin", help="Run a dual-gate lock-in recipe. Current milestone is dry-run only.")
     dual_gate_lockin.add_argument("recipe", type=Path)
@@ -588,6 +598,11 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     dual_gate_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
+    dual_gate_lockin.add_argument(
+        "--sr860-configure-json",
+        type=Path,
+        help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
 
     dual_gate_lockin_audit = subparsers.add_parser(
         "dual-gate-lockin-audit",
@@ -1062,6 +1077,11 @@ def build_parser() -> argparse.ArgumentParser:
     ac_lockin.add_argument("--allow-four-terminal-ac", action="store_true", help="Enable guarded four-terminal AC hardware output.")
     ac_lockin.add_argument("--hardware-approval-note", help="Required approval note for guarded four-terminal AC hardware output.")
     ac_lockin.add_argument("--max-hardware-points", type=int, default=5)
+    ac_lockin.add_argument(
+        "--sr860-configure-json",
+        type=Path,
+        help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
 
     ac_lockin_lab_smoke_intake = subparsers.add_parser(
         "ac-lockin-lab-smoke-intake",
@@ -1845,16 +1865,20 @@ def command_dual_gate_lockin_chunk_plan(args: argparse.Namespace) -> int:
 
 
 def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
-    if args.sr860_configure_json is None:
-        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
-    else:
-        report = run_dual_gate_lockin_preflight(
-            args.recipe,
-            args.safety_dir,
-            sr860_configure_json=args.sr860_configure_json,
-        )
+    report = run_dual_gate_lockin_preflight_from_args(args)
     print(format_dual_gate_lockin_preflight_report(report))
     return 0 if report.ok else 1
+
+
+def run_dual_gate_lockin_preflight_from_args(args: argparse.Namespace):
+    configure_json = getattr(args, "sr860_configure_json", None)
+    if configure_json is None:
+        return run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+    return run_dual_gate_lockin_preflight(
+        args.recipe,
+        args.safety_dir,
+        sr860_configure_json=configure_json,
+    )
 
 
 def command_dual_gate_lockin_resume_check(args: argparse.Namespace) -> int:
@@ -1917,7 +1941,7 @@ def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
-        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        report = run_dual_gate_lockin_preflight_from_args(args)
         preflight_text = format_dual_gate_lockin_preflight_report(report)
         print(preflight_text)
         print()
@@ -1981,7 +2005,7 @@ def command_dual_gate_lockin_active_smoke(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
-        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        report = run_dual_gate_lockin_preflight_from_args(args)
         preflight_text = format_dual_gate_lockin_preflight_report(report)
         print(preflight_text)
         print()
@@ -2048,7 +2072,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             args.stop_after_new_points,
         )
     if not args.dry_run and not args.allow_active_sweep:
-        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        report = run_dual_gate_lockin_preflight_from_args(args)
         print(format_dual_gate_lockin_preflight_report(report))
         print()
         print(
@@ -2137,7 +2161,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
-        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        report = run_dual_gate_lockin_preflight_from_args(args)
         print(format_dual_gate_lockin_preflight_report(report))
         print()
         if not report.ok:
@@ -2985,16 +3009,20 @@ def command_ac_lockin_plan(args: argparse.Namespace) -> int:
 
 
 def command_ac_lockin_preflight(args: argparse.Namespace) -> int:
-    if args.sr860_configure_json is None:
-        report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
-    else:
-        report = run_ac_lockin_preflight(
-            args.recipe,
-            args.safety_dir,
-            sr860_configure_json=args.sr860_configure_json,
-        )
+    report = run_ac_lockin_preflight_from_args(args)
     print(format_ac_lockin_preflight_report(report))
     return 0 if report.ok else 2
+
+
+def run_ac_lockin_preflight_from_args(args: argparse.Namespace):
+    configure_json = getattr(args, "sr860_configure_json", None)
+    if configure_json is None:
+        return run_ac_lockin_preflight(args.recipe, args.safety_dir)
+    return run_ac_lockin_preflight(
+        args.recipe,
+        args.safety_dir,
+        sr860_configure_json=configure_json,
+    )
 
 
 def command_ac_lockin(args: argparse.Namespace) -> int:
@@ -3028,7 +3056,7 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
         if guard_text:
             print(guard_text)
             print()
-        report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
+        report = run_ac_lockin_preflight_from_args(args)
         print(format_ac_lockin_preflight_report(report))
         print()
         if not report.ok:

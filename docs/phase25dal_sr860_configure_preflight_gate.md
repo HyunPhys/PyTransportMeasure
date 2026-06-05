@@ -33,4 +33,5 @@ work.
 - [ ] Run preflight with `--sr860-configure-json docs\sr860_configure.json`.
 - [ ] Confirm both live `Lock-in setting check` and `SR860 configure evidence
       check` report OK.
+- [ ] Pass the same JSON path to the guarded hardware command that follows.
 - [ ] If either check fails, do not enable SMU output.

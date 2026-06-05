@@ -63,6 +63,8 @@ preflight or active SMU output.
 `ptm ac-lockin-preflight` and `ptm dual-gate-lockin-preflight` can also take
 `--sr860-configure-json` to require the same evidence check as part of live
 preflight.
+The guarded lock-in hardware commands accept the same option and pass it into
+their internal preflight rerun.
 
 ## Smoke-Test Commands
 

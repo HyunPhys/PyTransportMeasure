@@ -475,6 +475,34 @@ def test_cli_ac_lockin_hardware_run_blocks_when_preflight_fails(tmp_path, monkey
     assert not (tmp_path / "raw").exists()
 
 
+def test_cli_ac_lockin_hardware_run_passes_sr860_configure_json_to_preflight(tmp_path, monkeypatch):
+    recipe = write_ac_lockin_cli_recipe(tmp_path)
+    configure_json = tmp_path / "sr860_configure.json"
+    captured = {}
+
+    def fake_preflight(recipe_path, safety_dir, sr860_configure_json=None):
+        captured["recipe_path"] = recipe_path
+        captured["safety_dir"] = safety_dir
+        captured["sr860_configure_json"] = sr860_configure_json
+        return failing_ac_preflight(recipe_path, safety_dir)
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", fake_preflight)
+
+    code = cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--sr860-configure-json",
+            str(configure_json),
+            "--yes",
+        ]
+    )
+
+    assert code == 2
+    assert captured["sr860_configure_json"] == configure_json
+    assert not (tmp_path / "raw").exists()
+
+
 def test_cli_ac_lockin_hardware_run_requires_source_smu_parameters(tmp_path, monkeypatch):
     recipe = write_ac_lockin_cli_recipe(tmp_path)
     text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "").replace("  current_range_a: 1.0e-7\n", "")

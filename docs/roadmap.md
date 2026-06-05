@@ -866,6 +866,11 @@ root.
   - add optional `--sr860-configure-json` to AC and dual-gate lock-in preflight
   - make stale configure evidence block preflight when the option is supplied
   - keep SR860 writes separate from measurement runners
+- [x] Phase 25dam: SR860 configure evidence on hardware commands
+  - add `--sr860-configure-json` to guarded AC/dual-gate lock-in hardware
+    commands that rerun preflight internally
+  - preserve existing command behavior when the evidence option is omitted
+  - test that active command paths pass the evidence file into preflight
 
 ## Next GUI
 
