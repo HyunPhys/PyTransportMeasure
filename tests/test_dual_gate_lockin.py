@@ -7,8 +7,10 @@ import pytest
 from pytransport.dual_gate_lockin import (
     ELEMENTARY_CHARGE_C,
     check_dual_gate_lockin_resume,
+    dual_gate_lockin_chunks,
     dual_gate_lockin_grid_signature,
     dual_gate_lockin_point_count,
+    format_dual_gate_lockin_chunk_plan,
     format_dual_gate_lockin_resume_check,
     format_dual_gate_lockin_plan,
     planned_dual_gate_lockin_grid,
@@ -204,6 +206,28 @@ def test_dual_gate_lockin_limited_active_recipe_is_tiny_and_guarded():
     assert "Lock-in read settle per point: 0.3 s" in plan
     assert "Minimum programmed settle time: 2.4 s" in plan
     assert "Within default point guard: True" in plan
+
+
+def test_dual_gate_lockin_chunk_plan_splits_grid_into_checkpoint_commands(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+
+    chunks = dual_gate_lockin_chunks(recipe, 4)
+    plan = format_dual_gate_lockin_chunk_plan(
+        recipe,
+        "dual_gate_lockin.yaml",
+        chunk_size=4,
+        max_hardware_points=4,
+    )
+
+    assert [chunk.point_count for chunk in chunks] == [4, 4, 1]
+    assert chunks[0].start_index == 0
+    assert chunks[-1].end_index == 8
+    assert "Dual-Gate Lock-In Chunk Plan" in plan
+    assert "Chunks: 3" in plan
+    assert "Within max hardware points: True" in plan
+    assert "--stop-after-new-points 4 --max-hardware-points 4" in plan
+    assert "dual-gate-lockin-resume-check dual_gate_lockin.yaml data\\raw\\<chunk_01_run_folder>" in plan
+    assert "--resume-from-run data\\raw\\<chunk_01_run_folder>" in plan
 
 
 def test_dual_gate_lockin_four_terminal_recipe_sample_and_plan():

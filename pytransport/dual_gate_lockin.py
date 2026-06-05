@@ -195,6 +195,100 @@ class DualGateLockInResumeCheck:
     grid_signature: str
 
 
+@dataclass(frozen=True)
+class DualGateLockInChunk:
+    chunk_number: int
+    start_index: int
+    end_index: int
+    point_count: int
+    start_gate1_voltage_v: float
+    start_gate2_voltage_v: float
+    end_gate1_voltage_v: float
+    end_gate2_voltage_v: float
+
+
+def dual_gate_lockin_chunks(recipe: DualGateLockInRecipe, chunk_size: int) -> tuple[DualGateLockInChunk, ...]:
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    grid = planned_dual_gate_lockin_grid(recipe)
+    chunks: list[DualGateLockInChunk] = []
+    for start in range(0, len(grid), chunk_size):
+        rows = grid[start : start + chunk_size]
+        first = rows[0]
+        last = rows[-1]
+        chunks.append(
+            DualGateLockInChunk(
+                chunk_number=len(chunks) + 1,
+                start_index=int(first["index"]),
+                end_index=int(last["index"]),
+                point_count=len(rows),
+                start_gate1_voltage_v=float(first["gate1_voltage_v"]),
+                start_gate2_voltage_v=float(first["gate2_voltage_v"]),
+                end_gate1_voltage_v=float(last["gate1_voltage_v"]),
+                end_gate2_voltage_v=float(last["gate2_voltage_v"]),
+            )
+        )
+    return tuple(chunks)
+
+
+def format_dual_gate_lockin_chunk_plan(
+    recipe: DualGateLockInRecipe,
+    recipe_path: str | Path,
+    *,
+    chunk_size: int,
+    max_hardware_points: int = 9,
+) -> str:
+    chunks = dual_gate_lockin_chunks(recipe, chunk_size)
+    grid_signature = dual_gate_lockin_grid_signature(recipe)
+    within_guard = all(chunk.point_count <= max_hardware_points for chunk in chunks)
+    lines = [
+        f"Dual-Gate Lock-In Chunk Plan: {recipe.measurement_name}",
+        f"Recipe: {Path(recipe_path)}",
+        f"Grid signature: {grid_signature}",
+        f"Total points: {dual_gate_lockin_point_count(recipe)}",
+        f"Chunk size: {chunk_size}",
+        f"Chunks: {len(chunks)}",
+        f"Max hardware points per invocation: {max_hardware_points}",
+        f"Within max hardware points: {within_guard}",
+        "",
+        "Chunk Summary:",
+    ]
+    for chunk in chunks:
+        lines.append(
+            (
+                f"- Chunk {chunk.chunk_number}: index {chunk.start_index}-{chunk.end_index}, "
+                f"{chunk.point_count} points, "
+                f"start Vg=({chunk.start_gate1_voltage_v:.6g}, {chunk.start_gate2_voltage_v:.6g}) V, "
+                f"end Vg=({chunk.end_gate1_voltage_v:.6g}, {chunk.end_gate2_voltage_v:.6g}) V"
+            )
+        )
+    lines.extend(["", "Hardware Command Sequence:", "", "```powershell"])
+    previous_placeholder = ""
+    for chunk in chunks:
+        if chunk.chunk_number > 1:
+            lines.append(
+                f"ptm dual-gate-lockin-resume-check {Path(recipe_path)} data\\raw\\<chunk_{chunk.chunk_number - 1:02d}_run_folder>"
+            )
+            previous_placeholder = f" --resume-from-run data\\raw\\<chunk_{chunk.chunk_number - 1:02d}_run_folder>"
+        lines.append(
+            (
+                f"ptm dual-gate-lockin {Path(recipe_path)} --allow-active-sweep"
+                f"{previous_placeholder} --stop-after-new-points {chunk.point_count} "
+                f"--max-hardware-points {max_hardware_points} --yes --progress --plot --report --gate-stats"
+            )
+        )
+    lines.append("```")
+    if not within_guard:
+        lines.extend(
+            [
+                "",
+                "WARNING: At least one chunk exceeds --max-hardware-points. "
+                "Use a smaller chunk size or raise the hardware guard with the normal approval workflow.",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def check_dual_gate_lockin_resume(
     recipe: DualGateLockInRecipe,
     recipe_path: str | Path,

@@ -50,6 +50,8 @@ from .dual_gate_review import (
 from .dual_gate_lockin import (
     check_dual_gate_lockin_resume,
     dual_gate_lockin_point_count,
+    dual_gate_lockin_chunks,
+    format_dual_gate_lockin_chunk_plan,
     format_dual_gate_lockin_resume_check,
     run_dual_gate_lockin_sweep,
 )
@@ -279,6 +281,18 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_plan.add_argument("recipe", type=Path)
     dual_gate_lockin_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_plan.add_argument("--preview-points", type=int, default=5)
+
+    dual_gate_lockin_chunk_plan = subparsers.add_parser(
+        "dual-gate-lockin-chunk-plan",
+        help="Print a hardware-free checkpoint chunk runbook for a dual-gate lock-in recipe.",
+    )
+    dual_gate_lockin_chunk_plan.add_argument("recipe", type=Path)
+    dual_gate_lockin_chunk_plan.add_argument("--chunk-size", type=int, required=True)
+    dual_gate_lockin_chunk_plan.add_argument(
+        "--max-hardware-points",
+        type=int,
+        default=DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+    )
 
     dual_gate_lockin_preflight = subparsers.add_parser(
         "dual-gate-lockin-preflight",
@@ -1038,6 +1052,24 @@ def command_dual_gate_lockin_plan(args: argparse.Namespace) -> int:
     recipe = method.load_recipe(args.recipe)
     print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
     return 0
+
+
+def command_dual_gate_lockin_chunk_plan(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.recipe)
+    try:
+        text = format_dual_gate_lockin_chunk_plan(
+            recipe,
+            args.recipe,
+            chunk_size=args.chunk_size,
+            max_hardware_points=args.max_hardware_points,
+        )
+        chunks = dual_gate_lockin_chunks(recipe, args.chunk_size)
+    except ValueError as exc:
+        print(f"Dual-gate lock-in chunk plan failed: {exc}", file=sys.stderr)
+        return 2
+    print(text)
+    return 0 if all(chunk.point_count <= args.max_hardware_points for chunk in chunks) else 2
 
 
 def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
@@ -2779,6 +2811,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate(args)
     if args.command == "dual-gate-lockin-plan":
         return command_dual_gate_lockin_plan(args)
+    if args.command == "dual-gate-lockin-chunk-plan":
+        return command_dual_gate_lockin_chunk_plan(args)
     if args.command == "dual-gate-lockin-preflight":
         return command_dual_gate_lockin_preflight(args)
     if args.command == "dual-gate-lockin-resume-check":

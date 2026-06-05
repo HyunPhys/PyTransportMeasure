@@ -496,6 +496,7 @@ For an intentionally limited checkpoint run, stop cleanly after a fixed number
 of newly measured points:
 
 ```powershell
+ptm dual-gate-lockin-chunk-plan configs\recipes\<dual_gate_lockin_recipe>.yaml --chunk-size <N> --max-hardware-points <N>
 ptm dual-gate-lockin configs\recipes\<dual_gate_lockin_recipe>.yaml --allow-active-sweep --stop-after-new-points <N> --max-hardware-points <N> --yes --progress
 ```
 

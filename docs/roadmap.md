@@ -403,7 +403,11 @@ root.
   - stop cleanly with `abort_class: checkpoint` after a bounded number of new
     points
   - let hardware point guard evaluate the bounded invocation size
-- [ ] Phase 25ay: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ay: Dual-gate lock-in chunk plan
+  - add `ptm dual-gate-lockin-chunk-plan`
+  - split a planned gate grid into bounded checkpoint chunks
+  - print resume-check and hardware command sequence templates for each chunk
+- [ ] Phase 25az: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

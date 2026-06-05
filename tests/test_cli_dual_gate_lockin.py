@@ -730,6 +730,40 @@ def test_cli_dual_gate_lockin_preflight_command(tmp_path, monkeypatch):
     assert code == 0
 
 
+def test_cli_dual_gate_lockin_chunk_plan(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-chunk-plan",
+            str(recipe),
+            "--chunk-size",
+            "2",
+            "--max-hardware-points",
+            "2",
+        ]
+    )
+
+    assert code == 0
+
+
+def test_cli_dual_gate_lockin_chunk_plan_fails_when_chunk_exceeds_guard(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-chunk-plan",
+            str(recipe),
+            "--chunk-size",
+            "3",
+            "--max-hardware-points",
+            "2",
+        ]
+    )
+
+    assert code == 2
+
+
 def test_cli_dual_gate_lockin_smoke_dry_run_writes_readout_csv(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 
