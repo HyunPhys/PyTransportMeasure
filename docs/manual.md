@@ -71,7 +71,7 @@ Important modules:
 | Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
-| Dual-gate lock-in sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin --dry-run` |
+| Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; hardware intentionally blocked | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
@@ -373,6 +373,27 @@ leakage currents and SR860 X/Y/R/theta values. Review artifacts include:
 - `dual_gate_lockin_heatmap.svg`: mean lock-in R over the gate1/gate2 grid.
 - `dual_gate_lockin_stats.csv`: per-gate-pair lock-in and leakage statistics.
 - `dual_gate_lockin_report.md`: human-readable run report.
+
+The `topology` block is required for this method:
+
+```yaml
+topology:
+  device_layout: hall_bar
+  gate1_role: top_gate
+  gate2_role: back_gate
+  source_contact: S
+  drain_contact: D
+  lockin_input_mode: voltage
+  lockin_input_contacts: [Vxx+, Vxx-]
+  excitation_source: sr860_sine_out
+  excitation_contacts: [S, D]
+  excitation_amplitude_v: 0.01
+  current_bias_resistor_ohm: 1000000
+```
+
+Edit these labels to match the actual Hall bar device before lab hardware
+preflight. The plan and preflight reports print this topology before any
+hardware output can be considered.
 
 Hardware output is intentionally blocked:
 

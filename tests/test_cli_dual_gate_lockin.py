@@ -32,6 +32,18 @@ lockin:
   address: GPIB0::4::INSTR
   channels: [x, y, r, theta]
   read_timing: after_dc_settle
+topology:
+  device_layout: hall_bar
+  gate1_role: top_gate
+  gate2_role: back_gate
+  source_contact: S
+  drain_contact: D
+  lockin_input_mode: voltage
+  lockin_input_contacts: [Vxx+, Vxx-]
+  excitation_source: sr860_sine_out
+  excitation_contacts: [S, D]
+  excitation_amplitude_v: 0.01
+  current_bias_resistor_ohm: 1000000
 gate1_sweep:
   start_v: -0.1
   stop_v: 0.1
@@ -97,6 +109,7 @@ def test_cli_dual_gate_lockin_hardware_run_is_blocked(tmp_path, monkeypatch):
             validation_error=None,
             visa_resources=("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
             distinct_addresses=True,
+            topology_lines=("Layout: hall_bar",),
             gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
             gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
             lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", True, {"idn": "SRS,SR860"}, None),
@@ -119,6 +132,7 @@ def test_cli_dual_gate_lockin_preflight_command(tmp_path, monkeypatch):
             validation_error=None,
             visa_resources=("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
             distinct_addresses=True,
+            topology_lines=("Layout: hall_bar",),
             gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
             gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
             lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", True, {"idn": "SRS,SR860"}, None),

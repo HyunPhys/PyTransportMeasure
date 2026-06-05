@@ -321,6 +321,9 @@ preflight is available.
   ```
 - [ ] Confirm the plan shows gate1 Keithley, gate2 Keithley, SR860 address,
   NPLC values, lock-in channels, and `after_dc_settle` timing.
+- [ ] Confirm the plan shows the Hall-bar topology:
+  gate roles, source/drain contacts, lock-in input contacts, excitation source,
+  excitation contacts, excitation amplitude, and current-bias resistor if used.
 - [ ] Run the three-instrument preflight on the lab laptop.
   ```powershell
   ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
@@ -328,6 +331,8 @@ preflight is available.
 - [ ] Confirm `Gate1/gate2/lock-in addresses distinct: True`, all three
   addresses are found, both gate probes identify Keithley 2450 instruments, the
   lock-in probe identifies SR860, and `Dual-gate lock-in preflight OK: True`.
+- [ ] Confirm the preflight `Topology` section matches the actual device wiring
+  before connecting a real graphene Hall bar.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

@@ -91,6 +91,7 @@ class DualGateLockInPreflightReport:
     validation_error: str | None
     visa_resources: tuple[str, ...]
     distinct_addresses: bool
+    topology_lines: tuple[str, ...]
     gate1: InstrumentPreflight
     gate2: InstrumentPreflight
     lockin: InstrumentPreflight
@@ -325,6 +326,7 @@ def run_dual_gate_lockin_preflight_for_recipe(
         validation_error=validation_error,
         visa_resources=resources,
         distinct_addresses=distinct_addresses,
+        topology_lines=format_dual_gate_lockin_topology_lines(recipe),
         gate1=gate1,
         gate2=gate2,
         lockin=lockin,
@@ -356,6 +358,26 @@ def run_instrument_preflight(
         probe=probe,
         probe_error=probe_error,
     )
+
+
+def format_dual_gate_lockin_topology_lines(recipe: DualGateLockInRecipe) -> tuple[str, ...]:
+    topology = recipe.topology
+    lines = [
+        f"Layout: {topology.device_layout}",
+        f"Gate roles: gate1={topology.gate1_role}, gate2={topology.gate2_role}",
+        f"Source/drain: {topology.source_contact} -> {topology.drain_contact}",
+        f"Lock-in input: {topology.lockin_input_mode} on {', '.join(topology.lockin_input_contacts)}",
+        f"Excitation source: {topology.excitation_source}",
+    ]
+    if topology.excitation_contacts:
+        lines.append(f"Excitation contacts: {', '.join(topology.excitation_contacts)}")
+    if topology.excitation_amplitude_v is not None:
+        lines.append(f"Excitation amplitude: {topology.excitation_amplitude_v:g} V")
+    if topology.current_bias_resistor_ohm is not None:
+        lines.append(f"Current-bias resistor: {topology.current_bias_resistor_ohm:g} ohm")
+    if topology.notes:
+        lines.append(f"Notes: {topology.notes}")
+    return tuple(lines)
 
 
 def probe_keithley(address: str, timeout_ms: int) -> dict[str, str]:
@@ -477,6 +499,9 @@ def format_dual_gate_lockin_preflight_report(report: DualGateLockInPreflightRepo
     ]
     if report.validation_error is not None:
         lines.append(f"Validation error: {report.validation_error}")
+    if report.topology_lines:
+        lines.extend(["", "Topology:"])
+        lines.extend(f"- {line}" for line in report.topology_lines)
     lines.extend(["", "VISA resources:"])
     if report.visa_resources:
         lines.extend(f"- {resource}" for resource in report.visa_resources)

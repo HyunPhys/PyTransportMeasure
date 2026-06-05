@@ -54,6 +54,19 @@ def dual_gate_lockin_recipe_data(output_dir: Path) -> dict:
             "filter_slope_db_per_oct": 24,
             "synchronous_filter": False,
         },
+        "topology": {
+            "device_layout": "hall_bar",
+            "gate1_role": "top_gate",
+            "gate2_role": "back_gate",
+            "source_contact": "S",
+            "drain_contact": "D",
+            "lockin_input_mode": "voltage",
+            "lockin_input_contacts": ["Vxx+", "Vxx-"],
+            "excitation_source": "sr860_sine_out",
+            "excitation_contacts": ["S", "D"],
+            "excitation_amplitude_v": 0.01,
+            "current_bias_resistor_ohm": 1_000_000,
+        },
         "gate1_sweep": {
             "start_v": -0.1,
             "stop_v": 0.1,
@@ -104,7 +117,17 @@ def test_dual_gate_lockin_recipe_sample_and_plan():
     assert "Lock-in timing: after_dc_settle" in plan
     assert "Lock-in reference source: internal" in plan
     assert "Lock-in time constant index: 10" in plan
+    assert "Topology layout: hall_bar" in plan
+    assert "Source/drain contacts: S -> D" in plan
     assert "Total points: 25" in plan
+
+
+def test_dual_gate_lockin_recipe_rejects_incomplete_active_excitation(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["topology"]["excitation_contacts"] = ["S"]
+
+    with pytest.raises(Exception, match="excitation_contacts must contain exactly two contacts"):
+        DualGateLockInRecipe.model_validate(data)
 
 
 def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):

@@ -166,6 +166,43 @@ class MeasurementGeometry(BaseModel):
         return self
 
 
+class HallBarLockInTopology(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_layout: Literal["hall_bar", "generic"] = "hall_bar"
+    gate1_role: Literal["top_gate", "bottom_gate", "back_gate", "side_gate", "generic_gate"] = "top_gate"
+    gate2_role: Literal["top_gate", "bottom_gate", "back_gate", "side_gate", "generic_gate"] = "back_gate"
+    source_contact: str = Field(min_length=1)
+    drain_contact: str = Field(min_length=1)
+    lockin_input_mode: Literal["voltage", "current"] = "voltage"
+    lockin_input_contacts: list[str] = Field(min_length=1, max_length=2)
+    excitation_source: Literal["sr860_sine_out", "external", "none"] = "sr860_sine_out"
+    excitation_contacts: list[str] = Field(default_factory=list, max_length=2)
+    excitation_amplitude_v: float | None = Field(default=None, gt=0, le=2.0)
+    current_bias_resistor_ohm: float | None = Field(default=None, gt=0)
+    notes: str | None = None
+
+    @model_validator(mode="after")
+    def contacts_and_excitation_must_be_consistent(self) -> "HallBarLockInTopology":
+        if self.source_contact == self.drain_contact:
+            raise ValueError("source_contact and drain_contact must be different")
+        if len(set(self.lockin_input_contacts)) != len(self.lockin_input_contacts):
+            raise ValueError("lockin_input_contacts must not contain duplicates")
+        if self.excitation_source != "none":
+            if len(self.excitation_contacts) != 2:
+                raise ValueError("excitation_contacts must contain exactly two contacts when excitation_source is active")
+            if len(set(self.excitation_contacts)) != 2:
+                raise ValueError("excitation_contacts must contain two different contacts")
+            if self.excitation_amplitude_v is None:
+                raise ValueError("excitation_amplitude_v is required when excitation_source is active")
+        if self.excitation_source == "none":
+            if self.excitation_contacts:
+                raise ValueError("excitation_contacts must be empty when excitation_source is none")
+            if self.excitation_amplitude_v is not None:
+                raise ValueError("excitation_amplitude_v must be omitted when excitation_source is none")
+        return self
+
+
 class ResistanceCheck(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -340,6 +377,7 @@ class DualGateLockInRecipe(BaseModel):
     gate1_instrument: InstrumentConfig
     gate2_instrument: InstrumentConfig
     lockin: LockInConfig
+    topology: HallBarLockInTopology
     gate1_sweep: GateSweepConfig
     gate2_sweep: GateSweepConfig
     safety_preset: str = "nano_device_safe"
@@ -358,6 +396,8 @@ class DualGateLockInRecipe(BaseModel):
     def ranges_and_lockin_must_be_valid(self) -> "DualGateLockInRecipe":
         if not self.lockin.enabled:
             raise ValueError("dual_gate_lockin recipes require lockin.enabled=true")
+        if self.topology.gate1_role == self.topology.gate2_role:
+            raise ValueError("topology.gate1_role and topology.gate2_role must be different")
         for label, instrument, sweep in [
             ("gate1", self.gate1_instrument, self.gate1_sweep),
             ("gate2", self.gate2_instrument, self.gate2_sweep),

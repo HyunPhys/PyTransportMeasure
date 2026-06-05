@@ -120,6 +120,7 @@ def format_dual_gate_lockin_plan(
         f"Lock-in channels: {', '.join(recipe.lockin.channels)}",
         f"Lock-in timing: {recipe.lockin.read_timing}",
         *format_lockin_settings(recipe.lockin.model_dump(mode="json")),
+        *format_topology_settings(recipe.topology.model_dump(mode="json")),
         f"Gate1 sweep: {gate1_voltages[0]:.6g} V -> {gate1_voltages[-1]:.6g} V, {len(gate1_voltages)} points, settle {recipe.gate1_sweep.settle_s:.6g} s",
         f"Gate2 sweep: {gate2_voltages[0]:.6g} V -> {gate2_voltages[-1]:.6g} V, {len(gate2_voltages)} points, settle {recipe.gate2_sweep.settle_s:.6g} s",
         f"Total points: {len(gate1_voltages) * len(gate2_voltages)}",
@@ -150,6 +151,29 @@ def format_geometry(geometry: dict) -> str:
     notes = geometry.get("notes")
     text = f"{method}, {terminal_count}-terminal"
     return f"{text}, {notes}" if notes else text
+
+
+def format_topology_settings(topology: dict[str, Any]) -> list[str]:
+    lines = [
+        f"Topology layout: {topology.get('device_layout')}",
+        f"Gate roles: gate1={topology.get('gate1_role')}, gate2={topology.get('gate2_role')}",
+        f"Source/drain contacts: {topology.get('source_contact')} -> {topology.get('drain_contact')}",
+        f"Lock-in input: {topology.get('lockin_input_mode')} on {', '.join(topology.get('lockin_input_contacts') or [])}",
+        f"Excitation source: {topology.get('excitation_source')}",
+    ]
+    excitation_contacts = topology.get("excitation_contacts") or []
+    if excitation_contacts:
+        lines.append(f"Excitation contacts: {', '.join(excitation_contacts)}")
+    excitation_amplitude = topology.get("excitation_amplitude_v")
+    if excitation_amplitude is not None:
+        lines.append(f"Excitation amplitude: {excitation_amplitude} V")
+    bias_resistor = topology.get("current_bias_resistor_ohm")
+    if bias_resistor is not None:
+        lines.append(f"Current-bias resistor: {bias_resistor} ohm")
+    notes = topology.get("notes")
+    if notes:
+        lines.append(f"Topology notes: {notes}")
+    return lines
 
 
 def run_dual_gate_lockin_sweep(

@@ -57,6 +57,23 @@ lockin:
   time_constant_index: 10
   filter_slope_db_per_oct: 24
   synchronous_filter: false
+topology:
+  device_layout: hall_bar
+  gate1_role: top_gate
+  gate2_role: back_gate
+  source_contact: S
+  drain_contact: D
+  lockin_input_mode: voltage
+  lockin_input_contacts:
+    - Vxx+
+    - Vxx-
+  excitation_source: sr860_sine_out
+  excitation_contacts:
+    - S
+    - D
+  excitation_amplitude_v: 0.01
+  current_bias_resistor_ohm: 1000000
+  notes: Dry-run Hall bar topology; edit contact labels and excitation path before hardware use.
 gate1_sweep:
   start_v: -0.1
   stop_v: 0.1
