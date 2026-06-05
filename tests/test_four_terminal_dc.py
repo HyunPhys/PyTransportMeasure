@@ -7,9 +7,11 @@ import pytest
 from pytransport.cli import main
 from pytransport.four_terminal_dc import (
     format_four_terminal_dc_command_review,
+    format_four_terminal_dc_lab_smoke_intake,
     format_four_terminal_dc_preflight,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    intake_four_terminal_dc_lab_smoke,
     review_four_terminal_dc_active_run_commands,
     run_four_terminal_dc_active,
     run_four_terminal_dc_dry_run,
@@ -404,6 +406,72 @@ def test_four_terminal_dc_active_runner_uses_remote_sense_and_cleanup(tmp_path):
     assert saved["hardware_guard"]["command_review_evidence_passed"] is True
 
 
+def test_four_terminal_dc_lab_smoke_intake_accepts_clean_active_run(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    review_path = write_passing_command_review_json(tmp_path, recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_four_terminal_dc_active(
+        recipe,
+        safety,
+        FourTerminalActiveFakeSMU(),
+        recipe_path=recipe_path,
+        command_review_json=review_path,
+        hardware_approval_note="lab fixture reviewed; fake active test",
+    )
+
+    intake = intake_four_terminal_dc_lab_smoke(
+        metadata["run_dir"],
+        min_points=3,
+        min_resistance_ohm=900_000,
+        max_resistance_ohm=1_100_000,
+    )
+    text = format_four_terminal_dc_lab_smoke_intake(intake)
+
+    assert intake.accepted is True
+    assert intake.points == 3
+    assert intake.points_written == 3
+    assert intake.nplc == pytest.approx(1.0)
+    assert intake.output_zero_before_off_ok is True
+    assert intake.remote_sense_enabled_readback_ok is True
+    assert intake.remote_sense_disabled_after_run_ok is True
+    assert intake.smu_readback_available is True
+    assert intake.smu_readback_matched is True
+    assert intake.command_review_evidence_passed is True
+    assert intake.fitted_resistance_ohm == pytest.approx(1_000_000)
+    assert "Four-terminal DC lab smoke intake: PASS" in text
+    assert "NPLC: 1" in text
+
+
+def test_four_terminal_dc_lab_smoke_intake_rejects_cleanup_or_nplc_metadata_drift(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    review_path = write_passing_command_review_json(tmp_path, recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_four_terminal_dc_active(
+        recipe,
+        safety,
+        FourTerminalActiveFakeSMU(),
+        recipe_path=recipe_path,
+        command_review_json=review_path,
+        hardware_approval_note="lab fixture reviewed; fake active test",
+    )
+    metadata_path = Path(metadata["metadata_path"])
+    saved = json.loads(metadata_path.read_text(encoding="utf-8"))
+    saved["remote_sense"]["disabled_after_run_readback"] = "1"
+    saved["configured_smu"]["nplc"] = None
+    metadata_path.write_text(json.dumps(saved, indent=2, sort_keys=True), encoding="utf-8")
+
+    intake = intake_four_terminal_dc_lab_smoke(metadata["run_dir"])
+    issue_checks = {issue.check for issue in intake.issues}
+
+    assert intake.accepted is False
+    assert "remote_sense_disabled" in issue_checks
+    assert "nplc" in issue_checks
+
+
 def test_four_terminal_dc_active_runner_rejects_nonpassing_command_review(tmp_path):
     recipe_path = tmp_path / "four_terminal_dc.yaml"
     write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
@@ -562,3 +630,46 @@ def test_cli_four_terminal_dc_active_run_with_fakes_writes_metadata(tmp_path, mo
     assert "command-review evidence accepted" in text
     assert metadata["completed"] is True
     assert metadata["remote_sense"]["enabled_readback_ok"] is True
+
+
+def test_cli_four_terminal_dc_lab_smoke_intake_outputs_text_and_json(tmp_path, capsys):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    review_path = write_passing_command_review_json(tmp_path, recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_four_terminal_dc_active(
+        recipe,
+        safety,
+        FourTerminalActiveFakeSMU(),
+        recipe_path=recipe_path,
+        command_review_json=review_path,
+        hardware_approval_note="lab fixture reviewed; fake active test",
+    )
+    output = tmp_path / "intake.json"
+
+    assert main(
+        [
+            "four-terminal-dc-lab-smoke-intake",
+            metadata["run_dir"],
+            "--min-points",
+            "3",
+            "--min-resistance-ohm",
+            "900000",
+            "--max-resistance-ohm",
+            "1100000",
+        ]
+    ) == 0
+    text = capsys.readouterr().out
+    assert "Four-terminal DC lab smoke intake: PASS" in text
+    assert "SMU readback matched: True" in text
+
+    assert main(["four-terminal-dc-lab-smoke-intake", metadata["run_dir"], "--json-output", str(output)]) == 0
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert saved["accepted"] is True
+    assert saved["nplc"] == pytest.approx(1.0)
+    capsys.readouterr()
+
+    assert main(["four-terminal-dc-lab-smoke-intake", metadata["run_dir"], "--json"]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["output_zero_before_off_ok"] is True

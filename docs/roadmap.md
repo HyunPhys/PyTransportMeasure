@@ -628,10 +628,17 @@ root.
 - [x] Phase 25cr: Four-terminal DC guarded active runner draft
   - implement the remote-sense active runner behind explicit lab approval gates
   - require passing command-review evidence before any output can be enabled
-- [ ] Phase 25cs: Four-terminal DC lab smoke result intake
+- [x] Phase 25cs: Four-terminal DC lab smoke result intake
   - ingest the first guarded active runner metadata from the lab laptop
   - audit remote-sense readback, output cleanup, NPLC/range/compliance, and
     fitted resistance before broadening the method
+- [ ] Phase 25ct: Four-terminal DC lab feedback hardening
+  - use the first real lab-laptop intake report to tighten Keithley 2450
+    remote-sense cleanup/readback assumptions
+  - decide whether the next smoke should broaden point count, add contact
+    fixture metadata, or pause for driver correction
+  - keep NPLC/range/compliance changes explicit and reviewable before any
+    device measurement
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

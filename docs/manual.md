@@ -75,7 +75,7 @@ Important modules:
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
 | Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; SR860 readout smoke, active-gate smoke, and guarded tiny active sweep available | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin-smoke`, `ptm dual-gate-lockin --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
-| 4-probe / remote sense | Design gate only; active output blocked | `ptm four-terminal-dc-design-gate` |
+| 4-probe / remote sense | Guarded active smoke path plus post-run intake audit | `ptm four-terminal-dc-preflight`, `ptm four-terminal-dc-command-review`, `ptm four-terminal-dc-lab-smoke-intake` |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
 | GUI | Dry-run desktop foundation | `ptm-gui` |
 
@@ -1567,8 +1567,8 @@ range, current range, NPLC, source delay, current compliance, and PASS/MISSING
 status. Treat the JSON output as a lab-notebook artifact when comparing
 repeated Hall-bar scans.
 
-For the future Keithley 2450 four-terminal DC path, use the guarded preflight
-before any runner exists:
+For the Keithley 2450 four-terminal DC path, use the guarded preflight before
+any active output attempt:
 
 ```powershell
 ptm four-terminal-dc-validate configs\recipes\four_terminal_dc_schema_draft.yaml
@@ -1579,9 +1579,9 @@ ptm four-terminal-dc-preflight configs\recipes\four_terminal_dc_schema_draft.yam
 The `--dry-check` form validates the recipe and preflight gate without hardware.
 The hardware form connects to the Keithley, checks SCPI mode, reads
 `:SENS:CURR:RSEN?`, and records whether terminal, NPLC, current range, and
-voltage range readbacks are available. It still prints
-`Active hardware run allowed: False`; four-terminal DC output remains blocked
-until a later runner phase is written and separately verified.
+voltage range readbacks are available. It still does not authorize output by
+itself; active output additionally requires command-review evidence, a point
+count guard, and a hardware approval note.
 
 To validate four-terminal DC run artifacts without enabling hardware output,
 use the dry-run runner:
@@ -1594,10 +1594,9 @@ This writes `points.csv`, `metadata.json`, `recipe_snapshot.yaml`, and
 `safety_snapshot.yaml` using the four-terminal recipe schema. The metadata
 records the contact map, `dc_sense_mode`, NPLC/ranges/compliance, and planned
 remote-sense SCPI commands. Running the same command without `--dry-run` is
-blocked because active Keithley remote-sense output is not implemented yet.
+blocked unless the guarded active-run flags are supplied.
 
-Before implementing or enabling a real remote-sense hardware runner, review the
-planned SCPI sequence:
+Before any guarded active run, review the exact remote-sense SCPI sequence:
 
 ```powershell
 ptm four-terminal-dc-command-review configs\recipes\four_terminal_dc_schema_draft.yaml
@@ -1620,6 +1619,22 @@ This path still runs a live hardware preflight before opening the active runner.
 It blocks missing command-review evidence, missing approval notes, and recipes
 whose point count exceeds `--max-hardware-points`. Metadata records
 `hardware_guard`, remote-sense readback, SMU readback, and output cleanup state.
+
+After any limited four-terminal DC hardware smoke run, audit the saved run
+folder before broadening the point count or connecting a device:
+
+```powershell
+ptm four-terminal-dc-lab-smoke-intake data\raw\<run> --min-points 3 --min-resistance-ohm <low> --max-resistance-ohm <high> --json-output docs\four_terminal_dc_lab_smoke_intake.json
+```
+
+The intake requires `measurement_type: four_terminal_dc`, `dry_run: false`, a
+completed run, matching `points_written`, fitted resistance inside the optional
+window, remote-sense ON readback, remote-sense OFF cleanup, output-off cleanup,
+zero-before-output-off cleanup, command-review evidence, and a hardware approval
+note. It also requires the normalized Keithley measurement conditions to be
+present in metadata: NPLC, voltage range, current range, and compliance. When a
+Keithley readback check exists, it must report `matched: true`, so an accidental
+NPLC/range/compliance drift is caught before the method is expanded.
 
 Keithley source blocks may also set an instrument voltage-source delay:
 

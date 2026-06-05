@@ -32,6 +32,7 @@ from .smu_config import (
     read_voltage_source_config_if_available,
     voltage_source_config_snapshot,
 )
+from .summary import summarize_run
 
 
 @dataclass(frozen=True)
@@ -132,6 +133,51 @@ class FourTerminalDCCommandReview:
         payload = asdict(self)
         payload["command_steps"] = [step.to_dict() for step in self.command_steps]
         payload["evidence_checks"] = [check.to_dict() for check in self.evidence_checks]
+        payload["issues"] = [issue.to_dict() for issue in self.issues]
+        return payload
+
+
+@dataclass(frozen=True)
+class FourTerminalDCLabSmokeIssue:
+    severity: str
+    check: str
+    message: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FourTerminalDCLabSmokeIntake:
+    run_dir: str
+    metadata_path: str
+    points_path: str
+    accepted: bool
+    completed: bool | None
+    dry_run: bool | None
+    points: int
+    points_written: int | None
+    min_points: int
+    fitted_resistance_ohm: float | None
+    min_resistance_ohm: float | None
+    max_resistance_ohm: float | None
+    measurement_name: str | None
+    nplc: float | None
+    voltage_range_v: float | None
+    current_range_a: float | None
+    current_compliance_a: float | None
+    remote_sense_enabled_readback_ok: bool
+    remote_sense_disabled_after_run_ok: bool
+    output_off_after_run_ok: bool
+    smu_readback_matched: bool | None
+    output_zero_before_off_ok: bool
+    smu_readback_available: bool
+    command_review_evidence_passed: bool | None
+    hardware_approval_note_present: bool
+    issues: tuple[FourTerminalDCLabSmokeIssue, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
         payload["issues"] = [issue.to_dict() for issue in self.issues]
         return payload
 
@@ -750,6 +796,198 @@ def validate_four_terminal_dc_command_review_for_active_run(command_review_json:
     if ":SENS:CURR:RSEN OFF" not in commands:
         raise ValueError("command-review JSON must include :SENS:CURR:RSEN OFF cleanup")
     return payload
+
+
+def intake_four_terminal_dc_lab_smoke(
+    run_dir: str | Path,
+    *,
+    min_points: int = 2,
+    min_resistance_ohm: float | None = None,
+    max_resistance_ohm: float | None = None,
+) -> FourTerminalDCLabSmokeIntake:
+    if min_points < 1:
+        raise ValueError("min_points must be >= 1")
+    if min_resistance_ohm is not None and min_resistance_ohm < 0:
+        raise ValueError("min_resistance_ohm must be >= 0")
+    if max_resistance_ohm is not None and max_resistance_ohm < 0:
+        raise ValueError("max_resistance_ohm must be >= 0")
+    if (
+        min_resistance_ohm is not None
+        and max_resistance_ohm is not None
+        and min_resistance_ohm > max_resistance_ohm
+    ):
+        raise ValueError("min_resistance_ohm cannot exceed max_resistance_ohm")
+    run_path = Path(run_dir)
+    metadata_path = run_path / "metadata.json"
+    points_path = run_path / "points.csv"
+    metadata = _load_json_object(metadata_path)
+    summary = summarize_run(run_path)
+    configured_smu = metadata.get("configured_smu") if isinstance(metadata.get("configured_smu"), dict) else {}
+    remote_sense = metadata.get("remote_sense") if isinstance(metadata.get("remote_sense"), dict) else {}
+    output_state = metadata.get("output_state") if isinstance(metadata.get("output_state"), dict) else {}
+    instrument_output = output_state.get("instrument") if isinstance(output_state.get("instrument"), dict) else {}
+    hardware_guard = metadata.get("hardware_guard") if isinstance(metadata.get("hardware_guard"), dict) else {}
+    readback_check = metadata.get("configured_smu_readback_check")
+    smu_readback_matched = None
+    if isinstance(readback_check, dict):
+        smu_readback_matched = readback_check.get("matched")
+    disabled_readback = str(remote_sense.get("disabled_after_run_readback") or "").strip().upper()
+    enabled_readback = str(remote_sense.get("enabled_readback") or "").strip().upper()
+    points_written = metadata.get("points_written")
+    approval_note = str(hardware_guard.get("hardware_approval_note") or "").strip()
+    issues: list[FourTerminalDCLabSmokeIssue] = []
+
+    def add_if_failed(condition: bool, check: str, message: str, severity: str = "error") -> None:
+        if not condition:
+            issues.append(FourTerminalDCLabSmokeIssue(severity, check, message))
+
+    add_if_failed(metadata.get("measurement_type") == "four_terminal_dc", "measurement_type", "metadata is not four_terminal_dc")
+    add_if_failed(metadata.get("completed") is True, "completed", f"completed={metadata.get('completed')}")
+    add_if_failed(metadata.get("dry_run") is False, "active_run", f"dry_run={metadata.get('dry_run')}")
+    add_if_failed(summary.points >= min_points, "points", f"points={summary.points}, min_points={min_points}")
+    add_if_failed(
+        points_written == summary.points,
+        "points_written",
+        f"metadata points_written={points_written}, points.csv rows={summary.points}",
+    )
+    add_if_failed(summary.fitted_resistance_ohm is not None, "fitted_resistance", "could not fit resistance from points.csv")
+    if min_resistance_ohm is not None:
+        add_if_failed(
+            summary.fitted_resistance_ohm is not None and summary.fitted_resistance_ohm >= min_resistance_ohm,
+            "fitted_resistance_min",
+            f"fitted_resistance={summary.fitted_resistance_ohm}, min={min_resistance_ohm}",
+        )
+    if max_resistance_ohm is not None:
+        add_if_failed(
+            summary.fitted_resistance_ohm is not None and summary.fitted_resistance_ohm <= max_resistance_ohm,
+            "fitted_resistance_max",
+            f"fitted_resistance={summary.fitted_resistance_ohm}, max={max_resistance_ohm}",
+        )
+    add_if_failed(
+        remote_sense.get("enabled_readback_ok") is True and enabled_readback in {"1", "ON", "TRUE"},
+        "remote_sense_enabled",
+        f"enabled_readback={remote_sense.get('enabled_readback')}",
+    )
+    add_if_failed(
+        remote_sense.get("disabled_after_run_attempted") is True
+        and remote_sense.get("disabled_after_run_error") in {None, ""}
+        and disabled_readback in {"0", "OFF", "FALSE"},
+        "remote_sense_disabled",
+        (
+            f"attempted={remote_sense.get('disabled_after_run_attempted')}, "
+            f"readback={remote_sense.get('disabled_after_run_readback')}, "
+            f"error={remote_sense.get('disabled_after_run_error')}"
+        ),
+    )
+    add_if_failed(
+        instrument_output.get("off_after_run") is True,
+        "output_off",
+        f"off_after_run={instrument_output.get('off_after_run')}",
+    )
+    add_if_failed(
+        instrument_output.get("zero_before_off_succeeded") is True,
+        "zero_before_off",
+        f"zero_before_off_succeeded={instrument_output.get('zero_before_off_succeeded')}",
+    )
+    add_if_failed(
+        isinstance(readback_check, dict),
+        "smu_readback_available",
+        "configured_smu_readback_check missing",
+    )
+    add_if_failed(
+        smu_readback_matched is True,
+        "smu_readback",
+        f"configured_smu_readback_check.matched={smu_readback_matched}",
+    )
+    add_if_failed(
+        hardware_guard.get("command_review_evidence_passed") is True,
+        "command_review_evidence",
+        f"command_review_evidence_passed={hardware_guard.get('command_review_evidence_passed')}",
+    )
+    add_if_failed(bool(approval_note), "hardware_approval_note", "hardware approval note missing")
+    add_if_failed(configured_smu.get("nplc") is not None, "nplc", "configured_smu.nplc missing")
+    add_if_failed(configured_smu.get("voltage_range_v") is not None, "voltage_range", "configured_smu.voltage_range_v missing")
+    add_if_failed(configured_smu.get("current_range_a") is not None, "current_range", "configured_smu.current_range_a missing")
+    add_if_failed(configured_smu.get("current_compliance_a") is not None, "compliance", "configured_smu.current_compliance_a missing")
+
+    accepted = not any(issue.severity == "error" for issue in issues)
+    return FourTerminalDCLabSmokeIntake(
+        run_dir=str(run_path),
+        metadata_path=str(metadata_path),
+        points_path=str(points_path),
+        accepted=accepted,
+        completed=metadata.get("completed"),
+        dry_run=metadata.get("dry_run"),
+        points=summary.points,
+        points_written=points_written if isinstance(points_written, int) else None,
+        min_points=min_points,
+        fitted_resistance_ohm=summary.fitted_resistance_ohm,
+        min_resistance_ohm=min_resistance_ohm,
+        max_resistance_ohm=max_resistance_ohm,
+        measurement_name=metadata.get("measurement_name"),
+        nplc=configured_smu.get("nplc"),
+        voltage_range_v=configured_smu.get("voltage_range_v"),
+        current_range_a=configured_smu.get("current_range_a"),
+        current_compliance_a=configured_smu.get("current_compliance_a"),
+        remote_sense_enabled_readback_ok=remote_sense.get("enabled_readback_ok") is True,
+        remote_sense_disabled_after_run_ok=remote_sense.get("disabled_after_run_attempted") is True
+        and remote_sense.get("disabled_after_run_error") in {None, ""}
+        and disabled_readback in {"0", "OFF", "FALSE"},
+        output_off_after_run_ok=instrument_output.get("off_after_run") is True,
+        output_zero_before_off_ok=instrument_output.get("zero_before_off_succeeded") is True,
+        smu_readback_available=isinstance(readback_check, dict),
+        smu_readback_matched=smu_readback_matched,
+        command_review_evidence_passed=hardware_guard.get("command_review_evidence_passed"),
+        hardware_approval_note_present=bool(approval_note),
+        issues=tuple(issues),
+    )
+
+
+def format_four_terminal_dc_lab_smoke_intake(intake: FourTerminalDCLabSmokeIntake) -> str:
+    def fmt(value: float | None, unit: str = "") -> str:
+        if value is None:
+            return "n/a"
+        return f"{value:.6g}{unit}"
+
+    lines = [
+        f"Four-terminal DC lab smoke intake: {'PASS' if intake.accepted else 'FAIL'}",
+        f"Run directory: {intake.run_dir}",
+        f"Metadata: {intake.metadata_path}",
+        f"Points CSV: {intake.points_path}",
+        f"Measurement name: {intake.measurement_name}",
+        f"Completed: {intake.completed}",
+        f"Dry run: {intake.dry_run}",
+        f"Points: {intake.points} (metadata points_written={intake.points_written}, min={intake.min_points})",
+        f"Fitted resistance: {fmt(intake.fitted_resistance_ohm, ' ohm')}",
+        f"Accepted resistance window: {fmt(intake.min_resistance_ohm, ' ohm')} to {fmt(intake.max_resistance_ohm, ' ohm')}",
+        f"NPLC: {fmt(intake.nplc)}",
+        f"Voltage range: {fmt(intake.voltage_range_v, ' V')}",
+        f"Current range: {fmt(intake.current_range_a, ' A')}",
+        f"Compliance: {fmt(intake.current_compliance_a, ' A')}",
+        f"Remote sense ON readback OK: {intake.remote_sense_enabled_readback_ok}",
+        f"Remote sense OFF cleanup OK: {intake.remote_sense_disabled_after_run_ok}",
+        f"Output off after run OK: {intake.output_off_after_run_ok}",
+        f"Zero before output off OK: {intake.output_zero_before_off_ok}",
+        f"SMU readback available: {intake.smu_readback_available}",
+        f"SMU readback matched: {intake.smu_readback_matched}",
+        f"Command-review evidence passed: {intake.command_review_evidence_passed}",
+        f"Hardware approval note present: {intake.hardware_approval_note_present}",
+    ]
+    if intake.issues:
+        lines.extend(["", "Issues:"])
+        for issue in intake.issues:
+            lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    return "\n".join(lines)
+
+
+def write_four_terminal_dc_lab_smoke_intake_json(
+    intake: FourTerminalDCLabSmokeIntake,
+    output_path: str | Path,
+) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(intake.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return path
 
 
 def review_four_terminal_dc_active_run_commands(

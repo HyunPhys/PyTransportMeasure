@@ -20,7 +20,12 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Four-terminal DC schema draft validates force/sense contacts and
   `remote_4wire` intent while remaining non-executable.
 - [x] Keithley 2450 current remote-sense driver primitive is fake-VISA tested
-  for `:SENS:CURR:RSEN ON/OFF` but not wired into active runners.
+  for `:SENS:CURR:RSEN ON/OFF`.
+- [x] Four-terminal DC guarded active runner is available behind preflight,
+  command-review evidence, point-count guard, and approval note.
+- [x] Four-terminal DC lab smoke intake audits saved hardware run metadata for
+  remote sense, output cleanup, SMU readback, NPLC/ranges/compliance, and fitted
+  resistance.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.
@@ -1207,6 +1212,9 @@ Use this checklist before pulse hardware work begins.
 
 - [ ] Run active only after the preflight and command-review checklists pass.
 - [ ] Confirm recipe point count is no larger than `--max-hardware-points`.
+- [ ] Confirm `instrument.nplc`, `instrument.voltage_range_v`,
+  `instrument.current_range_a`, and `sweep.current_compliance_a` are deliberate
+  and recorded in the lab notebook.
 - [ ] Use:
   ```powershell
   ptm four-terminal-dc configs\recipes\four_terminal_dc_schema_draft.yaml --allow-active-run --command-review-json docs\four_terminal_dc_command_review.json --hardware-approval-note "fixture contacts checked; preflight passed" --max-hardware-points 3 --yes --progress
@@ -1217,6 +1225,25 @@ Use this checklist before pulse hardware work begins.
 - [ ] After a run, confirm `remote_sense.enabled_readback_ok: true`.
 - [ ] Confirm `remote_sense.disabled_after_run_readback` is `0` or `OFF`.
 - [ ] Confirm `output_state.instrument.off_after_run: true`.
+
+## Four-Terminal DC Lab Smoke Intake Checklist
+
+- [ ] Run the active runner with a small point count and known resistor/contact
+  fixture before trying a device.
+- [ ] Audit the saved run folder:
+  ```powershell
+  ptm four-terminal-dc-lab-smoke-intake data\raw\<run> --min-points 3 --min-resistance-ohm <low> --max-resistance-ohm <high> --json-output docs\four_terminal_dc_lab_smoke_intake.json
+  ```
+- [ ] Confirm the command prints `Four-terminal DC lab smoke intake: PASS`.
+- [ ] Confirm `NPLC`, voltage range, current range, and compliance match the
+  recipe and lab notebook.
+- [ ] Confirm `SMU readback available: True` and `SMU readback matched: True`.
+- [ ] Confirm `Remote sense ON readback OK: True`.
+- [ ] Confirm `Remote sense OFF cleanup OK: True`.
+- [ ] Confirm `Output off after run OK: True`.
+- [ ] Confirm `Zero before output off OK: True`.
+- [ ] Confirm fitted resistance is within the expected resistor/contact
+  tolerance before expanding point count or connecting a device.
 
 ## Development Checklist
 

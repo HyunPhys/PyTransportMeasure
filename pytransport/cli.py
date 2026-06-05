@@ -112,10 +112,12 @@ from .feedback_bundle import create_feedback_bundle
 from .four_terminal_dc import (
     format_four_terminal_dc_command_review,
     format_four_terminal_dc_dry_run_result,
+    format_four_terminal_dc_lab_smoke_intake,
     format_four_terminal_dc_preflight,
     format_four_terminal_dc_recipe_validation,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    intake_four_terminal_dc_lab_smoke,
     review_four_terminal_dc_active_run_commands,
     run_four_terminal_dc_active,
     run_four_terminal_dc_dry_run,
@@ -124,6 +126,7 @@ from .four_terminal_dc import (
     validate_four_terminal_dc_recipe_file,
     write_four_terminal_dc_command_review_json,
     write_four_terminal_dc_design_gate_json,
+    write_four_terminal_dc_lab_smoke_intake_json,
     write_four_terminal_dc_preflight_json,
 )
 from .hall_analysis import (
@@ -319,10 +322,10 @@ def build_parser() -> argparse.ArgumentParser:
 
     four_terminal_dc = subparsers.add_parser(
         "four-terminal-dc",
-        help="Run a four-terminal DC recipe. Current milestone supports dry-run artifacts only.",
+        help="Run a four-terminal DC recipe with dry-run or guarded active hardware gates.",
     )
     four_terminal_dc.add_argument("recipe", type=Path)
-    four_terminal_dc.add_argument("--dry-run", action="store_true", help="Required for this guarded milestone.")
+    four_terminal_dc.add_argument("--dry-run", action="store_true", help="Validate four-terminal DC artifacts without hardware output.")
     four_terminal_dc.add_argument("--fake-resistance-ohm", type=float, default=1_000_000.0)
     four_terminal_dc.add_argument("--fake-noise-std-a", type=float, default=0.0)
     four_terminal_dc.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
@@ -342,6 +345,17 @@ def build_parser() -> argparse.ArgumentParser:
     four_terminal_dc_command_review.add_argument("--dry-run-metadata", type=Path)
     four_terminal_dc_command_review.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
     four_terminal_dc_command_review.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
+
+    four_terminal_dc_lab_smoke_intake = subparsers.add_parser(
+        "four-terminal-dc-lab-smoke-intake",
+        help="Audit a saved guarded four-terminal DC hardware smoke run before expanding the method.",
+    )
+    four_terminal_dc_lab_smoke_intake.add_argument("run_dir", type=Path)
+    four_terminal_dc_lab_smoke_intake.add_argument("--min-points", type=int, default=2)
+    four_terminal_dc_lab_smoke_intake.add_argument("--min-resistance-ohm", type=float)
+    four_terminal_dc_lab_smoke_intake.add_argument("--max-resistance-ohm", type=float)
+    four_terminal_dc_lab_smoke_intake.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    four_terminal_dc_lab_smoke_intake.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
 
     run = subparsers.add_parser("run", help="Run a Drain I-V recipe.")
     run.add_argument("recipe", type=Path)
@@ -1480,6 +1494,27 @@ def command_four_terminal_dc_command_review(args: argparse.Namespace) -> int:
     elif not args.json_output:
         print(format_four_terminal_dc_command_review(report))
     return 0
+
+
+def command_four_terminal_dc_lab_smoke_intake(args: argparse.Namespace) -> int:
+    try:
+        intake = intake_four_terminal_dc_lab_smoke(
+            args.run_dir,
+            min_points=args.min_points,
+            min_resistance_ohm=args.min_resistance_ohm,
+            max_resistance_ohm=args.max_resistance_ohm,
+        )
+    except Exception as exc:
+        print(f"Four-terminal DC lab smoke intake failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_four_terminal_dc_lab_smoke_intake_json(intake, args.json_output)
+        print(f"Four-terminal DC lab smoke intake JSON: {output_path}")
+    if args.json:
+        print(json.dumps(intake.to_dict(), indent=2, sort_keys=True))
+    elif not args.json_output:
+        print(format_four_terminal_dc_lab_smoke_intake(intake))
+    return 0 if intake.accepted else 2
 
 
 def command_run(args: argparse.Namespace) -> int:
@@ -4028,6 +4063,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_four_terminal_dc(args)
     if args.command == "four-terminal-dc-command-review":
         return command_four_terminal_dc_command_review(args)
+    if args.command == "four-terminal-dc-lab-smoke-intake":
+        return command_four_terminal_dc_lab_smoke_intake(args)
     if args.command == "run":
         return command_run(args)
     if args.command == "single-gate-plan":
