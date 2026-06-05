@@ -94,6 +94,7 @@ def filter_run_index(
     records: list[dict[str, Any]],
     sample_id: str | None = None,
     device_id: str | None = None,
+    cooldown_id: str | None = None,
     tag: str | None = None,
     measurement_type: str | None = None,
     completed: bool | None = None,
@@ -105,6 +106,8 @@ def filter_run_index(
         if sample_id is not None and record.get("sample_id") != sample_id:
             continue
         if device_id is not None and record.get("device_id") != device_id:
+            continue
+        if cooldown_id is not None and record.get("cooldown_id") != cooldown_id:
             continue
         if tag is not None and tag not in (record.get("tags") or []):
             continue

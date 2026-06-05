@@ -525,12 +525,17 @@ Run browsing workflow:
 
 1. Open `Analysis`.
 2. Open the `Runs` subtab.
-3. Click `Refresh Runs`.
-4. Select a saved run.
-5. Click `Load Selected`.
-6. Open `Plot` to inspect a points-based GUI plot that is redrawn on resize.
-7. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
+3. Optionally fill sample, device, cooldown, tag, method, or status filters.
+4. Click `Refresh Runs`.
+5. Select a saved run.
+6. Click `Load Selected`.
+7. Open `Plot` to inspect a points-based GUI plot that is redrawn on resize.
+8. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
    artifacts externally.
+
+Use `Clear Filters` to return to the recent unfiltered run list. The run table
+shows status, sample, device, cooldown, notebook reference, and tags from the run
+index.
 
 The GUI calls the same core recipe, runner, safety, method registry, quality,
 and artifact APIs as the CLI instead of reimplementing measurement logic.

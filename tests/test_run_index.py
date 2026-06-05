@@ -120,13 +120,14 @@ def test_rebuild_run_index_from_metadata_files(tmp_path):
 
 def test_filter_run_index_by_sample_device_tag_and_state():
     records = [
-        make_record(run_dir="a", sample_id="sample-a", device_id="device-a", tags=["x"], completed=True),
-        make_record(run_dir="b", sample_id="sample-b", device_id="device-b", tags=["y"], completed=False, error_type="SafetyLimitError"),
-        make_record(run_dir="c", sample_id="sample-a", device_id="device-c", tags=["x", "z"], completed=False, interrupted=True),
+        make_record(run_dir="a", sample_id="sample-a", device_id="device-a", cooldown_id="cd-a", tags=["x"], completed=True),
+        make_record(run_dir="b", sample_id="sample-b", device_id="device-b", cooldown_id="cd-b", tags=["y"], completed=False, error_type="SafetyLimitError"),
+        make_record(run_dir="c", sample_id="sample-a", device_id="device-c", cooldown_id="cd-a", tags=["x", "z"], completed=False, interrupted=True),
     ]
 
     assert [record["run_dir"] for record in filter_run_index(records, sample_id="sample-a")] == ["a", "c"]
     assert [record["run_dir"] for record in filter_run_index(records, device_id="device-b")] == ["b"]
+    assert [record["run_dir"] for record in filter_run_index(records, cooldown_id="cd-a")] == ["a", "c"]
     assert [record["run_dir"] for record in filter_run_index(records, tag="z")] == ["c"]
     assert [record["run_dir"] for record in filter_run_index(records, measurement_type="drain_iv")] == ["a", "b", "c"]
     assert [record["run_dir"] for record in filter_run_index(records, completed=True)] == ["a"]

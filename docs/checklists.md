@@ -45,6 +45,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   artifacts and output-off cleanup.
 - [x] Lab context metadata tracks cooldown, contact geometry, contact notes, and
   lab notebook reference in recipes/reports.
+- [x] GUI Analysis can filter indexed runs by sample, device, cooldown, tag,
+  method, and status.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -175,6 +177,9 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Confirm `Doctor` lives under `Instruments`.
 - [ ] Confirm prior runs, plot preview, reports, and feedback bundle controls
   live under `Analysis`.
+- [ ] In `Analysis`, filter runs by sample/device/cooldown/status and confirm
+  `Refresh Runs` updates the table.
+- [ ] Click `Clear Filters` and confirm the recent run list returns.
 - [ ] Confirm `Measurement > Live Plot` updates during a dry-run.
 - [ ] Confirm the Session Log tab accumulates the same major events and progress
   lines.

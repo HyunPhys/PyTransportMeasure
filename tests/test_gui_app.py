@@ -6,7 +6,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
-from pytransport.gui_app import MainWindow, padded_range, update_plain_text_preserving_scroll
+from pytransport.gui_app import MainWindow, padded_range, run_status_text, update_plain_text_preserving_scroll
 
 
 @pytest.fixture
@@ -134,6 +134,52 @@ def test_gui_stop_run_button_requests_active_worker_stop(app):
     assert not window.stop_run_button.isEnabled()
     assert "Stop requested" in window.progress_text.toPlainText()
     window.close()
+
+
+def test_gui_analysis_filters_and_run_table_columns(app):
+    window = MainWindow()
+    record = {
+        "started_at": "2026-06-05T12:00:00",
+        "measurement_type": "drain_iv",
+        "measurement_name": "filtered_run",
+        "completed": True,
+        "points_written": 3,
+        "sample_id": "sample-a",
+        "device_id": "dev-1",
+        "cooldown_id": "cd-1",
+        "lab_notebook_ref": "ELN-1",
+        "tags": ["keep"],
+        "run_dir": "data/raw/filtered_run",
+    }
+
+    window.add_run_record_to_table(record)
+
+    assert window.recent_table.columnCount() == 11
+    assert window.recent_table.item(0, 3).text() == "Completed"
+    assert window.recent_table.item(0, 7).text() == "cd-1"
+    assert window.recent_table.item(0, 10).text() == "data/raw/filtered_run"
+    window.recent_table.selectRow(0)
+    assert str(window.selected_run_dir()) == "data\\raw\\filtered_run" or str(window.selected_run_dir()) == "data/raw/filtered_run"
+
+    window.run_filter_sample.setText("sample-a")
+    window.run_filter_device.setText("dev-1")
+    window.run_filter_cooldown.setText("cd-1")
+    window.run_filter_tag.setText("keep")
+    window.run_filter_method.setText("drain_iv")
+    window.run_filter_status.setCurrentText("Completed")
+    assert window.run_status_filter_kwargs() == {"completed": True}
+
+    window.clear_run_filters()
+    assert window.run_filter_sample.text() == ""
+    assert window.run_filter_status.currentText() == "Any status"
+    window.close()
+
+
+def test_run_status_text_prefers_interrupted_and_errors():
+    assert run_status_text({"completed": True}) == "Completed"
+    assert run_status_text({"completed": False}) == "Incomplete"
+    assert run_status_text({"error_type": "SafetyLimitError"}) == "Failed: SafetyLimitError"
+    assert run_status_text({"interrupted": True, "error_type": "KeyboardInterrupt"}) == "Interrupted"
 
 
 def test_qt_plot_widget_stores_saved_and_live_points(app):

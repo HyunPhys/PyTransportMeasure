@@ -266,6 +266,26 @@ def test_gui_primary_artifact_paths_use_existing_files(tmp_path):
     assert primary_report_path(metadata) == report
 
 
+def test_list_gui_runs_filters_lab_context_and_status(tmp_path):
+    index_path = tmp_path / "index.jsonl"
+    index_path.write_text(
+        "\n".join(
+            [
+                '{"measurement_name": "a", "run_dir": "run-a", "sample_id": "s1", "device_id": "d1", "cooldown_id": "cd1", "tags": ["keep"], "completed": true, "measurement_type": "drain_iv"}',
+                '{"measurement_name": "b", "run_dir": "run-b", "sample_id": "s2", "device_id": "d2", "cooldown_id": "cd2", "tags": ["drop"], "completed": false, "error_type": "SafetyLimitError", "measurement_type": "drain_iv"}',
+                '{"measurement_name": "c", "run_dir": "run-c", "sample_id": "s1", "device_id": "d3", "cooldown_id": "cd1", "tags": ["keep"], "completed": false, "interrupted": true, "measurement_type": "single_gate_sweep"}',
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    assert [record["run_dir"] for record in list_gui_runs(index_path, sample_id="s1", cooldown_id="cd1")] == ["run-c", "run-a"]
+    assert [record["run_dir"] for record in list_gui_runs(index_path, tag="keep", measurement_type="drain_iv")] == ["run-a"]
+    assert [record["run_dir"] for record in list_gui_runs(index_path, failed=True)] == ["run-b"]
+    assert [record["run_dir"] for record in list_gui_runs(index_path, interrupted=True)] == ["run-c"]
+
+
 def test_drain_iv_form_round_trip_from_default_recipe():
     text = Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8")
     values = drain_iv_form_from_text(text)

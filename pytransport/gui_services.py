@@ -25,7 +25,7 @@ from .preflight import format_preflight_report, run_preflight_for_recipe
 from .pulse import run_pulse_measurement
 from .quality import evaluate_run_quality, quality_report_to_dict
 from .recipes import load_named_safety_preset, sweep_voltages
-from .run_index import append_run_index, read_run_index
+from .run_index import append_run_index, filter_run_index, read_run_index
 from .runner import run_drain_iv
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import write_single_gate_stats_csv
@@ -652,9 +652,38 @@ def safe_filename(value: str) -> str:
     return cleaned or "recipe"
 
 
-def list_gui_runs(index_path: str | Path = "data/run_index.jsonl", limit: int = 100) -> list[dict[str, Any]]:
+def list_gui_runs(
+    index_path: str | Path = "data/run_index.jsonl",
+    limit: int = 100,
+    sample_id: str | None = None,
+    device_id: str | None = None,
+    cooldown_id: str | None = None,
+    tag: str | None = None,
+    measurement_type: str | None = None,
+    completed: bool | None = None,
+    failed: bool = False,
+    interrupted: bool | None = None,
+) -> list[dict[str, Any]]:
     records = read_run_index(index_path)
+    records = filter_run_index(
+        records,
+        sample_id=blank_to_none(sample_id),
+        device_id=blank_to_none(device_id),
+        cooldown_id=blank_to_none(cooldown_id),
+        tag=blank_to_none(tag),
+        measurement_type=blank_to_none(measurement_type),
+        completed=completed,
+        failed=failed,
+        interrupted=interrupted,
+    )
     return list(reversed(records[-limit:]))
+
+
+def blank_to_none(value: str | None) -> str | None:
+    if value is None:
+        return None
+    text = value.strip()
+    return text or None
 
 
 def load_gui_saved_run(run_dir: str | Path) -> GuiRunResult:

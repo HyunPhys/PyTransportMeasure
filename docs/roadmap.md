@@ -207,6 +207,9 @@ This roadmap tracks the large development phases. Completed items are checked.
 - [x] Phase 24u: lab context metadata
   - add cooldown/contact/notebook fields to recipe experiment metadata
   - expose lab context in GUI Drain I-V form, validation, reports, and run index
+- [x] Phase 24v: GUI run filters
+  - filter Analysis runs by sample, device, cooldown, tag, method, and status
+  - show lab context fields in the GUI run table
 
 ## Next GUI
 

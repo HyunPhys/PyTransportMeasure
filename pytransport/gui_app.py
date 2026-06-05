@@ -420,6 +420,20 @@ class MainWindow(QMainWindow):
         self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
         self.load_run_button = QPushButton("Load Selected")
         self.load_run_button.clicked.connect(self.load_selected_run)
+        self.run_filter_sample = QLineEdit()
+        self.run_filter_sample.setPlaceholderText("sample")
+        self.run_filter_device = QLineEdit()
+        self.run_filter_device.setPlaceholderText("device")
+        self.run_filter_cooldown = QLineEdit()
+        self.run_filter_cooldown.setPlaceholderText("cooldown")
+        self.run_filter_tag = QLineEdit()
+        self.run_filter_tag.setPlaceholderText("tag")
+        self.run_filter_method = QLineEdit()
+        self.run_filter_method.setPlaceholderText("method")
+        self.run_filter_status = QComboBox()
+        self.run_filter_status.addItems(["Any status", "Completed", "Incomplete", "Failed", "Interrupted"])
+        self.clear_run_filters_button = QPushButton("Clear Filters")
+        self.clear_run_filters_button.clicked.connect(self.clear_run_filters)
         self.open_run_button.setEnabled(False)
         self.open_plot_button.setEnabled(False)
         self.open_report_button.setEnabled(False)
@@ -457,8 +471,22 @@ class MainWindow(QMainWindow):
         self.saved_plot_canvas = IvPlotCanvas()
         self.live_plot_canvas = IvPlotCanvas()
         self.plot_status = QLabel("No plot loaded")
-        self.recent_table = QTableWidget(0, 6)
-        self.recent_table.setHorizontalHeaderLabels(["Started", "Method", "Name", "Completed", "Points", "Run folder"])
+        self.recent_table = QTableWidget(0, 11)
+        self.recent_table.setHorizontalHeaderLabels(
+            [
+                "Started",
+                "Method",
+                "Name",
+                "Status",
+                "Points",
+                "Sample",
+                "Device",
+                "Cooldown",
+                "Notebook",
+                "Tags",
+                "Run folder",
+            ]
+        )
         self.recent_table.horizontalHeader().setStretchLastSection(True)
         self.recent_table.itemSelectionChanged.connect(self.update_selected_run_controls)
 
@@ -587,14 +615,26 @@ class MainWindow(QMainWindow):
         container = QWidget()
         layout = QVBoxLayout(container)
         controls = QGroupBox("Run Analysis")
-        controls_layout = QHBoxLayout(controls)
-        controls_layout.addWidget(self.refresh_runs_button)
-        controls_layout.addWidget(self.load_run_button)
-        controls_layout.addStretch(1)
-        controls_layout.addWidget(self.open_run_button)
-        controls_layout.addWidget(self.open_plot_button)
-        controls_layout.addWidget(self.open_report_button)
-        controls_layout.addWidget(self.feedback_bundle_button)
+        controls_layout = QVBoxLayout(controls)
+        action_row = QHBoxLayout()
+        action_row.addWidget(self.refresh_runs_button)
+        action_row.addWidget(self.load_run_button)
+        action_row.addStretch(1)
+        action_row.addWidget(self.open_run_button)
+        action_row.addWidget(self.open_plot_button)
+        action_row.addWidget(self.open_report_button)
+        action_row.addWidget(self.feedback_bundle_button)
+        filter_row = QHBoxLayout()
+        filter_row.addWidget(QLabel("Filters"))
+        filter_row.addWidget(self.run_filter_sample)
+        filter_row.addWidget(self.run_filter_device)
+        filter_row.addWidget(self.run_filter_cooldown)
+        filter_row.addWidget(self.run_filter_tag)
+        filter_row.addWidget(self.run_filter_method)
+        filter_row.addWidget(self.run_filter_status)
+        filter_row.addWidget(self.clear_run_filters_button)
+        controls_layout.addLayout(action_row)
+        controls_layout.addLayout(filter_row)
         layout.addWidget(controls)
         analysis_tabs = QTabWidget()
         analysis_tabs.addTab(self.recent_table, "Runs")
@@ -1324,48 +1364,93 @@ class MainWindow(QMainWindow):
         return str(getattr(instrument, "address", "") or "")
 
     def add_recent_run(self, result) -> None:
+        recipe = result.metadata.get("recipe") or {}
+        experiment = recipe.get("experiment") or {}
+        record = {
+            "started_at": result.metadata.get("started_at"),
+            "measurement_type": result.metadata.get("measurement_type"),
+            "measurement_name": result.metadata.get("measurement_name"),
+            "completed": result.metadata.get("completed"),
+            "interrupted": result.metadata.get("interrupted"),
+            "error_type": result.metadata.get("error_type"),
+            "points_written": result.metadata.get("points_written"),
+            "sample_id": experiment.get("sample_id"),
+            "device_id": experiment.get("device_id"),
+            "cooldown_id": experiment.get("cooldown_id"),
+            "lab_notebook_ref": experiment.get("lab_notebook_ref"),
+            "tags": experiment.get("tags") or [],
+            "run_dir": result.metadata.get("run_dir"),
+        }
+        self.add_run_record_to_table(record)
+
+    def add_run_record_to_table(self, record: dict[str, Any]) -> None:
         row = self.recent_table.rowCount()
         self.recent_table.insertRow(row)
         values = [
-            result.metadata.get("started_at"),
-            result.metadata.get("measurement_type"),
-            result.metadata.get("measurement_name"),
-            result.metadata.get("completed"),
-            result.metadata.get("points_written"),
-            result.metadata.get("run_dir"),
+            record.get("started_at"),
+            record.get("measurement_type"),
+            record.get("measurement_name"),
+            run_status_text(record),
+            record.get("points_written"),
+            record.get("sample_id"),
+            record.get("device_id"),
+            record.get("cooldown_id"),
+            record.get("lab_notebook_ref"),
+            ", ".join(record.get("tags") or []),
+            record.get("run_dir"),
         ]
         for column, value in enumerate(values):
-            self.recent_table.setItem(row, column, QTableWidgetItem(str(value)))
+            self.recent_table.setItem(row, column, QTableWidgetItem("" if value is None else str(value)))
 
     def refresh_indexed_runs(self) -> None:
         try:
-            records = list_gui_runs()
+            records = list_gui_runs(
+                sample_id=self.run_filter_sample.text(),
+                device_id=self.run_filter_device.text(),
+                cooldown_id=self.run_filter_cooldown.text(),
+                tag=self.run_filter_tag.text(),
+                measurement_type=self.run_filter_method.text(),
+                **self.run_status_filter_kwargs(),
+            )
         except Exception as exc:
             self.show_error(exc)
             return
         self.recent_table.setRowCount(0)
         for record in records:
-            row = self.recent_table.rowCount()
-            self.recent_table.insertRow(row)
-            values = [
-                record.get("started_at"),
-                record.get("measurement_type"),
-                record.get("measurement_name"),
-                record.get("completed"),
-                record.get("points_written"),
-                record.get("run_dir"),
-            ]
-            for column, value in enumerate(values):
-                self.recent_table.setItem(row, column, QTableWidgetItem(str(value)))
+            self.add_run_record_to_table(record)
         self.status_label.setText(f"Loaded {len(records)} indexed runs")
         self.log_session(f"Indexed runs refreshed: {len(records)} records")
+
+    def run_status_filter_kwargs(self) -> dict[str, Any]:
+        status = self.run_filter_status.currentText()
+        if status == "Completed":
+            return {"completed": True}
+        if status == "Incomplete":
+            return {"completed": False}
+        if status == "Failed":
+            return {"failed": True}
+        if status == "Interrupted":
+            return {"interrupted": True}
+        return {}
+
+    def clear_run_filters(self) -> None:
+        for field in [
+            self.run_filter_sample,
+            self.run_filter_device,
+            self.run_filter_cooldown,
+            self.run_filter_tag,
+            self.run_filter_method,
+        ]:
+            field.clear()
+        self.run_filter_status.setCurrentIndex(0)
+        self.refresh_indexed_runs()
 
     def selected_run_dir(self) -> Path | None:
         selected = self.recent_table.selectedItems()
         if not selected:
             return None
         row = selected[0].row()
-        item = self.recent_table.item(row, 5)
+        item = self.recent_table.item(row, 10)
         if item is None or not item.text():
             return None
         return Path(item.text())
@@ -1496,6 +1581,18 @@ def padded_range(minimum: float, maximum: float) -> tuple[float, float]:
 
 def workflow_mark(value: bool) -> str:
     return "[x]" if value else "[ ]"
+
+
+def run_status_text(record: dict[str, Any]) -> str:
+    if record.get("interrupted"):
+        return "Interrupted"
+    if record.get("error_type"):
+        return f"Failed: {record.get('error_type')}"
+    if record.get("completed") is True:
+        return "Completed"
+    if record.get("completed") is False:
+        return "Incomplete"
+    return "Unknown"
 
 
 def open_path(path: Path) -> None:
