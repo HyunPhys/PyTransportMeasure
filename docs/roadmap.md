@@ -492,11 +492,20 @@ root.
   - summarize which stages exist: package, rehearsal, intake, analysis, review,
     proposal, approval, approved package
   - keep hardware execution separate from status/reporting commands
-- [ ] Phase 25bp: Hall workflow module split
+- [x] Phase 25bp: Hall workflow module split
   - move Hall workflow orchestration helpers out of the CLI into a dedicated
     module
   - keep CLI commands thin wrappers around core APIs
   - preserve existing command behavior and tests
+- [x] Phase 25bq: CLI Keithley parameter guard
+  - add direct CLI regression coverage for Drain I-V hardware parameter gates
+  - verify missing NPLC/ranges block `ptm run` before preflight or output setup
+  - keep dry-run usable for recipe and artifact validation without hardware
+- [ ] Phase 25br: Hall workflow module tests
+  - add direct unit tests for the reusable Hall workflow module APIs
+  - keep CLI tests focused on argument wiring and exit codes
+  - verify status and rehearsal helpers without relying only on CLI end-to-end
+    coverage
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
