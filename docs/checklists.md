@@ -122,8 +122,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   `experiment.contact_notes`, and `experiment.lab_notebook_ref` when available.
 - [ ] Confirm `measurement_geometry.method` is `two_terminal` for the current
   implemented runners.
-- [ ] Set Keithley `instrument.nplc` intentionally, or leave it blank only when
-  the instrument default integration time is desired.
+- [ ] Set Keithley `instrument.nplc` intentionally. Hardware runs are blocked
+  when active Keithley 2450 NPLC is missing.
 - [ ] Choose a conservative safety preset.
 - [ ] Validate the recipe.
   ```powershell
@@ -292,6 +292,8 @@ hardware output is enabled.
   ```
 - [ ] Confirm the plan shows separate drain, gate1, and gate2 instrument blocks.
 - [ ] Confirm every Keithley block has the intended `nplc` value.
+- [ ] If any active Keithley block is missing `nplc`, confirm the hardware
+  command exits before output with a measurement-parameter error.
 - [ ] Confirm `Total points` equals `gate1 points x gate2 points x drain points`.
 - [ ] Run the dry-run artifact path.
   ```powershell
@@ -476,6 +478,8 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm the active method recipe owns the lock-in block.
 - [ ] Confirm the timing mode is explicit, starting with `after_dc_settle`.
 - [ ] Confirm every Keithley source block has the intended `nplc` value.
+- [ ] Confirm AC lock-in hardware smoke is blocked if `source_instrument.nplc`
+  is missing.
 - [ ] Confirm SR860 expected settings are explicit when they matter:
   `reference_source`, `reference_frequency_hz`, `sine_output_amplitude_v`,
   `input_mode`, `voltage_input`, `input_coupling`, `input_grounding`,

@@ -78,6 +78,7 @@ from .instruments.fake import (
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
+from .measurement_parameters import assert_explicit_nplc_for_hardware
 from .model import MeasurementPoint
 from .plot import write_iv_svg
 from .preflight import (
@@ -698,6 +699,11 @@ def command_run(args: argparse.Namespace) -> int:
     else:
         print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
         print()
+        try:
+            assert_explicit_nplc_for_hardware(recipe)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         preflight_report = run_preflight(args.recipe, args.safety_dir)
         print(format_preflight_report(preflight_report))
         print()
@@ -753,6 +759,11 @@ def command_single_gate(args: argparse.Namespace) -> int:
     else:
         if recipe.drain_instrument.address == recipe.gate_instrument.address:
             print("Single-gate hardware run requires separate drain and gate instrument addresses.", file=sys.stderr)
+            return 2
+        try:
+            assert_explicit_nplc_for_hardware(recipe)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
             return 2
         if not single_gate_hardware_preflight_ok(recipe, args.recipe, args.safety_dir):
             return 2
@@ -901,6 +912,11 @@ def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
             noise_std_v=args.fake_noise_std,
         )
     else:
+        try:
+            assert_explicit_nplc_for_hardware(recipe, roles=("gate1", "gate2"))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
         preflight_text = format_dual_gate_lockin_preflight_report(report)
         print(preflight_text)
@@ -1053,6 +1069,11 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         )
         if raised_point_guard:
             print(f"Hardware approval note: {approval_note}")
+        try:
+            assert_explicit_nplc_for_hardware(recipe, roles=("gate1", "gate2"))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
         print(format_dual_gate_lockin_preflight_report(report))
         print()
@@ -1165,6 +1186,11 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
             noise_std_v=args.fake_noise_std,
         )
     else:
+        try:
+            assert_explicit_nplc_for_hardware(recipe, roles=("source",))
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
         report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
         print(format_ac_lockin_preflight_report(report))
         print()

@@ -265,7 +265,11 @@ root.
     output cleanup, zero-before-off, and SR860 setting readback
   - write `dual_gate_lockin_acceptance.md` as the artifact checkpoint before
     expanding hardware scans
-- [ ] Phase 25v: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25v: Explicit Keithley NPLC hardware gate
+  - require explicit NPLC before CLI paths enable Keithley hardware output
+  - keep dry-run and read-only SR860 smoke paths available without NPLC
+  - centralize the policy in a measurement-parameter guard for future methods
+- [ ] Phase 25w: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

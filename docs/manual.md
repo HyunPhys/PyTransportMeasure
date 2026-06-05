@@ -946,6 +946,11 @@ Longer NPLC improves current averaging at the cost of sweep speed. For DC gate
 leakage and source-current checks, set NPLC deliberately in every active
 Keithley block before a hardware run.
 
+CLI hardware paths now require explicit NPLC before any Keithley output can be
+enabled. Dry-runs remain allowed without NPLC, but real Drain I-V, single-gate,
+AC lock-in, dual-gate lock-in active-gate smoke, and dual-gate lock-in active
+sweeps are blocked until every active Keithley 2450 block has `nplc`.
+
 Run metadata also stores the normalized SMU configuration that was passed to
 the instrument layer. Look for `configured_smu`, `configured_source_smu`,
 `configured_drain_smu`, `configured_gate_smu`, `configured_gate1_smu`, or

@@ -130,3 +130,36 @@ def test_cli_ac_lockin_hardware_run_blocks_when_preflight_fails(tmp_path, monkey
 
     assert code == 2
     assert not (tmp_path / "raw").exists()
+
+
+def test_cli_ac_lockin_hardware_run_requires_source_nplc(tmp_path, monkeypatch):
+    recipe = write_ac_lockin_cli_recipe(tmp_path)
+    text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "")
+    recipe.write_text(text, encoding="utf-8")
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
+
+    code = cli.main(["ac-lockin", str(recipe), "--yes"])
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
+
+
+def test_cli_ac_lockin_dry_run_allows_missing_source_nplc(tmp_path):
+    recipe = write_ac_lockin_cli_recipe(tmp_path)
+    text = recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "")
+    recipe.write_text(text, encoding="utf-8")
+
+    code = cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    )
+
+    assert code == 0
+    assert len(list((tmp_path / "raw").glob("*ac_lockin_cli_hardware"))) == 1
