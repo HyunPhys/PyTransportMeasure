@@ -32,10 +32,13 @@ def format_lockin_contact_context(
             f"Topology layout: {topology.get('device_layout') or 'n/a'}",
             f"Source/drain contacts: {topology.get('source_contact') or 'n/a'} -> {topology.get('drain_contact') or 'n/a'}",
             f"Lock-in voltage contacts: {format_contact_list(lockin_contacts)}",
+            f"Voltage probe role: {topology.get('voltage_probe_role') or 'generic'}",
             f"Excitation contacts: {format_contact_list(excitation_contacts)}",
             f"Excitation source: {topology.get('excitation_source') or 'n/a'}",
         ]
     )
+    if topology.get("channel_length_m") is not None and topology.get("channel_width_m") is not None:
+        lines.append(f"Channel geometry: L={topology.get('channel_length_m')} m, W={topology.get('channel_width_m')} m")
     return lines
 
 

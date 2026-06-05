@@ -330,7 +330,12 @@ root.
   - include lock-in input mode and voltage input in AC lock-in reports
   - include Hall-bar voltage contacts and excitation contacts in dual-gate
     lock-in summary and report artifacts
-- [ ] Phase 25ai: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ai: Hall-bar sheet transport derivation
+  - add voltage probe role and optional channel length/width to dual-gate
+    lock-in topology
+  - derive sheet resistance/conductivity for longitudinal Vxx measurements
+  - save sheet transport columns in points CSV, stats CSV, summary, and report
+- [ ] Phase 25aj: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

@@ -179,6 +179,9 @@ class HallBarLockInTopology(BaseModel):
     drain_contact: str = Field(min_length=1)
     lockin_input_mode: Literal["voltage", "current"] = "voltage"
     lockin_input_contacts: list[str] = Field(min_length=1, max_length=2)
+    voltage_probe_role: Literal["longitudinal", "hall", "generic"] = "generic"
+    channel_length_m: float | None = Field(default=None, gt=0)
+    channel_width_m: float | None = Field(default=None, gt=0)
     excitation_source: Literal["sr860_sine_out", "external", "none"] = "sr860_sine_out"
     excitation_contacts: list[str] = Field(default_factory=list, max_length=2)
     excitation_amplitude_v: float | None = Field(default=None, gt=0, le=2.0)
@@ -191,6 +194,12 @@ class HallBarLockInTopology(BaseModel):
             raise ValueError("source_contact and drain_contact must be different")
         if len(set(self.lockin_input_contacts)) != len(self.lockin_input_contacts):
             raise ValueError("lockin_input_contacts must not contain duplicates")
+        if (self.channel_length_m is None) ^ (self.channel_width_m is None):
+            raise ValueError("channel_length_m and channel_width_m must be provided together")
+        if self.voltage_probe_role != "longitudinal" and (
+            self.channel_length_m is not None or self.channel_width_m is not None
+        ):
+            raise ValueError("channel_length_m/channel_width_m are currently only used for longitudinal voltage probes")
         if self.excitation_source != "none":
             if len(self.excitation_contacts) != 2:
                 raise ValueError("excitation_contacts must contain exactly two contacts when excitation_source is active")

@@ -72,6 +72,7 @@ def dual_gate_lockin_recipe_data(output_dir: Path) -> dict:
             "drain_contact": "D",
             "lockin_input_mode": "voltage",
             "lockin_input_contacts": ["Vxx+", "Vxx-"],
+            "voltage_probe_role": "generic",
             "excitation_source": "sr860_sine_out",
             "excitation_contacts": ["S", "D"],
             "excitation_amplitude_v": 0.01,
@@ -171,6 +172,9 @@ def test_dual_gate_lockin_four_terminal_recipe_sample_and_plan():
     assert recipe.lockin.voltage_input == "a-b"
     assert recipe.topology.lockin_input_contacts == ["Vxx+", "Vxx-"]
     assert recipe.topology.excitation_contacts == ["S", "D"]
+    assert recipe.topology.voltage_probe_role == "longitudinal"
+    assert recipe.topology.channel_length_m == pytest.approx(5e-6)
+    assert recipe.topology.channel_width_m == pytest.approx(2e-6)
     assert "Measurement geometry: four_terminal, 4-terminal" in plan
     assert "Lock-in voltage input: a-b" in plan
     assert "Lock-in input: voltage on Vxx+, Vxx-" in plan
@@ -181,6 +185,25 @@ def test_dual_gate_lockin_recipe_rejects_incomplete_active_excitation(tmp_path):
     data["topology"]["excitation_contacts"] = ["S"]
 
     with pytest.raises(Exception, match="excitation_contacts must contain exactly two contacts"):
+        DualGateLockInRecipe.model_validate(data)
+
+
+def test_dual_gate_lockin_recipe_requires_complete_longitudinal_channel_geometry(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["topology"]["voltage_probe_role"] = "longitudinal"
+    data["topology"]["channel_length_m"] = 5e-6
+
+    with pytest.raises(Exception, match="channel_length_m and channel_width_m must be provided together"):
+        DualGateLockInRecipe.model_validate(data)
+
+
+def test_dual_gate_lockin_recipe_rejects_channel_geometry_for_hall_probe(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["topology"]["voltage_probe_role"] = "hall"
+    data["topology"]["channel_length_m"] = 5e-6
+    data["topology"]["channel_width_m"] = 2e-6
+
+    with pytest.raises(Exception, match="only used for longitudinal voltage probes"):
         DualGateLockInRecipe.model_validate(data)
 
 
@@ -220,6 +243,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert float(rows[0]["source_drain_nominal_current_a"]) == pytest.approx(1e-8)
     assert float(rows[0]["lockin_resistance_ohm"]) == pytest.approx(float(rows[0]["lockin_r_v"]) / 1e-8)
     assert float(rows[0]["lockin_conductance_s"]) == pytest.approx(1 / float(rows[0]["lockin_resistance_ohm"]))
+    assert rows[0]["lockin_sheet_resistance_ohm_per_sq"] == ""
+    assert rows[0]["lockin_sheet_conductivity_s_per_sq"] == ""
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
     assert saved_metadata["planned_points"] == 9
     assert saved_metadata["planned_gate_grid"] == planned_dual_gate_lockin_grid(recipe)
@@ -287,6 +312,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert stats_path.name == "dual_gate_lockin_stats.csv"
     assert "lockin_resistance_mean_ohm" in stats_rows[0]
     assert "lockin_conductance_mean_s" in stats_rows[0]
+    assert "lockin_sheet_resistance_mean_ohm_per_sq" in stats_rows[0]
+    assert stats_rows[0]["lockin_sheet_resistance_mean_ohm_per_sq"] == ""
     assert write_dual_gate_lockin_heatmap_svg(run_dir).name == "dual_gate_lockin_heatmap.svg"
     assert write_dual_gate_lockin_report(run_dir).name == "dual_gate_lockin_report.md"
     report = (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
@@ -305,6 +332,9 @@ def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):
         "notes": "SR860 reads differential Hall-bar voltage contacts while gate Keithleys bias gates.",
     }
     data["lockin"]["voltage_input"] = "a-b"
+    data["topology"]["voltage_probe_role"] = "longitudinal"
+    data["topology"]["channel_length_m"] = 5e-6
+    data["topology"]["channel_width_m"] = 2e-6
     recipe = DualGateLockInRecipe.model_validate(data)
     safety = load_named_safety_preset(recipe.safety_preset)
     gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
@@ -326,14 +356,29 @@ def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):
     assert saved_metadata["recipe"]["lockin"]["voltage_input"] == "a-b"
     assert saved_metadata["recipe"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
     assert saved_metadata["recipe"]["topology"]["excitation_contacts"] == ["S", "D"]
+    assert saved_metadata["voltage_probe_role"] == "longitudinal"
+    assert saved_metadata["channel_length_m"] == pytest.approx(5e-6)
+    assert saved_metadata["channel_width_m"] == pytest.approx(2e-6)
     assert saved_metadata["outputs_off_after_run"] is True
+    rows = list(csv.DictReader((Path(metadata["run_dir"]) / "points.csv").open(newline="", encoding="utf-8")))
+    first_resistance = float(rows[0]["lockin_resistance_ohm"])
+    first_sheet_resistance = float(rows[0]["lockin_sheet_resistance_ohm_per_sq"])
+    assert first_sheet_resistance == pytest.approx(first_resistance * 2e-6 / 5e-6)
+    assert float(rows[0]["lockin_sheet_conductivity_s_per_sq"]) == pytest.approx(1 / first_sheet_resistance)
     summary = summarize_dual_gate_lockin_run(Path(metadata["run_dir"]))
     assert summary.measurement_geometry.startswith("four_terminal, 4-terminal")
     assert summary.lockin_voltage_contacts == "Vxx+, Vxx-"
+    assert summary.lockin_sheet_resistance_max_ohm_per_sq is not None
+    stats_path = write_dual_gate_lockin_stats_csv(Path(metadata["run_dir"]))
+    stats_rows = list(csv.DictReader(stats_path.open(newline="", encoding="utf-8")))
+    assert float(stats_rows[0]["lockin_sheet_resistance_mean_ohm_per_sq"]) > 0
     report_path = write_dual_gate_lockin_report(Path(metadata["run_dir"]))
     report = report_path.read_text(encoding="utf-8")
     assert "Measurement geometry: four_terminal, 4-terminal" in report
     assert "- Lock-in voltage contacts: Vxx+, Vxx-" in report
+    assert "- Voltage probe role: longitudinal" in report
+    assert "- Channel geometry: L=5e-06 m, W=2e-06 m" in report
+    assert "Sheet resistance range:" in report
     assert "- Excitation contacts: S, D" in report
 
 

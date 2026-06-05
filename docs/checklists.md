@@ -467,14 +467,18 @@ remain point-guarded.
 - [ ] Confirm `points.csv` contains `gate1_voltage_v`, `gate2_voltage_v`,
   `gate1_current_a`, `gate2_current_a`, `lockin_x_v`, `lockin_y_v`,
   `lockin_r_v`, `lockin_theta_deg`, `source_drain_nominal_current_a`,
-  `lockin_resistance_ohm`, and `lockin_conductance_s`.
+  `lockin_resistance_ohm`, `lockin_conductance_s`,
+  `lockin_sheet_resistance_ohm_per_sq`, and
+  `lockin_sheet_conductivity_s_per_sq`.
 - [ ] Confirm `dual_gate_lockin_heatmap.svg`,
   `dual_gate_lockin_stats.csv`, and `dual_gate_lockin_report.md` are written.
 - [ ] Confirm `dual_gate_lockin_stats.csv` includes
-  `lockin_resistance_mean_ohm` and `lockin_conductance_mean_s`.
+  `lockin_resistance_mean_ohm`, `lockin_conductance_mean_s`, and, for
+  longitudinal Vxx recipes with L/W, `lockin_sheet_resistance_mean_ohm_per_sq`.
 - [ ] Confirm `dual_gate_lockin_report.md` lists nominal source-drain current,
   resistance range, conductance range, measurement geometry, lock-in voltage
-  contacts, and excitation contacts.
+  contacts, excitation contacts, and sheet resistance range when channel
+  geometry is declared.
 - [ ] Confirm generic saved-run commands work.
   ```powershell
   ptm summarize data\raw\<dual_gate_lockin_run_folder>

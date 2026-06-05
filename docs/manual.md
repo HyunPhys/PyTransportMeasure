@@ -381,6 +381,9 @@ columns:
   declared current-bias resistor.
 - `lockin_resistance_ohm`: `lockin_r_v / source_drain_nominal_current_a`.
 - `lockin_conductance_s`: inverse of `lockin_resistance_ohm`.
+- `lockin_sheet_resistance_ohm_per_sq`: longitudinal Hall-bar sheet resistance,
+  when channel length/width are declared.
+- `lockin_sheet_conductivity_s_per_sq`: inverse sheet resistance.
 
 Review artifacts include:
 
@@ -389,7 +392,9 @@ Review artifacts include:
   leakage statistics.
 - `dual_gate_lockin_report.md`: human-readable run report. It records the
   measurement geometry, lock-in voltage contacts, excitation contacts, and
-  source-drain excitation/current assumptions.
+  source-drain excitation/current assumptions. When longitudinal Hall-bar
+  channel geometry is available, it also reports sheet resistance and sheet
+  conductivity ranges.
 
 The `topology` block is required for this method:
 
@@ -402,6 +407,9 @@ topology:
   drain_contact: D
   lockin_input_mode: voltage
   lockin_input_contacts: [Vxx+, Vxx-]
+  voltage_probe_role: longitudinal
+  channel_length_m: 5.0e-6
+  channel_width_m: 2.0e-6
   excitation_source: sr860_sine_out
   excitation_contacts: [S, D]
   excitation_amplitude_v: 0.01
@@ -413,6 +421,17 @@ preflight. The plan and preflight reports print this topology before any
 hardware output can be considered. The nominal source-drain current is an
 analysis value derived from this topology; it assumes the declared bias resistor
 dominates the AC excitation path.
+
+For longitudinal voltage probes, set `voltage_probe_role: longitudinal` and
+provide both `channel_length_m` and `channel_width_m` from the Hall-bar voltage
+probe spacing and channel width. The runner then writes:
+
+- `lockin_sheet_resistance_ohm_per_sq = lockin_resistance_ohm * width / length`
+- `lockin_sheet_conductivity_s_per_sq = 1 / lockin_sheet_resistance_ohm_per_sq`
+
+For Hall voltage probes, use `voltage_probe_role: hall` and omit channel
+length/width; Hall coefficient and carrier density extraction remain a later
+phase.
 
 The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
 samples to `lockin_smoke.csv`. It does not configure Keithley source mode and

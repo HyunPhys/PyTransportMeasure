@@ -63,6 +63,8 @@ DUAL_GATE_LOCKIN_COLUMNS = [
     "source_drain_nominal_current_a",
     "lockin_resistance_ohm",
     "lockin_conductance_s",
+    "lockin_sheet_resistance_ohm_per_sq",
+    "lockin_sheet_conductivity_s_per_sq",
 ]
 
 
@@ -86,6 +88,8 @@ class DualGateLockInPoint:
     source_drain_nominal_current_a: float | None = None
     lockin_resistance_ohm: float | None = None
     lockin_conductance_s: float | None = None
+    lockin_sheet_resistance_ohm_per_sq: float | None = None
+    lockin_sheet_conductivity_s_per_sq: float | None = None
 
     def to_dict(self) -> dict[str, float | int | bool | None]:
         return asdict(self)
@@ -255,8 +259,13 @@ def format_topology_settings(topology: dict[str, Any]) -> list[str]:
         f"Gate roles: gate1={topology.get('gate1_role')}, gate2={topology.get('gate2_role')}",
         f"Source/drain contacts: {topology.get('source_contact')} -> {topology.get('drain_contact')}",
         f"Lock-in input: {topology.get('lockin_input_mode')} on {', '.join(topology.get('lockin_input_contacts') or [])}",
+        f"Voltage probe role: {topology.get('voltage_probe_role') or 'generic'}",
         f"Excitation source: {topology.get('excitation_source')}",
     ]
+    channel_length = topology.get("channel_length_m")
+    channel_width = topology.get("channel_width_m")
+    if channel_length is not None and channel_width is not None:
+        lines.append(f"Channel geometry: L={channel_length} m, W={channel_width} m")
     excitation_contacts = topology.get("excitation_contacts") or []
     if excitation_contacts:
         lines.append(f"Excitation contacts: {', '.join(excitation_contacts)}")
@@ -293,15 +302,26 @@ def derive_lockin_transport_values(
     nominal_current_a = nominal_source_drain_current_a(topology)
     resistance_ohm = None
     conductance_s = None
+    sheet_resistance_ohm_per_sq = None
+    sheet_conductivity_s_per_sq = None
     if lockin_r_v is not None and nominal_current_a not in {None, 0.0}:
         resistance_ohm = float(lockin_r_v) / float(nominal_current_a)
         if resistance_ohm != 0:
             conductance_s = 1.0 / resistance_ohm
+        if topology.get("voltage_probe_role") == "longitudinal":
+            channel_length = topology.get("channel_length_m")
+            channel_width = topology.get("channel_width_m")
+            if channel_length is not None and channel_width is not None:
+                sheet_resistance_ohm_per_sq = resistance_ohm * float(channel_width) / float(channel_length)
+                if sheet_resistance_ohm_per_sq != 0:
+                    sheet_conductivity_s_per_sq = 1.0 / sheet_resistance_ohm_per_sq
     return {
         "source_drain_excitation_v": None if excitation_v is None else float(excitation_v),
         "source_drain_nominal_current_a": nominal_current_a,
         "lockin_resistance_ohm": resistance_ohm,
         "lockin_conductance_s": conductance_s,
+        "lockin_sheet_resistance_ohm_per_sq": sheet_resistance_ohm_per_sq,
+        "lockin_sheet_conductivity_s_per_sq": sheet_conductivity_s_per_sq,
     }
 
 
@@ -354,8 +374,12 @@ def run_dual_gate_lockin_sweep(
         "gate_outputs_enabled": False,
         "outputs_off_after_run": False,
         "source_drain_transport_model": "lockin_r_v_divided_by_nominal_excitation_current",
+        "sheet_transport_model": "longitudinal_resistance_times_width_over_length",
         "source_drain_excitation_v": recipe.topology.excitation_amplitude_v,
         "source_drain_nominal_current_a": nominal_source_drain_current_a(topology),
+        "voltage_probe_role": recipe.topology.voltage_probe_role,
+        "channel_length_m": recipe.topology.channel_length_m,
+        "channel_width_m": recipe.topology.channel_width_m,
         "recipe": recipe.model_dump(mode="json"),
         "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
         "safety": safety.model_dump(mode="json"),
@@ -446,6 +470,8 @@ def run_dual_gate_lockin_sweep(
                     source_drain_nominal_current_a=transport["source_drain_nominal_current_a"],
                     lockin_resistance_ohm=transport["lockin_resistance_ohm"],
                     lockin_conductance_s=transport["lockin_conductance_s"],
+                    lockin_sheet_resistance_ohm_per_sq=transport["lockin_sheet_resistance_ohm_per_sq"],
+                    lockin_sheet_conductivity_s_per_sq=transport["lockin_sheet_conductivity_s_per_sq"],
                 )
                 writer.write_point(point)
                 points_written += 1
