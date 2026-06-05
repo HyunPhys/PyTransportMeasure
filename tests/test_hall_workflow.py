@@ -288,6 +288,28 @@ def test_hall_lab_return_manifest_records_accepted_intake(tmp_path):
     }
     intake_path = package.package_dir / "result_intake.json"
     intake_path.write_text(json.dumps(intake), encoding="utf-8")
+    (package.package_dir / "condition_snapshot.json").write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "result_intake_json_path": str(intake_path),
+                "runs": [{"run_key": "longitudinal"}, {"run_key": "plus"}, {"run_key": "minus"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    (package.package_dir / "condition_drift.json").write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "result_intake_json_path": str(intake_path),
+                "accepted": True,
+                "issues": [],
+                "runs": {},
+            }
+        ),
+        encoding="utf-8",
+    )
 
     payload = write_dual_gate_lockin_hall_suite_lab_return_manifest(
         package.package_dir,
@@ -300,6 +322,8 @@ def test_hall_lab_return_manifest_records_accepted_intake(tmp_path):
     assert payload["ready_for_analysis"] is True
     assert saved["operator_note"] == "lab laptop run completed"
     assert saved["result_intake_accepted"] is True
+    assert saved["condition_snapshot_written"] is True
+    assert saved["condition_drift_accepted"] is True
     assert saved["package_manifest_sha256"]
     assert set(saved["runs"]) == {"longitudinal", "plus", "minus"}
     assert "Ready for analysis: True" in report
@@ -342,8 +366,20 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
         encoding="utf-8",
     )
     pending = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
-    assert pending["state"] == "condition_drift_pending"
+    assert pending["state"] == "condition_snapshot_pending"
     assert pending["ready_for_analysis"] is False
+    (package.package_dir / "condition_snapshot.json").write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "result_intake_json_path": str(intake_path),
+                "runs": [{"run_key": "longitudinal"}, {"run_key": "plus"}, {"run_key": "minus"}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    drift_pending = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    assert drift_pending["state"] == "condition_drift_pending"
     (package.package_dir / "condition_drift.json").write_text(
         json.dumps(
             {
@@ -361,6 +397,7 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
     returned_stage_by_key = {stage["key"]: stage for stage in returned["stages"]}
     assert returned["state"] == "ready_for_analysis"
     assert returned["ready_for_analysis"] is True
+    assert returned_stage_by_key["condition_snapshot"]["ok"] is True
     assert returned_stage_by_key["condition_drift"]["ok"] is True
 
 
@@ -398,6 +435,16 @@ def test_hall_lifecycle_status_blocks_analysis_when_condition_drift_fails(tmp_pa
                     "plus": {"run_dir": "data/raw/plus", "accepted": True},
                     "minus": {"run_dir": "data/raw/minus", "accepted": True},
                 },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (package.package_dir / "condition_snapshot.json").write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "result_intake_json_path": str(intake_path),
+                "runs": [{"run_key": "longitudinal"}, {"run_key": "plus"}, {"run_key": "minus"}],
             }
         ),
         encoding="utf-8",

@@ -580,10 +580,14 @@ root.
   - write a compact per-run measurement-condition table from returned metadata
   - compare Vxx/+B/-B/0B Keithley and SR860 settings side by side
   - make lab-notebook review easier before deeper Hall analysis
-- [ ] Phase 25ch: Hall condition snapshot lifecycle integration
+- [x] Phase 25ch: Hall condition snapshot lifecycle integration
   - surface condition snapshot existence in lifecycle status
   - make lab handoff/return artifacts point to snapshot, drift, and intake
     reports together
+- [ ] Phase 25ci: Hall return bundle index
+  - write a package-local index that links intake, condition snapshot, drift,
+    lab-return manifest, lifecycle status, and analysis artifacts
+  - give lab notebook entries one compact return artifact table
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

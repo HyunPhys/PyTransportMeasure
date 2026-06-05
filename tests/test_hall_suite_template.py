@@ -702,6 +702,8 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert analyze_drift_code == 2
     plus_metadata["recipe"]["gate1_instrument"]["nplc"] = original_nplc
     plus_metadata_path.write_text(json.dumps(plus_metadata, indent=2, sort_keys=True), encoding="utf-8")
+    default_snapshot_code = main(["dual-gate-lockin-hall-suite-condition-snapshot", str(package_dir)])
+    assert default_snapshot_code == 0
     default_drift_code = main(["dual-gate-lockin-hall-suite-condition-drift", str(package_dir)])
     assert default_drift_code == 0
 
@@ -718,6 +720,8 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     return_manifest = json.loads((package_dir / "lab_return" / "lab_return_manifest.json").read_text(encoding="utf-8"))
     assert return_manifest["ready_for_analysis"] is True
     assert return_manifest["operator_note"] == "returned from lab laptop"
+    assert return_manifest["condition_snapshot_written"] is True
+    assert return_manifest["condition_drift_accepted"] is True
     assert set(return_manifest["runs"]) == {"longitudinal", "plus", "minus", "zero"}
     lifecycle_json = tmp_path / "returned_lifecycle_status.json"
     lifecycle_code = main(
@@ -734,6 +738,7 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert lifecycle["measurement_conditions_ready"] is True
     assert lifecycle["ready_for_analysis"] is True
     lifecycle_stage_by_key = {stage["key"]: stage for stage in lifecycle["stages"]}
+    assert lifecycle_stage_by_key["condition_snapshot"]["ok"] is True
     assert lifecycle_stage_by_key["condition_drift"]["ok"] is True
 
     code = main(

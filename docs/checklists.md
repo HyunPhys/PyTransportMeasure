@@ -610,6 +610,8 @@ remain point-guarded.
   ```
 - [ ] Confirm `condition_snapshot_report.md` shows Vxx/+B/-B/0B Keithley NPLC,
   range, compliance, source-delay, and SR860 settings side by side.
+- [ ] Rerun lifecycle status and confirm the run condition snapshot stage is
+  PASS before writing the lab-return manifest.
 - [ ] Run the returned-run acquisition-condition drift guard before analysis.
   ```powershell
   ptm dual-gate-lockin-hall-suite-condition-drift data\hall_packages\<sample_lab_package>
@@ -617,7 +619,7 @@ remain point-guarded.
 - [ ] Confirm it prints PASS and `condition_drift_report.md` lists no drift
   issues.
 - [ ] Rerun lifecycle status and confirm the acquisition-condition drift stage
-  is PASS before Hall analysis.
+  is PASS and lifecycle state is `ready_for_analysis` before Hall analysis.
   ```powershell
   ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package>
   ```

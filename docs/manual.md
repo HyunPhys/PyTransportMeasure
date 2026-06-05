@@ -624,9 +624,11 @@ Keithley NPLC, voltage/current ranges, compliance, source delay, and SR860
 settings. `dual-gate-lockin-hall-suite-analyze` also runs this guard internally
 and refuses analysis if drift is detected.
 
-After running the drift audit, rerun lifecycle status. The lifecycle state
-should move from `condition_drift_pending` to `ready_for_analysis` once the
-drift audit and lab-return manifest both pass.
+After running the snapshot and drift audits, rerun lifecycle status. The
+lifecycle state should move from `condition_snapshot_pending` to
+`condition_drift_pending`, then to `ready_for_analysis` once the snapshot,
+drift audit, and lab-return manifest all pass. The lab-return manifest records
+the intake, snapshot, and drift artifact paths together.
 
 When intake passes, the full Hall analysis sequence can be run as one command:
 

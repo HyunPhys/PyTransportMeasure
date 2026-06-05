@@ -538,6 +538,13 @@ def write_dual_gate_lockin_hall_suite_lab_return_manifest(
         raise FileExistsError(f"Lab return manifest output already exists: {out}")
     out.mkdir(parents=True, exist_ok=True)
     package_zip = package_dir.with_suffix(".zip")
+    snapshot_json = package_dir / "condition_snapshot.json"
+    snapshot_report = package_dir / "condition_snapshot_report.md"
+    snapshot = _load_optional_json_object(snapshot_json)
+    snapshot_runs = snapshot.get("runs") if isinstance(snapshot, dict) else None
+    drift_json = package_dir / "condition_drift.json"
+    drift_report = package_dir / "condition_drift_report.md"
+    drift = _load_optional_json_object(drift_json)
     run_records = {
         key: {
             "run_dir": record.get("run_dir"),
@@ -558,11 +565,28 @@ def write_dual_gate_lockin_hall_suite_lab_return_manifest(
         "package_zip": str(package_zip) if package_zip.exists() else None,
         "package_zip_sha256": _sha256_file(package_zip) if package_zip.exists() else None,
         "result_intake_json": str(intake_path),
+        "condition_snapshot_json": str(snapshot_json) if snapshot_json.exists() else None,
+        "condition_snapshot_report": str(snapshot_report) if snapshot_report.exists() else None,
+        "condition_snapshot_run_count": len(snapshot_runs) if isinstance(snapshot_runs, list) else None,
+        "condition_snapshot_written": bool(snapshot and isinstance(snapshot_runs, list) and bool(snapshot_runs)),
+        "condition_drift_json": str(drift_json) if drift_json.exists() else None,
+        "condition_drift_report": str(drift_report) if drift_report.exists() else None,
+        "condition_drift_accepted": bool(drift and drift.get("accepted") is True),
+        "condition_drift_issue_count": (
+            len(drift.get("issues", [])) if isinstance(drift, dict) and isinstance(drift.get("issues"), list) else None
+        ),
         "result_intake_accepted": bool(intake.get("accepted")),
         "result_intake_issue_count": len(intake.get("issues", [])) if isinstance(intake.get("issues"), list) else None,
         "runs": run_records,
         "operator_note": operator_note,
-        "ready_for_analysis": bool(intake.get("accepted")),
+        "ready_for_analysis": bool(
+            intake.get("accepted")
+            and snapshot
+            and isinstance(snapshot_runs, list)
+            and bool(snapshot_runs)
+            and drift
+            and drift.get("accepted") is True
+        ),
     }
     json_path = out / "lab_return_manifest.json"
     report_path = out / "lab_return_manifest.md"
@@ -581,6 +605,10 @@ def format_dual_gate_lockin_hall_suite_lab_return_manifest(payload: dict) -> str
         f"- Manifest SHA256: `{payload.get('package_manifest_sha256')}`",
         f"- Result intake: `{payload.get('result_intake_json')}`",
         f"- Intake accepted: {payload.get('result_intake_accepted')}",
+        f"- Condition snapshot: `{payload.get('condition_snapshot_report') or payload.get('condition_snapshot_json') or 'not written'}`",
+        f"- Condition snapshot written: {payload.get('condition_snapshot_written')}",
+        f"- Condition drift: `{payload.get('condition_drift_report') or payload.get('condition_drift_json') or 'not written'}`",
+        f"- Condition drift accepted: {payload.get('condition_drift_accepted')}",
         f"- Ready for analysis: {payload.get('ready_for_analysis')}",
         f"- Operator note: {payload.get('operator_note') or 'n/a'}",
         "",
@@ -685,6 +713,22 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         ok=bool(intake and intake.get("accepted") is True),
         details="accepted" if intake and intake.get("accepted") is True else "missing or not accepted",
     )
+    snapshot_json = package_dir / "condition_snapshot.json"
+    snapshot = _load_optional_json_object(snapshot_json)
+    snapshot_runs = snapshot.get("runs") if isinstance(snapshot, dict) else None
+    add_stage(
+        "condition_snapshot",
+        "Run condition snapshot",
+        snapshot_json,
+        ok=bool(snapshot and isinstance(snapshot_runs, list) and bool(snapshot_runs)),
+        details=(
+            f"{len(snapshot_runs)} runs"
+            if isinstance(snapshot_runs, list) and snapshot_runs
+            else "empty snapshot"
+            if snapshot
+            else "not written"
+        ),
+    )
     drift_json = package_dir / "condition_drift.json"
     drift = _load_optional_json_object(drift_json)
     add_stage(
@@ -749,10 +793,12 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
             measurement_conditions_ready
             and _stage_ok(stages, "lab_return")
             and _stage_ok(stages, "result_intake")
+            and _stage_ok(stages, "condition_snapshot")
             and _stage_ok(stages, "condition_drift")
         ),
         "ready_for_next_scan_decision": (
-            _stage_ok(stages, "condition_drift")
+            _stage_ok(stages, "condition_snapshot")
+            and _stage_ok(stages, "condition_drift")
             and _stage_ok(stages, "analysis_review")
             and _stage_ok(stages, "next_scan_proposal")
         ),
@@ -1512,6 +1558,11 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
             or _stage_ok(stages, "analysis")
         ):
             return "measurement_condition_review"
+    if _stage_ok(stages, "result_intake") and not _stage_ok(stages, "condition_snapshot"):
+        snapshot_stage = next((stage for stage in stages if stage.get("key") == "condition_snapshot"), {})
+        if snapshot_stage.get("exists"):
+            return "condition_snapshot_review"
+        return "condition_snapshot_pending"
     if _stage_ok(stages, "result_intake") and not _stage_ok(stages, "condition_drift"):
         drift_stage = next((stage for stage in stages if stage.get("key") == "condition_drift"), {})
         if drift_stage.get("exists"):
@@ -1527,6 +1578,7 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
         measurement_conditions_ready
         and _stage_ok(stages, "lab_return")
         and _stage_ok(stages, "result_intake")
+        and _stage_ok(stages, "condition_snapshot")
         and _stage_ok(stages, "condition_drift")
     ):
         return "ready_for_analysis"
