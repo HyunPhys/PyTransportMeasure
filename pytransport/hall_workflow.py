@@ -685,6 +685,21 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         ok=bool(intake and intake.get("accepted") is True),
         details="accepted" if intake and intake.get("accepted") is True else "missing or not accepted",
     )
+    drift_json = package_dir / "condition_drift.json"
+    drift = _load_optional_json_object(drift_json)
+    add_stage(
+        "condition_drift",
+        "Acquisition-condition drift",
+        drift_json,
+        ok=bool(drift and drift.get("accepted") is True),
+        details=(
+            "no drift detected"
+            if drift and drift.get("accepted") is True
+            else f"{len(drift.get('issues') or [])} drift issues"
+            if drift
+            else "not written"
+        ),
+    )
     return_json = package_dir / "lab_return" / "lab_return_manifest.json"
     lab_return = _load_optional_json_object(return_json)
     add_stage(
@@ -734,8 +749,13 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
             measurement_conditions_ready
             and _stage_ok(stages, "lab_return")
             and _stage_ok(stages, "result_intake")
+            and _stage_ok(stages, "condition_drift")
         ),
-        "ready_for_next_scan_decision": _stage_ok(stages, "analysis_review") and _stage_ok(stages, "next_scan_proposal"),
+        "ready_for_next_scan_decision": (
+            _stage_ok(stages, "condition_drift")
+            and _stage_ok(stages, "analysis_review")
+            and _stage_ok(stages, "next_scan_proposal")
+        ),
         "stages": stages,
     }
 
@@ -1492,13 +1512,23 @@ def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
             or _stage_ok(stages, "analysis")
         ):
             return "measurement_condition_review"
+    if _stage_ok(stages, "result_intake") and not _stage_ok(stages, "condition_drift"):
+        drift_stage = next((stage for stage in stages if stage.get("key") == "condition_drift"), {})
+        if drift_stage.get("exists"):
+            return "acquisition_condition_drift"
+        return "condition_drift_pending"
     if _stage_ok(stages, "next_scan_proposal"):
         return "next_scan_proposed"
     if _stage_ok(stages, "analysis_review"):
         return "analysis_reviewed"
     if _stage_ok(stages, "analysis"):
         return "analysis_written"
-    if measurement_conditions_ready and _stage_ok(stages, "lab_return") and _stage_ok(stages, "result_intake"):
+    if (
+        measurement_conditions_ready
+        and _stage_ok(stages, "lab_return")
+        and _stage_ok(stages, "result_intake")
+        and _stage_ok(stages, "condition_drift")
+    ):
         return "ready_for_analysis"
     if _stage_ok(stages, "result_intake"):
         return "intake_accepted"

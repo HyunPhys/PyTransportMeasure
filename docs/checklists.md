@@ -610,6 +610,11 @@ remain point-guarded.
   ```
 - [ ] Confirm it prints PASS and `condition_drift_report.md` lists no drift
   issues.
+- [ ] Rerun lifecycle status and confirm the acquisition-condition drift stage
+  is PASS before Hall analysis.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package>
+  ```
 - [ ] Confirm the report shows each run acceptance as PASS and no
   `recipe_match`, `grid_signature`, `voltage_probe_role`, or magnetic-field
   errors.

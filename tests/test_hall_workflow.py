@@ -341,10 +341,27 @@ def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
         ),
         encoding="utf-8",
     )
+    pending = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    assert pending["state"] == "condition_drift_pending"
+    assert pending["ready_for_analysis"] is False
+    (package.package_dir / "condition_drift.json").write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "result_intake_json_path": str(intake_path),
+                "accepted": True,
+                "issues": [],
+                "runs": {},
+            }
+        ),
+        encoding="utf-8",
+    )
     write_dual_gate_lockin_hall_suite_lab_return_manifest(package.package_dir)
     returned = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    returned_stage_by_key = {stage["key"]: stage for stage in returned["stages"]}
     assert returned["state"] == "ready_for_analysis"
     assert returned["ready_for_analysis"] is True
+    assert returned_stage_by_key["condition_drift"]["ok"] is True
 
 
 def test_hall_lifecycle_status_blocks_handoff_when_measurement_condition_audit_regresses(tmp_path):
@@ -364,6 +381,58 @@ def test_hall_lifecycle_status_blocks_handoff_when_measurement_condition_audit_r
     assert payload["ready_for_lab_handoff"] is False
     assert stage_by_key["measurement_condition_audits"]["ok"] is False
     assert "| Measurement-condition audits | REVIEW |" in text
+
+
+def test_hall_lifecycle_status_blocks_analysis_when_condition_drift_fails(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+    write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
+    intake_path = package.package_dir / "result_intake.json"
+    intake_path.write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "accepted": True,
+                "issues": [],
+                "runs": {
+                    "longitudinal": {"run_dir": "data/raw/vxx", "accepted": True},
+                    "plus": {"run_dir": "data/raw/plus", "accepted": True},
+                    "minus": {"run_dir": "data/raw/minus", "accepted": True},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    (package.package_dir / "condition_drift.json").write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "result_intake_json_path": str(intake_path),
+                "accepted": False,
+                "issues": [
+                    {
+                        "severity": "error",
+                        "run_key": "plus",
+                        "field": "gate1_instrument.nplc",
+                        "expected": 1.0,
+                        "actual": 3.0,
+                        "message": "acquisition condition differs from packaged recipe",
+                    }
+                ],
+                "runs": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_dual_gate_lockin_hall_suite_lab_return_manifest(package.package_dir)
+
+    payload = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    text = format_dual_gate_lockin_hall_suite_lifecycle_status(payload)
+    stage_by_key = {stage["key"]: stage for stage in payload["stages"]}
+
+    assert payload["state"] == "acquisition_condition_drift"
+    assert payload["ready_for_analysis"] is False
+    assert stage_by_key["condition_drift"]["ok"] is False
+    assert "| Acquisition-condition drift | REVIEW |" in text
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

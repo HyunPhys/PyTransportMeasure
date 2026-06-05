@@ -571,11 +571,15 @@ root.
   - flag changed Keithley NPLC/range/compliance/source-delay or SR860 settings
     as measurement-condition drift
   - keep repeated Hall scans comparable across lab-laptop runs
-- [ ] Phase 25cf: Hall condition drift summary in lifecycle status
+- [x] Phase 25cf: Hall condition drift summary in lifecycle status
   - surface acquisition-condition drift PASS/FAIL in lifecycle status after
     result intake
   - make package lifecycle visibly block analysis and next-scan decisions when
     returned metadata drifts from packaged measurement conditions
+- [ ] Phase 25cg: Hall run metadata condition snapshot report
+  - write a compact per-run measurement-condition table from returned metadata
+  - compare Vxx/+B/-B/0B Keithley and SR860 settings side by side
+  - make lab-notebook review easier before deeper Hall analysis
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

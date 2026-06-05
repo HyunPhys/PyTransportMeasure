@@ -600,11 +600,12 @@ ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\sampleA_cd1_
 
 This command summarizes the package manifest, measurement-condition audits,
 Keithley parameter audits, SR860 setting audits, handoff summary, result
-intake, lab-return manifest, Hall analysis, analysis review, and next-scan
-proposal in one table. `ready_for_lab_handoff` and `ready_for_analysis` stay
-false unless the preserved measurement-condition audits pass. Use it as the
-quick lab-notebook status check before deciding what the next command should
-be.
+intake, acquisition-condition drift audit, lab-return manifest, Hall analysis,
+analysis review, and next-scan proposal in one table. `ready_for_lab_handoff`
+stays false unless the preserved measurement-condition audits pass.
+`ready_for_analysis` stays false unless result intake, lab-return manifest, and
+acquisition-condition drift audit all pass. Use it as the quick lab-notebook
+status check before deciding what the next command should be.
 
 Before analysis, compare the packaged measurement conditions against the
 returned run metadata:
@@ -618,6 +619,10 @@ the returned run recipe snapshots and configured SMU/lock-in metadata against
 the packaged Keithley NPLC, voltage/current ranges, compliance, source delay,
 and SR860 settings. `dual-gate-lockin-hall-suite-analyze` also runs this guard
 internally and refuses analysis if drift is detected.
+
+After running the drift audit, rerun lifecycle status. The lifecycle state
+should move from `condition_drift_pending` to `ready_for_analysis` once the
+drift audit and lab-return manifest both pass.
 
 When intake passes, the full Hall analysis sequence can be run as one command:
 
