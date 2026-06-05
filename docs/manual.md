@@ -439,10 +439,16 @@ before raising `--max-hardware-points`:
 - nominal source-drain AC current.
 
 If `--max-hardware-points` is raised above the default guard, the CLI requires
-`--hardware-approval-note`. The note is saved in `metadata.json` under
-`hardware_guard` with the default guard, requested guard, recipe point count,
-and whether the guard was raised. Use this for short lab-context notes such as
+both `--hardware-approval-note` and `--accepted-previous-run`. The previous run
+must be a saved dual-gate lock-in sweep that passes strict
+`ptm dual-gate-lockin-audit`, including SR860 setting readback. The note and
+accepted-run audit summary are saved in `metadata.json` under `hardware_guard`.
+Use this for short lab-context notes such as
 `"2x2 smoke passed, leakage < 10 pA, expanding to 5x5"`.
+
+```powershell
+ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 25 --hardware-approval-note "2x2 accepted; expanding to 5x5" --accepted-previous-run data\raw\<accepted_limited_run_folder> --progress --plot --report --gate-stats
+```
 
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,
@@ -460,7 +466,8 @@ ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml
 
 The blocked hardware command prints the same preflight report before returning.
 Use the limited active recipe first, and only raise `--max-hardware-points`
-after the lab smoke checklist and saved recovery metadata look correct.
+after the lab smoke checklist, saved recovery metadata, and strict acceptance
+audit look correct.
 
 After a limited active sweep, audit the saved run before expanding the grid:
 

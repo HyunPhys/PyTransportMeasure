@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from pytransport import cli
+from pytransport.dual_gate_lockin_review import audit_dual_gate_lockin_run
 from pytransport.preflight import DualGateLockInPreflightReport, InstrumentPreflight
 from pytransport.instruments.fake import DualGateFakeDeviceState, DualGateFakeLockIn, DualGateFakeSMU
 
@@ -78,6 +79,50 @@ checks:
         encoding="utf-8",
     )
     return recipe
+
+
+def make_strictly_accepted_previous_run(tmp_path: Path) -> Path:
+    previous_root = tmp_path / "previous"
+    previous_root.mkdir()
+    recipe = write_dual_gate_lockin_cli_recipe(previous_root)
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(previous_root / "previous_index.jsonl"),
+        ]
+    )
+    assert code == 0
+    run_dir = list((previous_root / "raw").glob("*dual_gate_lockin_cli"))[0]
+    metadata_path = run_dir / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    probe = metadata.setdefault("lockin_probe", {})
+    probe.update(
+        {
+            "error_status": "0",
+            "lia_status": "0",
+            "setting_reference_source": "0",
+            "setting_reference_frequency_hz": "17.777",
+            "setting_sine_output_amplitude_v": "0.01",
+            "setting_input_mode": "0",
+            "setting_voltage_input": "0",
+            "setting_input_coupling": "0",
+            "setting_input_grounding": "0",
+            "setting_voltage_input_range_v": "4",
+            "setting_sensitivity_index": "18",
+            "setting_time_constant_index": "10",
+            "setting_filter_slope_index": "3",
+            "setting_synchronous_filter": "0",
+        }
+    )
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+    audit = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=True)
+    assert audit.accepted
+    return run_dir
 
 
 def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
@@ -241,7 +286,28 @@ def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_note(tmp_path):
     assert not (tmp_path / "raw").exists()
 
 
+def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_previous_acceptance(tmp_path):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--allow-active-sweep",
+            "--max-hardware-points",
+            "12",
+            "--hardware-approval-note",
+            "limited lab feedback ok",
+            "--yes",
+        ]
+    )
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
+
+
 def test_cli_dual_gate_lockin_records_raised_point_guard_note(tmp_path, monkeypatch):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
     state = DualGateFakeDeviceState(gate1_leak_resistance_ohm=1_000_000_000.0, gate2_leak_resistance_ohm=1_000_000_000.0)
     gate1 = DualGateFakeSMU("gate1", state)
@@ -275,16 +341,21 @@ def test_cli_dual_gate_lockin_records_raised_point_guard_note(tmp_path, monkeypa
             "12",
             "--hardware-approval-note",
             "limited lab feedback ok",
+            "--accepted-previous-run",
+            str(previous_run),
             "--yes",
         ]
     )
 
     assert code == 0
-    run_dirs = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))
-    metadata = json.loads((run_dirs[0] / "metadata.json").read_text(encoding="utf-8"))
+    run_dirs = sorted((tmp_path / "raw").glob("*dual_gate_lockin_cli"))
+    metadata = json.loads((run_dirs[-1] / "metadata.json").read_text(encoding="utf-8"))
     assert metadata["hardware_guard"]["requested_max_hardware_points"] == 12
     assert metadata["hardware_guard"]["raised_above_default"] is True
     assert metadata["hardware_guard"]["approval_note"] == "limited lab feedback ok"
+    assert metadata["hardware_guard"]["accepted_previous_run"] == str(previous_run)
+    assert metadata["hardware_guard"]["accepted_previous_run_audit_passed"] is True
+    assert metadata["hardware_guard"]["accepted_previous_run_points_written"] == 4
 
 
 def test_cli_dual_gate_lockin_active_sweep_blocks_when_too_many_points(tmp_path, monkeypatch):

@@ -277,10 +277,15 @@ root.
   - block active runners unless `measurement_geometry.method` is `two_terminal`
   - keep terminal-count guard as a separate safety trigger
   - preserve 4-probe/four-terminal as an explicit future method capability
-- [ ] Phase 25y: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25y: Accepted previous run guard for broader dual-gate scans
+  - require `--accepted-previous-run` when raising `--max-hardware-points`
+  - run strict `dual-gate-lockin-audit` on the previous artifact before output
+  - save accepted previous run path, audit pass state, and point counts in
+    `hardware_guard`
+- [ ] Phase 25z: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
-  - keep point-count guard and preflight mandatory
+  - keep point-count guard, previous-run acceptance, and preflight mandatory
   - consider manual restart tooling only after repeated interruption data exists
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor

@@ -414,12 +414,22 @@ remain point-guarded.
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --allow-active-sweep --max-hardware-points 4 --yes
   ```
 - [ ] If raising `--max-hardware-points` above the default guard, provide
-  `--hardware-approval-note` with the lab reason.
+  `--hardware-approval-note` with the lab reason and
+  `--accepted-previous-run data\raw\<accepted_limited_run_folder>`.
+  ```powershell
+  ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 25 --hardware-approval-note "2x2 accepted; expanding to 5x5" --accepted-previous-run data\raw\<accepted_limited_run_folder> --progress --plot --report --gate-stats
+  ```
+- [ ] Confirm the accepted previous run passes strict audit before using it.
+  ```powershell
+  ptm dual-gate-lockin-audit data\raw\<accepted_limited_run_folder> --write-report
+  ```
 - [ ] Confirm runs with raised hardware point guards save `metadata.json`
   `hardware_guard.default_max_hardware_points`,
   `hardware_guard.requested_max_hardware_points`,
   `hardware_guard.raised_above_default`, and
-  `hardware_guard.approval_note`.
+  `hardware_guard.approval_note`,
+  `hardware_guard.accepted_previous_run`, and
+  `hardware_guard.accepted_previous_run_audit_passed`.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

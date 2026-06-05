@@ -3,6 +3,10 @@
 This phase makes raised dual-gate lock-in hardware point guards explicit and
 traceable.
 
+Later policy note: Phase 25y strengthens this rule. Raised hardware point guards
+now require both this approval note and `--accepted-previous-run` pointing to a
+strict audit PASS artifact.
+
 ## Scope
 
 - Keep the default guarded active-sweep threshold at 9 points.

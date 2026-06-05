@@ -329,6 +329,14 @@ def build_parser() -> argparse.ArgumentParser:
         default="",
         help="Required when raising --max-hardware-points above the default guard; saved into run metadata.",
     )
+    dual_gate_lockin.add_argument(
+        "--accepted-previous-run",
+        type=Path,
+        help=(
+            "Required when raising --max-hardware-points above the default guard. "
+            "The saved run must pass strict dual-gate-lockin-audit."
+        ),
+    )
     dual_gate_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
 
     dual_gate_lockin_audit = subparsers.add_parser(
@@ -1049,6 +1057,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             raise ValueError("--max-hardware-points must be >= 1")
         approval_note = str(args.hardware_approval_note or "").strip()
         raised_point_guard = args.max_hardware_points > DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS
+        accepted_previous_audit = None
         if raised_point_guard and not approval_note:
             print(
                 "Dual-gate lock-in active sweep blocked: raising --max-hardware-points above "
@@ -1056,6 +1065,23 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                 file=sys.stderr,
             )
             return 2
+        if raised_point_guard:
+            if not args.accepted_previous_run:
+                print(
+                    "Dual-gate lock-in active sweep blocked: raising --max-hardware-points above "
+                    f"the default guard {DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS} requires --accepted-previous-run.",
+                    file=sys.stderr,
+                )
+                return 2
+            accepted_previous_audit = audit_dual_gate_lockin_run(args.accepted_previous_run, require_lockin_settings=True)
+            print(format_dual_gate_lockin_acceptance(accepted_previous_audit))
+            print()
+            if not accepted_previous_audit.accepted:
+                print(
+                    "Dual-gate lock-in active sweep blocked: --accepted-previous-run did not pass strict acceptance audit.",
+                    file=sys.stderr,
+                )
+                return 2
         if total_points > args.max_hardware_points:
             print(
                 f"Dual-gate lock-in active sweep blocked: {total_points} points exceeds --max-hardware-points {args.max_hardware_points}.",
@@ -1069,6 +1095,7 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         )
         if raised_point_guard:
             print(f"Hardware approval note: {approval_note}")
+            print(f"Accepted previous run: {args.accepted_previous_run}")
         try:
             assert_explicit_nplc_for_hardware(recipe, roles=("gate1", "gate2"))
         except ValueError as exc:
@@ -1112,6 +1139,16 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                     "recipe_points": dual_gate_lockin_point_count(recipe),
                     "raised_above_default": args.max_hardware_points > DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
                     "approval_note": str(args.hardware_approval_note or "").strip() or None,
+                    "accepted_previous_run": str(args.accepted_previous_run) if args.accepted_previous_run else None,
+                    "accepted_previous_run_audit_passed": (
+                        accepted_previous_audit.accepted if accepted_previous_audit is not None else None
+                    ),
+                    "accepted_previous_run_points_written": (
+                        accepted_previous_audit.points_written if accepted_previous_audit is not None else None
+                    ),
+                    "accepted_previous_run_planned_points": (
+                        accepted_previous_audit.planned_points if accepted_previous_audit is not None else None
+                    ),
                 }
             },
         )
