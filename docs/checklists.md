@@ -548,11 +548,19 @@ remain point-guarded.
   the lab intentionally changes the noise/speed tradeoff.
 - [ ] Create a Hall-suite acquisition package for the lab laptop handoff.
   ```powershell
-  ptm dual-gate-lockin-hall-suite-package configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxx.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_plus_b.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_zero_b.yaml --package-name <sample_lab_package> --chunk-size <N> --max-hardware-points <N> --acquisition-note "<lab handoff note>"
+  ptm dual-gate-lockin-hall-suite-package configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxx.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_plus_b.yaml configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\<adjusted_suite>\<prefix_after_feedback>_vxy_zero_b.yaml --package-name <sample_lab_package> --chunk-size <N> --max-hardware-points <N> --four-terminal-ac-smoke-intake-json docs\four_terminal_ac_lab_smoke_intake.json --acquisition-note "<lab handoff note>"
   ```
+- [ ] Before using `--four-terminal-ac-smoke-intake-json`, confirm that JSON was
+  produced by `ptm ac-lockin-lab-smoke-intake` and reports
+  `accepted: true`, `hardware_guard_required: true`, `lockin_voltage_input:
+  a-b`, non-overlapping contact topology, and saved Keithley NPLC/ranges.
 - [ ] Confirm the package folder contains `recipes/`, `keithley_audit/`,
   `lockin_audit/`, `acquisition_runbook.md`, `package_manifest.json`, and a
   `.zip` next to the folder.
+- [ ] Confirm the package contains `prerequisites/<intake_json>` when the
+  four-terminal AC smoke prerequisite is attached.
+- [ ] Confirm `acquisition_runbook.md` includes `Four-terminal AC smoke intake:
+  PASS`, SR860 voltage contacts, excitation contacts, and source NPLC.
 - [ ] Confirm `acquisition_runbook.md` includes suite-check, suite-plan,
   chunk-plan, Keithley parameter audits, SR860 setting audits, per-recipe
   preflight, chunk feedback, adjustment, stitch, and Hall analysis commands.
@@ -562,6 +570,8 @@ remain point-guarded.
   copied recipe reports `ok_for_hardware: true`.
 - [ ] Confirm `package_manifest.json` contains `measurement_condition_audits`
   with `ok_for_hardware: true` and records for both Keithley and SR860 audits.
+- [ ] Confirm `package_manifest.json` contains
+  `prerequisites.four_terminal_ac_smoke_intake` with `accepted: true`.
 - [ ] Validate the package manifest and artifact paths before moving it to the
   lab laptop.
   ```powershell

@@ -660,6 +660,13 @@ root.
   - require `metadata.hardware_guard`, approval note, point guard, A-B voltage
     input, and non-overlapping excitation/SR860 voltage contacts
   - include guard/topology/NPLC fields in text and JSON intake output
+- [x] Phase 25cy: Hall package four-terminal AC prerequisite gate
+  - allow Hall-suite acquisition packages to attach a PASS four-terminal AC
+    smoke intake JSON before lab handoff
+  - reject package generation when the prerequisite lacks hardware guard,
+    SR860 A-B voltage input, separated contacts, or Keithley NPLC/ranges
+  - copy the prerequisite JSON into the package and record it in the manifest
+    and acquisition runbook
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -384,6 +384,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     chunk_feedback_files: list[str | Path] | None = None,
     preflight_files: list[str | Path] | None = None,
     note_files: list[str | Path] | None = None,
+    four_terminal_ac_smoke_intake_json: str | Path | None = None,
     acquisition_note: str | None = None,
     safety_dir: str | Path = "configs/safety",
     overwrite: bool = False,
@@ -419,6 +420,12 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     extras.extend(_copy_labeled_files(chunk_feedback_files or [], package_dir / "chunk_feedback", "chunk_feedback"))
     extras.extend(_copy_labeled_files(preflight_files or [], package_dir / "preflight", "preflight"))
     extras.extend(_copy_labeled_files(note_files or [], package_dir / "notes", "note"))
+    prerequisites = {}
+    if four_terminal_ac_smoke_intake_json is not None:
+        prerequisites["four_terminal_ac_smoke_intake"] = _copy_four_terminal_ac_smoke_intake(
+            four_terminal_ac_smoke_intake_json,
+            package_dir,
+        )
 
     safety = load_named_safety_preset(recipes["longitudinal"].safety_preset, safety_dir)
     runbook_path = package_dir / "acquisition_runbook.md"
@@ -433,6 +440,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
             accepted_previous_run=accepted_previous_run,
             acquisition_note=acquisition_note,
             extras=extras,
+            prerequisites=prerequisites,
             keithley_audits=keithley_audits,
             lockin_audits=lockin_audits,
         ),
@@ -460,6 +468,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
         "max_hardware_points": max_hardware_points,
         "accepted_previous_run": str(accepted_previous_run) if accepted_previous_run is not None else None,
         "acquisition_note": acquisition_note,
+        "prerequisites": prerequisites,
         "extras": extras,
     }
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -480,6 +489,7 @@ def write_dual_gate_lockin_hall_suite_approved_next_scan_package(
     chunk_size: int,
     max_hardware_points: int = 9,
     accepted_previous_run: str | Path | None = None,
+    four_terminal_ac_smoke_intake_json: str | Path | None = None,
     acquisition_note: str | None = None,
     safety_dir: str | Path = "configs/safety",
     overwrite: bool = False,
@@ -505,6 +515,7 @@ def write_dual_gate_lockin_hall_suite_approved_next_scan_package(
         max_hardware_points=max_hardware_points,
         accepted_previous_run=accepted_previous_run,
         note_files=[proposal_path, review_path],
+        four_terminal_ac_smoke_intake_json=four_terminal_ac_smoke_intake_json,
         acquisition_note=note,
         safety_dir=safety_dir,
         overwrite=overwrite,
@@ -1399,6 +1410,7 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
     accepted_previous_run: str | Path | None,
     acquisition_note: str | None,
     extras: list[dict[str, str]],
+    prerequisites: dict[str, dict[str, Any]],
     keithley_audits: dict[str, dict[str, Any]],
     lockin_audits: dict[str, dict[str, Any]],
 ) -> str:
@@ -1433,6 +1445,10 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
             "## Included Recipes",
             "",
             *[f"- {label}: `{path}`" for _, label, path, _ in copied_suite],
+            "",
+            "## Measurement Prerequisites",
+            "",
+            *_format_hall_suite_package_prerequisites(prerequisites),
             "",
             "## Hardware-Free Checks",
             "",
@@ -1526,6 +1542,27 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
             "",
         ]
     )
+
+
+def _format_hall_suite_package_prerequisites(prerequisites: dict[str, dict[str, Any]]) -> list[str]:
+    smoke = prerequisites.get("four_terminal_ac_smoke_intake")
+    if not smoke:
+        return [
+            "- Four-terminal AC smoke intake: not attached",
+            "- Before graphene Hall scans, attach a PASS `ptm ac-lockin-lab-smoke-intake --json-output` artifact when available.",
+        ]
+    excitation = ", ".join(str(contact) for contact in smoke.get("topology_excitation_contacts") or []) or "n/a"
+    voltage = ", ".join(str(contact) for contact in smoke.get("topology_lockin_input_contacts") or []) or "n/a"
+    return [
+        "- Four-terminal AC smoke intake: PASS",
+        f"- Intake JSON: `{smoke.get('path')}`",
+        f"- Approval note: {smoke.get('hardware_guard_approval_note') or 'n/a'}",
+        f"- Point guard: {smoke.get('hardware_guard_point_count')} <= {smoke.get('hardware_guard_max_points')}",
+        f"- SR860 voltage input: {smoke.get('lockin_voltage_input') or 'n/a'}",
+        f"- Excitation contacts: {excitation}",
+        f"- SR860 voltage contacts: {voltage}",
+        f"- Source NPLC: {smoke.get('source_nplc')}",
+    ]
 
 
 def format_dual_gate_lockin_hall_suite_adjustment_review(
@@ -3268,6 +3305,74 @@ def _copy_labeled_files(
             }
         )
     return copied
+
+
+def _copy_four_terminal_ac_smoke_intake(source_path: str | Path, package_dir: Path) -> dict[str, Any]:
+    source = Path(source_path)
+    if not source.exists() or not source.is_file():
+        raise FileNotFoundError(f"four-terminal AC smoke intake JSON does not exist: {source}")
+    with source.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise ValueError(f"four-terminal AC smoke intake JSON must contain an object: {source}")
+    summary = _validate_four_terminal_ac_smoke_intake_payload(payload, source)
+    target_dir = package_dir / "prerequisites"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = _unique_target_path(target_dir, source.name)
+    shutil.copy2(source, target)
+    return {
+        **summary,
+        "source": str(source),
+        "path": target.relative_to(package_dir).as_posix(),
+    }
+
+
+def _validate_four_terminal_ac_smoke_intake_payload(payload: dict[str, Any], source: Path) -> dict[str, Any]:
+    issues: list[str] = []
+
+    def require(condition: bool, message: str) -> None:
+        if not condition:
+            issues.append(message)
+
+    excitation_contacts = tuple(str(contact) for contact in (payload.get("topology_excitation_contacts") or ()))
+    lockin_contacts = tuple(str(contact) for contact in (payload.get("topology_lockin_input_contacts") or ()))
+    require(payload.get("accepted") is True, "accepted must be true")
+    require(payload.get("hardware_guard_required") is True, "hardware_guard_required must be true")
+    require(payload.get("hardware_guard_present") is True, "hardware_guard_present must be true")
+    require(payload.get("hardware_guard_accepted") is True, "hardware_guard_accepted must be true")
+    require(bool(str(payload.get("hardware_guard_approval_note") or "").strip()), "hardware_guard_approval_note is required")
+    require(payload.get("lockin_voltage_input") == "a-b", "lockin_voltage_input must be a-b")
+    require(payload.get("source_nplc") is not None, "source_nplc is required")
+    require(payload.get("source_voltage_range_v") is not None, "source_voltage_range_v is required")
+    require(payload.get("source_current_range_a") is not None, "source_current_range_a is required")
+    require(payload.get("source_current_compliance_a") is not None, "source_current_compliance_a is required")
+    require(len(excitation_contacts) == 2, "topology_excitation_contacts must contain two contacts")
+    require(len(lockin_contacts) == 2, "topology_lockin_input_contacts must contain two contacts")
+    require(not (set(excitation_contacts) & set(lockin_contacts)), "excitation and SR860 voltage contacts must not overlap")
+    guard_point_count = payload.get("hardware_guard_point_count")
+    guard_max_points = payload.get("hardware_guard_max_points")
+    require(isinstance(guard_point_count, int) and guard_point_count > 0, "hardware_guard_point_count must be a positive integer")
+    require(isinstance(guard_max_points, int) and guard_max_points > 0, "hardware_guard_max_points must be a positive integer")
+    if isinstance(guard_point_count, int) and isinstance(guard_max_points, int):
+        require(guard_point_count <= guard_max_points, "hardware_guard_point_count exceeds hardware_guard_max_points")
+    if issues:
+        joined = "; ".join(issues)
+        raise ValueError(f"four-terminal AC smoke intake prerequisite failed for {source}: {joined}")
+    return {
+        "accepted": True,
+        "measurement_name": payload.get("measurement_name"),
+        "measurement_geometry": payload.get("measurement_geometry"),
+        "hardware_guard_approval_note": str(payload.get("hardware_guard_approval_note") or "").strip(),
+        "hardware_guard_point_count": guard_point_count,
+        "hardware_guard_max_points": guard_max_points,
+        "lockin_voltage_input": payload.get("lockin_voltage_input"),
+        "topology_excitation_contacts": list(excitation_contacts),
+        "topology_lockin_input_contacts": list(lockin_contacts),
+        "source_nplc": payload.get("source_nplc"),
+        "source_voltage_range_v": payload.get("source_voltage_range_v"),
+        "source_current_range_a": payload.get("source_current_range_a"),
+        "source_current_compliance_a": payload.get("source_current_compliance_a"),
+    }
 
 
 def _unique_target_path(directory: Path, filename: str) -> Path:

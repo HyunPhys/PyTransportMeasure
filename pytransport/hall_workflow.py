@@ -166,6 +166,14 @@ def validate_dual_gate_lockin_hall_suite_package_manifest(package_manifest_or_di
             label="Legacy SR860 setting audits",
             instrument="srs_sr860",
         )
+    prerequisites = manifest.get("prerequisites")
+    if isinstance(prerequisites, dict) and "four_terminal_ac_smoke_intake" in prerequisites:
+        _validate_four_terminal_ac_smoke_prerequisite(
+            prerequisites.get("four_terminal_ac_smoke_intake"),
+            package_dir,
+            checks,
+            issues,
+        )
 
     valid = not any(issue["severity"] == "error" for issue in issues)
     return {
@@ -1435,6 +1443,86 @@ def _validate_measurement_condition_audits(
                 code=f"missing_audit_record_{field}",
                 required=True,
             )
+
+
+def _validate_four_terminal_ac_smoke_prerequisite(
+    record: object,
+    package_dir: Path,
+    checks: list[dict],
+    issues: list[dict],
+) -> None:
+    ok_record = isinstance(record, dict)
+    checks.append(
+        {
+            "key": "four_terminal_ac_smoke_prerequisite_record",
+            "label": "Four-terminal AC smoke prerequisite",
+            "ok": ok_record,
+            "path": None,
+            "details": "present" if ok_record else "malformed",
+        }
+    )
+    if not ok_record:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "invalid_four_terminal_ac_smoke_prerequisite",
+                "message": "prerequisites.four_terminal_ac_smoke_intake must be an object",
+                "path": None,
+            }
+        )
+        return
+    _validate_manifest_path(
+        record.get("path"),
+        package_dir,
+        checks,
+        issues,
+        key="four_terminal_ac_smoke_intake_json",
+        label="Four-terminal AC smoke intake JSON",
+        code="missing_four_terminal_ac_smoke_intake_json",
+        required=True,
+    )
+
+    def add_field_check(key: str, label: str, ok: bool, details: str) -> None:
+        checks.append({"key": key, "label": label, "ok": ok, "path": None, "details": details})
+        if not ok:
+            issues.append({"severity": "error", "code": key, "message": details, "path": None})
+
+    excitation = record.get("topology_excitation_contacts")
+    voltage = record.get("topology_lockin_input_contacts")
+    add_field_check(
+        "four_terminal_ac_smoke_accepted",
+        "Four-terminal AC smoke accepted",
+        record.get("accepted") is True,
+        f"accepted={record.get('accepted')!r}",
+    )
+    add_field_check(
+        "four_terminal_ac_smoke_guard_note",
+        "Four-terminal AC guard approval note",
+        bool(str(record.get("hardware_guard_approval_note") or "").strip()),
+        "hardware_guard_approval_note present" if record.get("hardware_guard_approval_note") else "hardware_guard_approval_note missing",
+    )
+    add_field_check(
+        "four_terminal_ac_smoke_voltage_input",
+        "Four-terminal AC SR860 voltage input",
+        record.get("lockin_voltage_input") == "a-b",
+        f"lockin_voltage_input={record.get('lockin_voltage_input')!r}",
+    )
+    add_field_check(
+        "four_terminal_ac_smoke_nplc",
+        "Four-terminal AC Keithley NPLC",
+        record.get("source_nplc") is not None,
+        f"source_nplc={record.get('source_nplc')!r}",
+    )
+    add_field_check(
+        "four_terminal_ac_smoke_contacts",
+        "Four-terminal AC contact separation",
+        isinstance(excitation, list)
+        and isinstance(voltage, list)
+        and len(excitation) == 2
+        and len(voltage) == 2
+        and not (set(excitation) & set(voltage)),
+        f"excitation={excitation!r}, voltage={voltage!r}",
+    )
 
 
 def _validate_legacy_audit_block(

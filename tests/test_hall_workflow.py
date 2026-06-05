@@ -178,6 +178,87 @@ def test_hall_package_validator_accepts_generated_package(tmp_path):
     assert "| Measurement-condition audit records | PASS |" in text
 
 
+def test_hall_package_records_four_terminal_ac_smoke_prerequisite(tmp_path):
+    intake_json = _write_four_terminal_ac_smoke_intake_json(tmp_path)
+    template = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="workflow_graphene_prereq",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    _shrink_suite_recipes(
+        [
+            template.longitudinal_recipe,
+            template.plus_hall_recipe,
+            template.minus_hall_recipe,
+            template.zero_hall_recipe,
+        ]
+    )
+
+    package = write_dual_gate_lockin_hall_suite_acquisition_package(
+        template.longitudinal_recipe,
+        template.plus_hall_recipe,
+        template.minus_hall_recipe,
+        tmp_path / "packages",
+        zero_hall_recipe=template.zero_hall_recipe,
+        package_name="workflow_graphene_prereq_package",
+        chunk_size=5,
+        four_terminal_ac_smoke_intake_json=intake_json,
+    )
+    manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
+    runbook = package.runbook_path.read_text(encoding="utf-8")
+    prereq = manifest["prerequisites"]["four_terminal_ac_smoke_intake"]
+    validation = validate_dual_gate_lockin_hall_suite_package_manifest(package.package_dir)
+    check_by_key = {check["key"]: check for check in validation["checks"]}
+
+    assert prereq["accepted"] is True
+    assert prereq["lockin_voltage_input"] == "a-b"
+    assert prereq["source_nplc"] == 1.0
+    assert (package.package_dir / prereq["path"]).exists()
+    assert "Four-terminal AC smoke intake: PASS" in runbook
+    assert "SR860 voltage contacts: Vxx+, Vxx-" in runbook
+    assert validation["valid"] is True
+    assert check_by_key["four_terminal_ac_smoke_accepted"]["ok"] is True
+    assert check_by_key["four_terminal_ac_smoke_contacts"]["ok"] is True
+
+
+def test_hall_package_rejects_failed_four_terminal_ac_smoke_prerequisite(tmp_path):
+    intake_json = _write_four_terminal_ac_smoke_intake_json(tmp_path, accepted=False)
+    template = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="workflow_graphene_bad_prereq",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    _shrink_suite_recipes(
+        [
+            template.longitudinal_recipe,
+            template.plus_hall_recipe,
+            template.minus_hall_recipe,
+            template.zero_hall_recipe,
+        ]
+    )
+
+    try:
+        write_dual_gate_lockin_hall_suite_acquisition_package(
+            template.longitudinal_recipe,
+            template.plus_hall_recipe,
+            template.minus_hall_recipe,
+            tmp_path / "packages",
+            zero_hall_recipe=template.zero_hall_recipe,
+            package_name="workflow_graphene_bad_prereq_package",
+            chunk_size=5,
+            four_terminal_ac_smoke_intake_json=intake_json,
+        )
+    except ValueError as exc:
+        assert "four-terminal AC smoke intake prerequisite failed" in str(exc)
+        assert "accepted must be true" in str(exc)
+    else:
+        raise AssertionError("Expected failed prerequisite to block package generation")
+
+
 def test_hall_package_validator_reports_missing_audit_artifact(tmp_path):
     package = _write_small_hall_package(tmp_path)
     missing = package.package_dir / "keithley_audit" / "longitudinal_keithley_audit.json"
@@ -573,3 +654,28 @@ def _write_small_hall_package(tmp_path):
         package_name="workflow_graphene_package",
         chunk_size=5,
     )
+
+
+def _write_four_terminal_ac_smoke_intake_json(tmp_path, *, accepted=True):
+    path = tmp_path / ("four_terminal_ac_smoke_intake_pass.json" if accepted else "four_terminal_ac_smoke_intake_fail.json")
+    payload = {
+        "accepted": accepted,
+        "measurement_name": "four_terminal_ac_smoke",
+        "measurement_geometry": "four_terminal, 4-terminal",
+        "hardware_guard_required": True,
+        "hardware_guard_present": True,
+        "hardware_guard_accepted": True,
+        "hardware_guard_approval_note": "fixture checked; SR860 A-B verified",
+        "hardware_guard_point_count": 3,
+        "hardware_guard_max_points": 3,
+        "lockin_voltage_input": "a-b",
+        "topology_excitation_contacts": ["S", "D"],
+        "topology_lockin_input_contacts": ["Vxx+", "Vxx-"],
+        "source_nplc": 1.0,
+        "source_voltage_range_v": 0.02,
+        "source_current_range_a": 1.0e-7,
+        "source_current_compliance_a": 1.0e-7,
+        "issues": [] if accepted else [{"severity": "error", "check": "synthetic", "message": "failed"}],
+    }
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path

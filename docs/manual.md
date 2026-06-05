@@ -524,13 +524,20 @@ To create one portable folder for lab-laptop execution, use the Hall-suite
 package command:
 
 ```powershell
-ptm dual-gate-lockin-hall-suite-package configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml --package-name sampleA_cd1_lab1 --chunk-size <N> --max-hardware-points <N> --acquisition-note "<lab handoff note>"
+ptm dual-gate-lockin-hall-suite-package configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml data\hall_packages --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml --package-name sampleA_cd1_lab1 --chunk-size <N> --max-hardware-points <N> --four-terminal-ac-smoke-intake-json docs\four_terminal_ac_lab_smoke_intake.json --acquisition-note "<lab handoff note>"
 ```
 
 The package is hardware-free. It copies the suite recipes, writes
 `acquisition_runbook.md`, writes `package_manifest.json`, writes per-recipe
 Keithley audit files under `keithley_audit/`, writes per-recipe SR860 setting
 audits under `lockin_audit/`, and creates a ZIP.
+When `--four-terminal-ac-smoke-intake-json` is provided, the command first
+requires a PASS `ptm ac-lockin-lab-smoke-intake --json-output` artifact with
+four-terminal hardware guard evidence, SR860 `a-b` voltage input,
+non-overlapping excitation/SR860 voltage contacts, and saved Keithley
+NPLC/range/compliance conditions. The package copies the JSON into
+`prerequisites/`, records a summary in `package_manifest.json`, and prints it in
+`acquisition_runbook.md`.
 You can attach chunk feedback, saved preflight text, or lab notes:
 
 ```powershell

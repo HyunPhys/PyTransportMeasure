@@ -762,6 +762,7 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_package.add_argument("--chunk-feedback-file", type=Path, action="append", dest="chunk_feedback_files")
     dual_gate_lockin_hall_suite_package.add_argument("--preflight-file", type=Path, action="append", dest="preflight_files")
     dual_gate_lockin_hall_suite_package.add_argument("--note-file", type=Path, action="append", dest="note_files")
+    dual_gate_lockin_hall_suite_package.add_argument("--four-terminal-ac-smoke-intake-json", type=Path)
     dual_gate_lockin_hall_suite_package.add_argument("--acquisition-note")
     dual_gate_lockin_hall_suite_package.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_package.add_argument("--overwrite", action="store_true")
@@ -872,6 +873,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum points allowed in the first active hardware command printed in the runbook.",
     )
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--accepted-previous-run", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--four-terminal-ac-smoke-intake-json", type=Path)
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--acquisition-note")
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--overwrite", action="store_true")
@@ -2475,6 +2477,7 @@ def command_dual_gate_lockin_hall_suite_package(args: argparse.Namespace) -> int
             chunk_feedback_files=args.chunk_feedback_files,
             preflight_files=args.preflight_files,
             note_files=args.note_files,
+            four_terminal_ac_smoke_intake_json=args.four_terminal_ac_smoke_intake_json,
             acquisition_note=args.acquisition_note,
             safety_dir=args.safety_dir,
             overwrite=args.overwrite,
@@ -2657,6 +2660,7 @@ def command_dual_gate_lockin_hall_suite_approved_next_scan_package(args: argpars
             chunk_size=args.chunk_size,
             max_hardware_points=args.max_hardware_points,
             accepted_previous_run=args.accepted_previous_run,
+            four_terminal_ac_smoke_intake_json=args.four_terminal_ac_smoke_intake_json,
             acquisition_note=args.acquisition_note,
             safety_dir=args.safety_dir,
             overwrite=args.overwrite,
