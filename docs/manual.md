@@ -518,6 +518,18 @@ block that lists Keithley and SR860 audit records with stable `recipe_key`,
 `instrument`, `audit_type`, `json`, `markdown`, `ok_for_hardware`, and
 `summary` fields for scripts or GUI inspection.
 
+Before moving a package to the lab laptop, validate its manifest and artifact
+paths:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-validate-package data\hall_packages\sampleA_cd1_lab1 --json-output data\hall_packages\sampleA_cd1_lab1\package_validation.json
+```
+
+The validator checks `package_manifest.json`, copied recipes, runbook, ZIP,
+Keithley audit artifacts, SR860 audit artifacts, and the normalized
+`measurement_condition_audits` block. It exits with nonzero status if any
+required lab-handoff file is missing or the manifest schema is incompatible.
+
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:
 

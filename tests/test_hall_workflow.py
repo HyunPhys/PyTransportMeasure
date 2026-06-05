@@ -7,9 +7,11 @@ from pytransport.dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_template,
 )
 from pytransport.hall_workflow import (
+    format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
+    validate_dual_gate_lockin_hall_suite_package_manifest,
 )
 
 
@@ -156,31 +158,34 @@ def test_hall_workflow_status_requires_package_manifest(tmp_path):
         raise AssertionError("Expected FileNotFoundError")
 
 
+def test_hall_package_validator_accepts_generated_package(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+
+    payload = validate_dual_gate_lockin_hall_suite_package_manifest(package.package_dir)
+    text = format_dual_gate_lockin_hall_suite_package_validation(payload)
+
+    assert payload["valid"] is True
+    assert payload["manifest_schema_version"] == 2
+    assert payload["recipe_count"] == 4
+    assert payload["issues"] == []
+    assert "Valid for lab handoff: True" in text
+    assert "| Measurement-condition audit records | PASS |" in text
+
+
+def test_hall_package_validator_reports_missing_audit_artifact(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+    missing = package.package_dir / "keithley_audit" / "longitudinal_keithley_audit.json"
+    missing.unlink()
+
+    payload = validate_dual_gate_lockin_hall_suite_package_manifest(package.manifest_path)
+
+    assert payload["valid"] is False
+    assert any(issue["code"] == "missing_audit_record_json" for issue in payload["issues"])
+    assert any(issue["path"] == str(missing) for issue in payload["issues"])
+
+
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):
-    template = write_dual_gate_lockin_hall_suite_template(
-        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
-        tmp_path / "suite",
-        measurement_prefix="workflow_graphene",
-        magnetic_field_t=1.0,
-        run_output_directory=tmp_path / "raw",
-    )
-    _shrink_suite_recipes(
-        [
-            template.longitudinal_recipe,
-            template.plus_hall_recipe,
-            template.minus_hall_recipe,
-            template.zero_hall_recipe,
-        ]
-    )
-    package = write_dual_gate_lockin_hall_suite_acquisition_package(
-        template.longitudinal_recipe,
-        template.plus_hall_recipe,
-        template.minus_hall_recipe,
-        tmp_path / "packages",
-        zero_hall_recipe=template.zero_hall_recipe,
-        package_name="workflow_graphene_package",
-        chunk_size=5,
-    )
+    package = _write_small_hall_package(tmp_path)
     manifest = json.loads(package.manifest_path.read_text(encoding="utf-8"))
     manifest["approved_next_scan"] = {"strategy": "refine_charge_neutrality_region"}
     package.manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
@@ -243,3 +248,30 @@ def _shrink_suite_recipes(paths):
         data["gate2_sweep"]["settle_s"] = 0.0
         data["lockin"]["read_settle_s"] = 0.0
         path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+
+
+def _write_small_hall_package(tmp_path):
+    template = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="workflow_graphene",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    _shrink_suite_recipes(
+        [
+            template.longitudinal_recipe,
+            template.plus_hall_recipe,
+            template.minus_hall_recipe,
+            template.zero_hall_recipe,
+        ]
+    )
+    return write_dual_gate_lockin_hall_suite_acquisition_package(
+        template.longitudinal_recipe,
+        template.plus_hall_recipe,
+        template.minus_hall_recipe,
+        tmp_path / "packages",
+        zero_hall_recipe=template.zero_hall_recipe,
+        package_name="workflow_graphene_package",
+        chunk_size=5,
+    )

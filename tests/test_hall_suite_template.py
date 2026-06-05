@@ -488,6 +488,20 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert f"recipes/{result.longitudinal_recipe.name}" in names
     assert "keithley_audit/longitudinal_keithley_audit.json" in names
     assert "lockin_audit/longitudinal_sr860_audit.json" in names
+    validation_json = tmp_path / "package_validation.json"
+    validation_code = main(
+        [
+            "dual-gate-lockin-hall-suite-validate-package",
+            str(package_dir),
+            "--json-output",
+            str(validation_json),
+        ]
+    )
+    validation = json.loads(validation_json.read_text(encoding="utf-8"))
+    assert validation_code == 0
+    assert validation["valid"] is True
+    assert validation["manifest_schema_version"] == 2
+    assert validation["recipe_count"] == 4
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):

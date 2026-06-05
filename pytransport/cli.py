@@ -111,9 +111,11 @@ from .hall_analysis import (
     write_dual_gate_lockin_hall_zero_corrected,
 )
 from .hall_workflow import (
+    format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
+    validate_dual_gate_lockin_hall_suite_package_manifest,
 )
 from .inspect import inspect_run
 from .instruments.fake import (
@@ -750,6 +752,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_hall_suite_status.add_argument("package_manifest_or_dir", type=Path)
     dual_gate_lockin_hall_suite_status.add_argument("--json-output", type=Path)
+
+    dual_gate_lockin_hall_suite_validate_package = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-validate-package",
+        help="Validate Hall-suite package manifest schema and artifact paths before lab handoff.",
+    )
+    dual_gate_lockin_hall_suite_validate_package.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_validate_package.add_argument("--json-output", type=Path)
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2268,6 +2277,19 @@ def command_dual_gate_lockin_hall_suite_status(args: argparse.Namespace) -> int:
     return 0 if payload["ready_for_lab_review"] else 1
 
 
+def command_dual_gate_lockin_hall_suite_validate_package(args: argparse.Namespace) -> int:
+    try:
+        payload = validate_dual_gate_lockin_hall_suite_package_manifest(args.package_manifest_or_dir)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite package validation failed: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output is not None:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(format_dual_gate_lockin_hall_suite_package_validation(payload))
+    return 0 if payload["valid"] else 1
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3594,6 +3616,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_approved_next_scan_rehearse(args)
     if args.command == "dual-gate-lockin-hall-suite-status":
         return command_dual_gate_lockin_hall_suite_status(args)
+    if args.command == "dual-gate-lockin-hall-suite-validate-package":
+        return command_dual_gate_lockin_hall_suite_validate_package(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

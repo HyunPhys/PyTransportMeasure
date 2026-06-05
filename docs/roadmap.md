@@ -528,12 +528,16 @@ root.
   - validate Keithley current-measurement NPLC at recipe load time
   - expose the supported NPLC range in hardware parameter audit messages
   - document NPLC as a deliberate measurement condition for Hall scans
-- [ ] Phase 25bx: Hall package manifest validator
+- [x] Phase 25bx: Hall package manifest validator
   - add a dedicated command to validate package manifest schema and artifact
     paths without running the full workflow status report
   - report missing package files, audit files, and schema incompatibilities in
     machine-readable JSON
   - prepare the validator for GUI package inspection
+- [ ] Phase 25by: Hall-suite lab handoff smoke bundle
+  - produce a compact pre-lab smoke checklist from a validated package
+  - include exact identify/probe/preflight commands for two Keithleys and SR860
+  - keep the generated handoff artifact hardware-free and package-local
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

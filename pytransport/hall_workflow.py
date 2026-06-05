@@ -23,6 +23,182 @@ from .instruments.fake import DualGateFakeDeviceState, DualGateFakeLockIn, DualG
 from .recipes import OutputConfig, load_dual_gate_lockin_recipe, load_named_safety_preset
 
 
+def validate_dual_gate_lockin_hall_suite_package_manifest(package_manifest_or_dir: Path) -> dict:
+    manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    manifest = _load_json_object(manifest_path)
+    checks: list[dict] = []
+    issues: list[dict] = []
+
+    def add_check(
+        key: str,
+        label: str,
+        *,
+        ok: bool,
+        path: Path | None = None,
+        details: str = "",
+        code: str | None = None,
+        severity: str = "error",
+        message: str | None = None,
+    ) -> None:
+        checks.append(
+            {
+                "key": key,
+                "label": label,
+                "ok": bool(ok),
+                "path": str(path) if path is not None else None,
+                "details": details,
+            }
+        )
+        if not ok:
+            issues.append(
+                {
+                    "severity": severity,
+                    "code": code or key,
+                    "message": message or details or label,
+                    "path": str(path) if path is not None else None,
+                }
+            )
+
+    def add_warning(code: str, message: str, *, path: Path | None = None) -> None:
+        issues.append({"severity": "warning", "code": code, "message": message, "path": str(path) if path else None})
+
+    schema_version = manifest.get("manifest_schema_version")
+    add_check(
+        "manifest_schema_version",
+        "Manifest schema version",
+        ok=schema_version == 2,
+        path=manifest_path,
+        details=f"schema={schema_version!r}",
+        code="unsupported_manifest_schema_version",
+        message="package_manifest.json should declare manifest_schema_version: 2",
+    )
+    if schema_version is None:
+        add_warning("legacy_manifest_schema", "legacy package manifest has no manifest_schema_version", path=manifest_path)
+    add_check(
+        "package_name",
+        "Package name",
+        ok=bool(manifest.get("package_name")),
+        path=manifest_path,
+        details=str(manifest.get("package_name") or "missing"),
+        code="missing_package_name",
+    )
+    add_check(
+        "runbook",
+        "Acquisition runbook",
+        ok=(package_dir / "acquisition_runbook.md").exists(),
+        path=package_dir / "acquisition_runbook.md",
+        details="required for lab handoff",
+        code="missing_acquisition_runbook",
+    )
+    add_check(
+        "zip",
+        "Package ZIP",
+        ok=package_dir.with_suffix(".zip").exists(),
+        path=package_dir.with_suffix(".zip"),
+        details="portable lab handoff archive",
+        code="missing_package_zip",
+    )
+
+    copied_recipes = manifest.get("copied_recipes")
+    copied_ok = isinstance(copied_recipes, dict)
+    add_check(
+        "copied_recipes",
+        "Copied recipe manifest",
+        ok=copied_ok,
+        path=manifest_path,
+        details="copied_recipes object present" if copied_ok else "missing copied_recipes object",
+        code="missing_copied_recipes",
+    )
+    recipe_count = 0
+    if isinstance(copied_recipes, dict):
+        for key in ["longitudinal", "plus", "minus"]:
+            recipe_count += _validate_manifest_path(
+                copied_recipes.get(key),
+                package_dir,
+                checks,
+                issues,
+                key=f"recipe_{key}",
+                label=f"Copied {key} recipe",
+                code=f"missing_{key}_recipe",
+                required=True,
+            )
+        if copied_recipes.get("zero"):
+            recipe_count += _validate_manifest_path(
+                copied_recipes.get("zero"),
+                package_dir,
+                checks,
+                issues,
+                key="recipe_zero",
+                label="Copied zero-field Hall recipe",
+                code="missing_zero_recipe",
+                required=True,
+            )
+    measurement_condition_audits = manifest.get("measurement_condition_audits")
+    if isinstance(measurement_condition_audits, dict):
+        _validate_measurement_condition_audits(measurement_condition_audits, package_dir, checks, issues)
+    else:
+        add_check(
+            "measurement_condition_audits",
+            "Measurement-condition audits",
+            ok=False,
+            path=manifest_path,
+            details="missing normalized measurement_condition_audits block",
+            code="missing_measurement_condition_audits",
+        )
+        _validate_legacy_audit_block(
+            manifest.get("keithley_parameter_audits"),
+            package_dir,
+            checks,
+            issues,
+            block_key="keithley_parameter_audits",
+            label="Legacy Keithley parameter audits",
+            instrument="keithley_2450",
+        )
+        _validate_legacy_audit_block(
+            manifest.get("lockin_setting_audits"),
+            package_dir,
+            checks,
+            issues,
+            block_key="lockin_setting_audits",
+            label="Legacy SR860 setting audits",
+            instrument="srs_sr860",
+        )
+
+    valid = not any(issue["severity"] == "error" for issue in issues)
+    return {
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "package_name": manifest.get("package_name"),
+        "manifest_schema_version": schema_version,
+        "recipe_count": recipe_count,
+        "valid": valid,
+        "checks": checks,
+        "issues": issues,
+    }
+
+
+def format_dual_gate_lockin_hall_suite_package_validation(payload: dict) -> str:
+    lines = [
+        "Dual-gate lock-in Hall suite package validation",
+        f"Package: {payload.get('package_name') or 'n/a'}",
+        f"Manifest: {payload.get('package_manifest')}",
+        f"Valid for lab handoff: {payload.get('valid')}",
+        "",
+        "| Check | Status | Path | Details |",
+        "| --- | --- | --- | --- |",
+    ]
+    for check in payload.get("checks", []):
+        status = "PASS" if check.get("ok") else "FAIL"
+        lines.append(f"| {check.get('label')} | {status} | `{check.get('path') or 'n/a'}` | {check.get('details') or ''} |")
+    issues = payload.get("issues", [])
+    if issues:
+        lines.extend(["", "## Issues", ""])
+        for issue in issues:
+            lines.append(f"- {issue.get('severity', 'error').upper()} {issue.get('code')}: {issue.get('message')}")
+    return "\n".join(lines)
+
+
 def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
     manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
     package_dir = manifest_path.parent
@@ -394,6 +570,224 @@ def _prepare_rehearsal_package_manifest(
     rehearsal_manifest_path = output_dir / "package_manifest.json"
     rehearsal_manifest_path.write_text(json.dumps(rehearsal_manifest, indent=2, sort_keys=True), encoding="utf-8")
     return rehearsal_manifest_path, copied
+
+
+def _validate_manifest_path(
+    value: object,
+    package_dir: Path,
+    checks: list[dict],
+    issues: list[dict],
+    *,
+    key: str,
+    label: str,
+    code: str,
+    required: bool,
+) -> int:
+    if not value:
+        ok = not required
+        checks.append({"key": key, "label": label, "ok": ok, "path": None, "details": "not present"})
+        if required:
+            issues.append({"severity": "error", "code": code, "message": f"{label} is missing from package manifest", "path": None})
+        return 0
+    path = Path(str(value))
+    if not path.is_absolute():
+        path = package_dir / path
+    ok = path.exists()
+    checks.append(
+        {
+            "key": key,
+            "label": label,
+            "ok": ok,
+            "path": str(path),
+            "details": "exists" if ok else "missing file",
+        }
+    )
+    if not ok:
+        issues.append({"severity": "error", "code": code, "message": f"{label} file does not exist", "path": str(path)})
+    return 1 if ok else 0
+
+
+def _validate_measurement_condition_audits(
+    block: dict,
+    package_dir: Path,
+    checks: list[dict],
+    issues: list[dict],
+) -> None:
+    schema_ok = block.get("schema_version") == 1
+    checks.append(
+        {
+            "key": "measurement_condition_audits_schema",
+            "label": "Measurement-condition audit schema",
+            "ok": schema_ok,
+            "path": None,
+            "details": f"schema={block.get('schema_version')!r}",
+        }
+    )
+    if not schema_ok:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "unsupported_measurement_condition_audit_schema",
+                "message": "measurement_condition_audits.schema_version should be 1",
+                "path": None,
+            }
+        )
+    records = block.get("records")
+    records_ok = isinstance(records, list) and bool(records)
+    checks.append(
+        {
+            "key": "measurement_condition_audits_records",
+            "label": "Measurement-condition audit records",
+            "ok": records_ok,
+            "path": None,
+            "details": f"{len(records) if isinstance(records, list) else 0} records",
+        }
+    )
+    if not records_ok:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing_measurement_condition_audit_records",
+                "message": "measurement_condition_audits.records must be a non-empty list",
+                "path": None,
+            }
+        )
+        return
+    instruments = {record.get("instrument") for record in records if isinstance(record, dict)}
+    for instrument in ["keithley_2450", "srs_sr860"]:
+        ok = instrument in instruments
+        checks.append(
+            {
+                "key": f"measurement_condition_audits_{instrument}",
+                "label": f"{instrument} audit records",
+                "ok": ok,
+                "path": None,
+                "details": "present" if ok else "missing",
+            }
+        )
+        if not ok:
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": f"missing_{instrument}_audit_records",
+                    "message": f"measurement_condition_audits.records is missing {instrument} entries",
+                    "path": None,
+                }
+            )
+    all_ok = bool(block.get("ok_for_hardware"))
+    checks.append(
+        {
+            "key": "measurement_condition_audits_ok_for_hardware",
+            "label": "Measurement-condition hardware readiness",
+            "ok": all_ok,
+            "path": None,
+            "details": f"ok_for_hardware={block.get('ok_for_hardware')!r}",
+        }
+    )
+    if not all_ok:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "measurement_condition_audits_not_hardware_ready",
+                "message": "measurement_condition_audits.ok_for_hardware must be true before lab handoff",
+                "path": None,
+            }
+        )
+    for index, record in enumerate(records):
+        if not isinstance(record, dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "invalid_measurement_condition_audit_record",
+                    "message": f"measurement_condition_audits.records[{index}] must be an object",
+                    "path": None,
+                }
+            )
+            continue
+        label_prefix = f"{record.get('recipe_key', index)} {record.get('instrument', 'instrument')}"
+        if not record.get("ok_for_hardware"):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "audit_record_not_hardware_ready",
+                    "message": f"{label_prefix} audit record is not hardware-ready",
+                    "path": None,
+                }
+            )
+        for field in ["json", "markdown"]:
+            _validate_manifest_path(
+                record.get(field),
+                package_dir,
+                checks,
+                issues,
+                key=f"audit_record_{index}_{field}",
+                label=f"{label_prefix} {field} audit artifact",
+                code=f"missing_audit_record_{field}",
+                required=True,
+            )
+
+
+def _validate_legacy_audit_block(
+    block: object,
+    package_dir: Path,
+    checks: list[dict],
+    issues: list[dict],
+    *,
+    block_key: str,
+    label: str,
+    instrument: str,
+) -> None:
+    ok = isinstance(block, dict) and bool(block)
+    checks.append({"key": block_key, "label": label, "ok": ok, "path": None, "details": "legacy fallback"})
+    if not ok:
+        issues.append(
+            {
+                "severity": "error",
+                "code": f"missing_{block_key}",
+                "message": f"package manifest is missing {label}",
+                "path": None,
+            }
+        )
+        return
+    issues.append(
+        {
+            "severity": "warning",
+            "code": f"legacy_{block_key}",
+            "message": f"{label} is present only in legacy format; regenerate package to include measurement_condition_audits",
+            "path": None,
+        }
+    )
+    for recipe_key, record in block.items():
+        if not isinstance(record, dict):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "invalid_legacy_audit_record",
+                    "message": f"{block_key}.{recipe_key} must be an object",
+                    "path": None,
+                }
+            )
+            continue
+        if not record.get("ok_for_hardware"):
+            issues.append(
+                {
+                    "severity": "error",
+                    "code": "legacy_audit_not_hardware_ready",
+                    "message": f"{instrument} legacy audit for {recipe_key} is not hardware-ready",
+                    "path": None,
+                }
+            )
+        for field in ["json", "markdown"]:
+            _validate_manifest_path(
+                record.get(field),
+                package_dir,
+                checks,
+                issues,
+                key=f"{block_key}_{recipe_key}_{field}",
+                label=f"{instrument} {recipe_key} {field} audit artifact",
+                code=f"missing_{block_key}_{field}",
+                required=True,
+            )
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: Path) -> Path:
