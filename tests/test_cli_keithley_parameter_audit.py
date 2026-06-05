@@ -155,3 +155,31 @@ def test_cli_measurement_parameter_audit_dir_returns_nonzero_for_missing_nplc(tm
         if record["loaded"]
         for role in record["audit"]["smu"]["roles"]
     )
+
+
+def test_cli_sr860_command_review_returns_nonzero_for_non_lockin_recipe(tmp_path):
+    recipe = tmp_path / "drain.yaml"
+    recipe.write_text(
+        """
+measurement_name: drain
+instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  voltage_range_v: 0.1
+  current_range_a: 1.0e-7
+  nplc: 1.0
+sweep:
+  start_v: -0.001
+  stop_v: 0.001
+  points: 3
+  delay_s: 0
+  current_compliance_a: 1.0e-7
+output:
+  directory: data/raw
+""".strip(),
+        encoding="utf-8",
+    )
+
+    code = cli.main(["sr860-command-review", "drain_iv", str(recipe)])
+
+    assert code == 2

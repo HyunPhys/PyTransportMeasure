@@ -844,6 +844,10 @@ root.
   - add `ptm measurement-parameter-audit-dir` for folder-level recipe checks
   - infer recipe types and reuse the shared Keithley/SR860 audit policy
   - keep starter Drain I-V templates explicit about Keithley NPLC
+- [x] Phase 25dah: SR860 configuration command review
+  - add `ptm sr860-command-review` for hardware-free SCPI write/readback review
+  - map recipe SR860 settings to exact command codes before enabling writes
+  - keep current measurement runners read-only for SR860 configuration
 
 ## Next GUI
 

@@ -1679,6 +1679,16 @@ measurement depends on lock-in settings. A PASS result means the recipe declares
 the intended Keithley NPLC/ranges and the intended SR860 measurement
 conditions; it does not replace the live hardware preflight/readback.
 
+To review the exact SR860 setting commands implied by a lock-in recipe, use:
+
+```powershell
+ptm sr860-command-review dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml --json-output docs\sr860_command_review.json
+```
+
+This command is hardware-free. It prints SCPI write/readback pairs such as
+`RSRC 0` / `RSRC?`, `SCAL 18` / `SCAL?`, and `OFLT 10` / `OFLT?`. Use it as the
+review contract before adding or using any active SR860 configure path.
+
 To audit a whole recipe folder before a lab-laptop handoff, use:
 
 ```powershell

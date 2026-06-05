@@ -142,6 +142,13 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] For SR860 four-terminal lock-in runs, confirm `measurement_geometry.method:
   four_terminal`, `terminal_count: 4`, `lockin.input_mode: voltage`, and
   `lockin.voltage_input: a-b`.
+- [ ] For AC/lock-in hardware recipes, review the SR860 SCPI setting contract.
+  ```powershell
+  ptm sr860-command-review dual_gate_lockin_sweep configs\recipes\<lockin_recipe>.yaml --json-output docs\sr860_command_review.json
+  ```
+- [ ] Confirm the SR860 command review matches the intended reference source,
+  excitation amplitude, input wiring, input range, sensitivity, time constant,
+  filter slope, and synchronous filter state.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

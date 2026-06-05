@@ -243,6 +243,11 @@ from .scheme_review import (
     write_scheme_runs_csv,
     write_scheme_stats_csv,
 )
+from .sr860_config import (
+    format_sr860_config_command_review,
+    review_sr860_config_commands,
+    write_sr860_config_command_review_json,
+)
 from .summary import format_summary, summarize_run
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import (
@@ -1102,6 +1107,14 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_parameter_audit_dir.add_argument("root", type=Path)
     measurement_parameter_audit_dir.add_argument("--json-output", type=Path)
     measurement_parameter_audit_dir.add_argument("--no-recursive", action="store_true")
+
+    sr860_command_review = subparsers.add_parser(
+        "sr860-command-review",
+        help="Review SR860 SCPI setting commands implied by an AC/lock-in recipe without touching hardware.",
+    )
+    sr860_command_review.add_argument("measurement_type", choices=known_measurement_types())
+    sr860_command_review.add_argument("recipe", type=Path)
+    sr860_command_review.add_argument("--json-output", type=Path)
 
     scheme_plan = subparsers.add_parser("scheme-plan", help="Show a measurement scheme plan without touching hardware.")
     scheme_plan.add_argument("scheme", type=Path)
@@ -3438,6 +3451,25 @@ def command_measurement_parameter_audit_dir(args: argparse.Namespace) -> int:
     return 0 if payload["ok_for_hardware"] else 2
 
 
+def command_sr860_command_review(args: argparse.Namespace) -> int:
+    try:
+        method = handler_for_measurement_type(args.measurement_type)
+        recipe = method.load_recipe(args.recipe)
+        payload = {
+            "measurement_type": method.measurement_type,
+            "recipe": str(args.recipe),
+            **review_sr860_config_commands(recipe),
+        }
+    except Exception as exc:
+        print(f"SR860 command review failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_sr860_config_command_review_json(payload, args.json_output)
+        print(f"SR860 command review JSON: {output_path}")
+    print(format_sr860_config_command_review(payload))
+    return 0 if payload["ok_for_hardware"] else 2
+
+
 def command_scheme_plan(args: argparse.Namespace) -> int:
     scheme = load_scheme(args.scheme)
     print(format_scheme_plan(scheme, args.scheme, args.safety_dir, args.preview_points))
@@ -4321,6 +4353,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_measurement_parameter_audit(args)
     if args.command == "measurement-parameter-audit-dir":
         return command_measurement_parameter_audit_dir(args)
+    if args.command == "sr860-command-review":
+        return command_sr860_command_review(args)
     if args.command == "scheme-plan":
         return command_scheme_plan(args)
     if args.command == "scheme":

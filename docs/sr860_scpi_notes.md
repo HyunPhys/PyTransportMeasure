@@ -51,6 +51,9 @@ SR860 yet.
 These expected settings are saved in recipe snapshots and metadata. AC and
 dual-gate lock-in preflight now query these SR860 settings read-only and compare
 them against declared recipe expectations before hardware output is enabled.
+`ptm sr860-command-review` converts the same recipe fields into hardware-free
+SCPI write/readback pairs. This is a review artifact only: measurement runners
+still do not write SR860 configuration commands.
 
 ## Smoke-Test Commands
 
