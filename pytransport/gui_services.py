@@ -29,6 +29,7 @@ from .run_index import append_run_index, read_run_index
 from .runner import run_drain_iv
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import write_single_gate_stats_csv
+from .visa_utils import list_resources
 
 
 GuiMethod = Literal["drain_iv", "single_gate_sweep", "ac_lockin_sweep", "pulse_measurement"]
@@ -386,6 +387,49 @@ def run_gui_doctor_text(
         recipe = load_recipe_from_text(measurement_type, text)
         address = recipe.instrument.address
         timeout_ms = recipe.instrument.timeout_ms
+    kwargs = {}
+    if resource_lister is not None:
+        kwargs["resource_lister"] = resource_lister
+    if probe_factory is not None:
+        kwargs["probe_factory"] = probe_factory
+    report = run_doctor(address=address, timeout_ms=timeout_ms, **kwargs)
+    return format_doctor_report(report)
+
+
+def refresh_gui_instruments(resource_lister=None) -> tuple[tuple[str, ...], str]:
+    lister = resource_lister or list_resources
+    try:
+        resources = tuple(lister())
+        return resources, format_gui_resource_list(resources)
+    except Exception as exc:
+        return (), f"Instrument refresh failed\n\n{type(exc).__name__}: {exc}"
+
+
+def format_gui_resource_list(resources: tuple[str, ...]) -> str:
+    lines = ["Detected VISA resources", ""]
+    if resources:
+        lines.extend(f"- {resource}" for resource in resources)
+    else:
+        lines.append("- none")
+    lines.extend(
+        [
+            "",
+            "Use Test Selected Address to run a communication probe on one resource.",
+            "Use Full Doctor to include Python, PyVISA, resource, and Keithley probe details.",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def run_gui_communication_test(
+    address: str,
+    timeout_ms: int = 10000,
+    resource_lister=None,
+    probe_factory=None,
+) -> str:
+    address = address.strip()
+    if not address:
+        raise ValueError("Select or enter a VISA address before testing communication")
     kwargs = {}
     if resource_lister is not None:
         kwargs["resource_lister"] = resource_lister

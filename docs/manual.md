@@ -381,7 +381,7 @@ Drain I-V form workflow:
 2. Open `Drain I-V Form`.
 3. Edit the address, terminal, voltage/current ranges, sweep, safety preset,
    output directory, and optional quality checks.
-4. Click `Apply Form to YAML`.
+4. Click `Form -> YAML`.
 5. Click `Plan` to preview the current editor draft.
 6. Open `Validation` and check that the recipe passes.
 7. Run a dry-run before saving or running the recipe on hardware.
@@ -391,12 +391,25 @@ Recipe editing workflow:
 1. Select the measurement method.
 2. Edit the YAML in `Recipe YAML`.
 3. Click `Plan` or `Dry Run` to use the current unsaved editor contents.
-4. Open `Instruments` and click `Doctor` to check the lab laptop, VISA
-   resources, and Keithley probe.
-5. Return to `Measurement` and click `Preflight` to check recipe safety and
+4. Open `Instruments`, click `Refresh Instruments`, and select the intended
+   VISA address.
+5. Click `Test Selected Address` for a quick communication probe, or
+   `Full Doctor` for the full lab-laptop diagnostic.
+6. Return to `Measurement` and click `Preflight` to check recipe safety and
    probe readiness.
-6. Click `Validate YAML`.
-7. Click `Save Recipe` if the draft should become a persistent recipe file.
+7. Click `Check YAML`.
+8. Click `Save YAML As` if the draft should become a persistent recipe file.
+
+Recipe tool button meanings:
+
+- `Open Recipe File`: read the YAML file from the recipe path field into the
+  editor.
+- `Check YAML`: validate the current editor YAML against recipe schema and
+  safety rules.
+- `Save YAML As`: write the current editor YAML to a chosen file.
+- `YAML -> Form`: copy values from the current YAML editor into the structured
+  Drain I-V form.
+- `Form -> YAML`: regenerate the YAML editor contents from the structured form.
 
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under
@@ -406,10 +419,12 @@ Preflight workflow:
 
 1. Confirm the Keithley is in SCPI mode.
 2. Confirm the expected VISA address is in the YAML editor.
-3. Open `Instruments`, click `Doctor`, and confirm `OK: True`.
-4. Return to `Measurement` and click `Preflight`.
-5. Open the `Preflight` subtab.
-6. Confirm `Recipe address found: True` and `Preflight OK: True`.
+3. Open `Instruments`, click `Refresh Instruments`, and confirm the expected
+   address is listed.
+4. Select the address, click `Test Selected Address`, and confirm `OK: True`.
+5. Return to `Measurement` and click `Preflight`.
+6. Open the `Preflight` subtab.
+7. Confirm `Recipe address found: True` and `Preflight OK: True`.
 
 Guarded hardware run workflow:
 

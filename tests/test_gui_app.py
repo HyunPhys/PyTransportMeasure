@@ -44,7 +44,21 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert "Instruments" in tab_labels
     assert "Analysis" in tab_labels
     assert "Doctor" not in tab_labels
-    assert window.doctor_button.parentWidget() is not None
+    assert window.doctor_button.text() == "Full Doctor"
+    assert window.refresh_instruments_button.text() == "Refresh Instruments"
+    assert window.test_connection_button.text() == "Test Selected Address"
+    window.close()
+
+
+def test_gui_recipe_tool_labels_are_distinct(app):
+    window = MainWindow()
+
+    assert window.load_editor_button.text() == "Open Recipe File"
+    assert window.validate_editor_button.text() == "Check YAML"
+    assert window.save_editor_button.text() == "Save YAML As"
+    assert window.load_form_button.text() == "YAML -> Form"
+    assert window.apply_form_button.text() == "Form -> YAML"
+    assert window.instrument_address_combo.currentText()
     window.close()
 
 

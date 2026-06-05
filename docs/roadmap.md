@@ -184,6 +184,11 @@ This roadmap tracks the large development phases. Completed items are checked.
   - move saved-run loading, plot/report review, and feedback bundles into Analysis
   - replace stretched SVG preview with a points-based Qt plot
   - add live Drain I-V point plotting during dry-run and guarded hardware run
+- [x] Phase 24p: GUI instrument refresh and communication test
+  - refresh VISA resources from the Instruments workspace
+  - populate a selectable resource/address field
+  - test communication with the selected address
+  - clarify recipe tool button names and directions
 
 ## Next GUI
 

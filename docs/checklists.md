@@ -33,6 +33,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI usability pass collapsed dry-run settings, relaxed resize constraints,
   and fixed Session Log scroll behavior.
 - [x] GUI workspace separates measurement, instruments, and analysis.
+- [x] GUI Instruments workspace can refresh VISA resources and test selected
+  address communication.
 - [x] GUI plot preview uses a non-stretched points-based plot and live Drain I-V
   plot updates during measurement progress.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
@@ -312,17 +314,20 @@ Use this checklist before pulse hardware work begins.
   - [ ] Pulse measurement
 - [ ] Click `Plan` and confirm the plan text matches the selected recipe.
 - [ ] Select `Drain I-V`, open `Drain I-V Form`, edit one non-hardware field,
-  and click `Apply Form to YAML`.
+  and click `Form -> YAML`.
 - [ ] Open `Recipe YAML` and confirm the generated YAML reflects the form value.
 - [ ] Click `Plan` before saving and confirm the plan reflects the unsaved edit.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.
 - [ ] Open `Progress` and confirm dry-run point lines appear.
-- [ ] Open `Instruments`, click `Doctor`, and confirm the status view updates.
+- [ ] Open `Instruments`, click `Refresh Instruments`, and confirm detected
+  VISA resources appear.
+- [ ] Select an address and click `Test Selected Address`.
+- [ ] Click `Full Doctor` and confirm the status view updates.
 - [ ] Click `Preflight` for Drain I-V and confirm the `Preflight` tab updates.
-- [ ] Click `Validate YAML` and confirm validation passes or reports a useful
+- [ ] Click `Check YAML` and confirm validation passes or reports a useful
   schema error.
-- [ ] Click `Save Recipe` and confirm the saved path appears in the recipe field.
+- [ ] Click `Save YAML As` and confirm the saved path appears in the recipe field.
 - [ ] Click `Dry Run` and confirm `completed=True` appears in the summary or
   metadata.
 - [ ] Open the generated run folder.
@@ -341,7 +346,9 @@ Use this checklist before pulse hardware work begins.
 - [ ] Launch `ptm-gui`.
 - [ ] Select `Drain I-V`.
 - [ ] Confirm the YAML editor has the intended address and safety preset.
-- [ ] Open `Instruments`, click `Doctor`, and confirm `OK: True`.
+- [ ] Open `Instruments`, click `Refresh Instruments`, select the expected
+  address, and click `Test Selected Address`.
+- [ ] Confirm `OK: True`.
 - [ ] Click `Preflight`.
 - [ ] Confirm the `Preflight` tab lists the VISA resources.
 - [ ] Confirm `Recipe address found: True`.
@@ -360,7 +367,9 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the YAML editor has the intended address, terminal, sweep,
   compliance, safety preset, and output directory.
 - [ ] Click `Plan` and inspect the sweep points.
-- [ ] Open `Instruments`, click `Doctor`, and confirm `Address found: True`.
+- [ ] Open `Instruments`, click `Refresh Instruments`, select the expected
+  address, and click `Test Selected Address`.
+- [ ] Confirm `Address found: True`.
 - [ ] Click `Preflight` and confirm `Preflight OK: True`.
 - [ ] Click `Hardware Run`.
 - [ ] Read the confirmation dialog and confirm every field.

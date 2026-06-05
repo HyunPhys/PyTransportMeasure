@@ -22,9 +22,12 @@ from .gui_services import (
     format_gui_progress,
     list_gui_runs,
     load_gui_saved_run,
+    load_recipe_from_text,
     load_recipe_text,
     primary_plot_path,
     primary_report_path,
+    refresh_gui_instruments,
+    run_gui_communication_test,
     run_gui_doctor_text,
     run_gui_preflight_text,
     run_gui_hardware_text,
@@ -146,6 +149,34 @@ class DoctorWorker(QThread):
     def run(self) -> None:
         try:
             self.finished_ok.emit(run_gui_doctor_text(self.measurement_type, self.recipe_text))
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+
+class InstrumentRefreshWorker(QThread):
+    finished_ok = Signal(object, str)
+    failed = Signal(str)
+
+    def run(self) -> None:
+        try:
+            resources, text = refresh_gui_instruments()
+            self.finished_ok.emit(resources, text)
+        except Exception as exc:
+            self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+
+class CommunicationTestWorker(QThread):
+    finished_ok = Signal(str)
+    failed = Signal(str)
+
+    def __init__(self, address: str, timeout_ms: int):
+        super().__init__()
+        self.address = address
+        self.timeout_ms = timeout_ms
+
+    def run(self) -> None:
+        try:
+            self.finished_ok.emit(run_gui_communication_test(self.address, timeout_ms=self.timeout_ms))
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
 
@@ -287,6 +318,8 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(760, 520)
         self.worker: DryRunWorker | None = None
         self.doctor_worker: DoctorWorker | None = None
+        self.instrument_refresh_worker: InstrumentRefreshWorker | None = None
+        self.communication_test_worker: CommunicationTestWorker | None = None
         self.preflight_worker: PreflightWorker | None = None
         self.hardware_worker: HardwareRunWorker | None = None
         self.last_result: Any | None = None
@@ -320,21 +353,21 @@ class MainWindow(QMainWindow):
         self.plan_button.clicked.connect(self.show_plan)
         self.run_button = QPushButton("Dry Run")
         self.run_button.clicked.connect(self.start_dry_run)
-        self.doctor_button = QPushButton("Doctor")
+        self.doctor_button = QPushButton("Full Doctor")
         self.doctor_button.clicked.connect(self.start_doctor)
         self.preflight_button = QPushButton("Preflight")
         self.preflight_button.clicked.connect(self.start_preflight)
         self.hardware_run_button = QPushButton("Hardware Run")
         self.hardware_run_button.clicked.connect(self.confirm_and_start_hardware_run)
-        self.load_editor_button = QPushButton("Load Editor")
+        self.load_editor_button = QPushButton("Open Recipe File")
         self.load_editor_button.clicked.connect(self.load_recipe_into_editor)
-        self.validate_editor_button = QPushButton("Validate YAML")
+        self.validate_editor_button = QPushButton("Check YAML")
         self.validate_editor_button.clicked.connect(self.validate_editor)
-        self.save_editor_button = QPushButton("Save Recipe")
+        self.save_editor_button = QPushButton("Save YAML As")
         self.save_editor_button.clicked.connect(self.save_editor_as)
-        self.load_form_button = QPushButton("Load Form from YAML")
+        self.load_form_button = QPushButton("YAML -> Form")
         self.load_form_button.clicked.connect(self.load_form_from_editor)
-        self.apply_form_button = QPushButton("Apply Form to YAML")
+        self.apply_form_button = QPushButton("Form -> YAML")
         self.apply_form_button.clicked.connect(self.apply_form_to_editor)
         self.open_run_button = QPushButton("Run Folder")
         self.open_run_button.clicked.connect(self.open_run_folder)
@@ -346,6 +379,14 @@ class MainWindow(QMainWindow):
         self.feedback_bundle_button.clicked.connect(self.create_feedback_bundle)
         self.open_log_button = QPushButton("Open Log")
         self.open_log_button.clicked.connect(self.open_session_log_folder)
+        self.refresh_instruments_button = QPushButton("Refresh Instruments")
+        self.refresh_instruments_button.clicked.connect(self.start_instrument_refresh)
+        self.test_connection_button = QPushButton("Test Selected Address")
+        self.test_connection_button.clicked.connect(self.start_communication_test)
+        self.instrument_address_combo = QComboBox()
+        self.instrument_address_combo.setEditable(True)
+        self.instrument_address_combo.setMinimumWidth(260)
+        self.instrument_address_combo.setToolTip("VISA resource to probe. Refresh fills this list; the current recipe address is used as a fallback.")
         self.refresh_runs_button = QPushButton("Refresh Runs")
         self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
         self.load_run_button = QPushButton("Load Selected")
@@ -450,13 +491,17 @@ class MainWindow(QMainWindow):
 
     def build_recipe_tools(self) -> QWidget:
         box = QGroupBox("Recipe Tools")
-        layout = QHBoxLayout(box)
-        layout.addWidget(self.load_editor_button)
-        layout.addWidget(self.validate_editor_button)
-        layout.addWidget(self.save_editor_button)
-        layout.addWidget(self.load_form_button)
-        layout.addWidget(self.apply_form_button)
-        layout.addStretch(1)
+        layout = QVBoxLayout(box)
+        help_label = QLabel("File: open/save YAML. Form sync: copy values between the structured form and YAML editor.")
+        row = QHBoxLayout()
+        row.addWidget(self.load_editor_button)
+        row.addWidget(self.validate_editor_button)
+        row.addWidget(self.save_editor_button)
+        row.addWidget(self.load_form_button)
+        row.addWidget(self.apply_form_button)
+        row.addStretch(1)
+        layout.addWidget(help_label)
+        layout.addLayout(row)
         return box
 
     def build_measurement_workspace(self) -> QWidget:
@@ -481,9 +526,12 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(container)
         controls = QGroupBox("Instrument Status")
         controls_layout = QHBoxLayout(controls)
+        controls_layout.addWidget(self.refresh_instruments_button)
+        controls_layout.addWidget(QLabel("Address"))
+        controls_layout.addWidget(self.instrument_address_combo, stretch=1)
+        controls_layout.addWidget(self.test_connection_button)
         controls_layout.addWidget(self.doctor_button)
         controls_layout.addWidget(self.open_log_button)
-        controls_layout.addStretch(1)
         layout.addWidget(controls)
         layout.addWidget(self.instrument_status_text, stretch=1)
         return container
@@ -622,6 +670,7 @@ class MainWindow(QMainWindow):
                 self.editor_text.setPlainText(default_recipe_text(self.current_method()))
                 self.validation_text.clear()
                 self.load_form_from_editor(silent=True)
+                self.sync_recipe_address_to_instrument_combo()
             except Exception:
                 pass
         if hasattr(self, "load_form_button"):
@@ -660,6 +709,7 @@ class MainWindow(QMainWindow):
             return
         self.validation_text.clear()
         self.load_form_from_editor(silent=True)
+        self.sync_recipe_address_to_instrument_combo()
         self.status_label.setText("Recipe loaded into editor")
         self.log_session(f"Recipe loaded into editor: {self.recipe_path()}")
 
@@ -692,6 +742,7 @@ class MainWindow(QMainWindow):
             return False
         self.editor_text.setPlainText(text)
         self.validation_text.clear()
+        self.sync_recipe_address_to_instrument_combo()
         self.form_status.setText("Drain I-V YAML updated from form")
         self.status_label.setText("YAML updated from form")
         self.log_session("Drain I-V form applied to YAML editor")
@@ -736,7 +787,7 @@ class MainWindow(QMainWindow):
             return
         selected, _ = QFileDialog.getSaveFileName(
             self,
-            "Save Recipe",
+            "Save YAML As",
             str(Path("configs/recipes").resolve() / "edited_recipe.yaml"),
             "YAML (*.yaml *.yml)",
         )
@@ -797,6 +848,60 @@ class MainWindow(QMainWindow):
         self.doctor_worker.failed.connect(self.handle_doctor_failure)
         self.doctor_worker.finished.connect(lambda: self.set_doctor_running(False))
         self.doctor_worker.start()
+
+    def start_instrument_refresh(self) -> None:
+        if self.instrument_refresh_worker is not None and self.instrument_refresh_worker.isRunning():
+            return
+        self.set_instrument_refreshing(True)
+        self.instrument_status_text.setPlainText("Refreshing VISA resources...")
+        self.log_session("Instrument refresh starting")
+        self.instrument_refresh_worker = InstrumentRefreshWorker()
+        self.instrument_refresh_worker.finished_ok.connect(self.handle_instrument_refresh_result)
+        self.instrument_refresh_worker.failed.connect(self.handle_instrument_refresh_failure)
+        self.instrument_refresh_worker.finished.connect(lambda: self.set_instrument_refreshing(False))
+        self.instrument_refresh_worker.start()
+
+    def handle_instrument_refresh_result(self, resources: tuple[str, ...], text: str) -> None:
+        self.populate_instrument_addresses(resources)
+        self.instrument_status_text.setPlainText(text)
+        self.status_label.setText(f"Detected {len(resources)} VISA resource(s)")
+        self.log_session(f"Instrument refresh finished: {len(resources)} resource(s)")
+
+    def handle_instrument_refresh_failure(self, message: str) -> None:
+        self.instrument_status_text.setPlainText(f"Instrument refresh failed\n\n{message}")
+        self.status_label.setText("Instrument refresh failed")
+        self.log_session(f"Instrument refresh failed: {message}")
+        QMessageBox.critical(self, "PyTransportMeasure", message)
+
+    def start_communication_test(self) -> None:
+        if self.communication_test_worker is not None and self.communication_test_worker.isRunning():
+            return
+        try:
+            address = self.selected_instrument_address()
+            timeout_ms = self.selected_instrument_timeout_ms()
+        except Exception as exc:
+            self.show_error(exc)
+            return
+        self.set_communication_testing(True)
+        self.instrument_status_text.setPlainText(f"Testing communication with {address}...")
+        self.log_session(f"Communication test starting: {address}")
+        self.communication_test_worker = CommunicationTestWorker(address, timeout_ms)
+        self.communication_test_worker.finished_ok.connect(self.handle_communication_test_result)
+        self.communication_test_worker.failed.connect(self.handle_communication_test_failure)
+        self.communication_test_worker.finished.connect(lambda: self.set_communication_testing(False))
+        self.communication_test_worker.start()
+
+    def handle_communication_test_result(self, text: str) -> None:
+        self.instrument_status_text.setPlainText(text)
+        self.status_label.setText("Communication test passed" if "OK: True" in text else "Communication test found an issue")
+        self.log_session("Communication test finished")
+        self.log_session(text)
+
+    def handle_communication_test_failure(self, message: str) -> None:
+        self.instrument_status_text.setPlainText(f"Communication test failed\n\n{message}")
+        self.status_label.setText("Communication test failed")
+        self.log_session(f"Communication test failed: {message}")
+        QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def handle_doctor_result(self, text: str) -> None:
         self.doctor_text.setPlainText(text)
@@ -912,6 +1017,8 @@ class MainWindow(QMainWindow):
         is_drain_iv = self.current_method() == "drain_iv"
         self.run_button.setEnabled(not running)
         self.doctor_button.setEnabled(not running)
+        self.refresh_instruments_button.setEnabled(not running)
+        self.test_connection_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
@@ -923,6 +1030,8 @@ class MainWindow(QMainWindow):
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.plan_button.setEnabled(not running)
         self.doctor_button.setEnabled(not running)
+        self.refresh_instruments_button.setEnabled(not running)
+        self.test_connection_button.setEnabled(not running)
         self.run_button.setEnabled(not running)
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
         if running:
@@ -933,6 +1042,8 @@ class MainWindow(QMainWindow):
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.doctor_button.setEnabled(not running)
+        self.refresh_instruments_button.setEnabled(not running)
+        self.test_connection_button.setEnabled(not running)
         self.run_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         if running:
@@ -941,12 +1052,75 @@ class MainWindow(QMainWindow):
     def set_doctor_running(self, running: bool) -> None:
         is_drain_iv = self.current_method() == "drain_iv"
         self.doctor_button.setEnabled(not running)
+        self.refresh_instruments_button.setEnabled(not running)
+        self.test_connection_button.setEnabled(not running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
         self.run_button.setEnabled(not running)
         self.plan_button.setEnabled(not running)
         if running:
             self.status_label.setText("Running doctor...")
+
+    def set_instrument_refreshing(self, running: bool) -> None:
+        self.refresh_instruments_button.setEnabled(not running)
+        self.test_connection_button.setEnabled(not running)
+        self.doctor_button.setEnabled(not running)
+        if running:
+            self.status_label.setText("Refreshing instruments...")
+
+    def set_communication_testing(self, running: bool) -> None:
+        self.test_connection_button.setEnabled(not running)
+        self.refresh_instruments_button.setEnabled(not running)
+        self.doctor_button.setEnabled(not running)
+        if running:
+            self.status_label.setText("Testing instrument communication...")
+
+    def populate_instrument_addresses(self, resources: tuple[str, ...]) -> None:
+        current = self.selected_instrument_address(fallback_to_recipe=False)
+        recipe_address = self.recipe_instrument_address()
+        addresses = list(resources)
+        if recipe_address and recipe_address not in addresses:
+            addresses.insert(0, recipe_address)
+        self.instrument_address_combo.clear()
+        self.instrument_address_combo.addItems(addresses)
+        preferred = current or recipe_address
+        if preferred:
+            index = self.instrument_address_combo.findText(preferred)
+            if index >= 0:
+                self.instrument_address_combo.setCurrentIndex(index)
+            else:
+                self.instrument_address_combo.setEditText(preferred)
+
+    def sync_recipe_address_to_instrument_combo(self) -> None:
+        address = self.recipe_instrument_address()
+        if not address or not hasattr(self, "instrument_address_combo"):
+            return
+        if self.instrument_address_combo.findText(address) < 0:
+            self.instrument_address_combo.insertItem(0, address)
+        self.instrument_address_combo.setCurrentText(address)
+
+    def selected_instrument_address(self, fallback_to_recipe: bool = True) -> str:
+        address = self.instrument_address_combo.currentText().strip()
+        if not address and fallback_to_recipe:
+            address = self.recipe_instrument_address()
+        if not address:
+            raise ValueError("No VISA address selected")
+        return address
+
+    def selected_instrument_timeout_ms(self) -> int:
+        try:
+            recipe = load_recipe_from_editor_safely(self.current_method(), self.editor_text.toPlainText())
+            return int(getattr(getattr(recipe, "instrument", None), "timeout_ms", 10000))
+        except Exception:
+            return 10000
+
+    def recipe_instrument_address(self) -> str:
+        try:
+            recipe = load_recipe_from_editor_safely(self.current_method(), self.editor_text.toPlainText())
+        except Exception:
+            return ""
+        instrument = getattr(recipe, "instrument", None) or getattr(recipe, "drain_instrument", None) or getattr(recipe, "source_instrument", None)
+        return str(getattr(instrument, "address", "") or "")
 
     def add_recent_run(self, result) -> None:
         row = self.recent_table.rowCount()
@@ -1027,7 +1201,7 @@ class MainWindow(QMainWindow):
             return
         points_path = self.last_result.run_dir / "points.csv"
         if not points_path.exists():
-            self.plot_status.setText("No points.csv found for Matplotlib preview")
+            self.plot_status.setText("No points.csv found for plot preview")
             self.saved_plot_canvas.clear("No point data")
             return
         points = load_iv_points(points_path)
@@ -1035,9 +1209,9 @@ class MainWindow(QMainWindow):
         self.saved_plot_canvas.plot_points(points, title)
         artifact = self.plot_path()
         if artifact is None:
-            self.plot_status.setText(f"Matplotlib preview from {points_path}")
+            self.plot_status.setText(f"Plot preview from {points_path}")
         else:
-            self.plot_status.setText(f"Matplotlib preview from points.csv | saved artifact: {artifact}")
+            self.plot_status.setText(f"Plot preview from points.csv | saved artifact: {artifact}")
 
     def open_run_folder(self) -> None:
         if self.last_result is not None:
@@ -1083,6 +1257,10 @@ class MainWindow(QMainWindow):
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def load_recipe_from_editor_safely(measurement_type: str, text: str) -> Any:
+    return load_recipe_from_text(measurement_type, text)
 
 
 def update_plain_text_preserving_scroll(text_edit: Any, text: str) -> None:

@@ -13,11 +13,13 @@ from pytransport.gui_services import (
     format_gui_plan,
     format_gui_plan_text,
     format_gui_progress,
+    refresh_gui_instruments,
     list_gui_runs,
     load_gui_saved_run,
     primary_plot_path,
     primary_report_path,
     run_gui_doctor_text,
+    run_gui_communication_test,
     run_gui_preflight_text,
     run_gui_hardware_text,
     save_recipe_text,
@@ -35,6 +37,26 @@ def test_gui_methods_include_dry_run_families():
     assert methods["single_gate_sweep"] == "Single-gate sweep"
     assert methods["ac_lockin_sweep"] == "AC lock-in sweep"
     assert methods["pulse_measurement"] == "Pulse measurement"
+
+
+def test_gui_instrument_refresh_formats_resources():
+    resources, text = refresh_gui_instruments(resource_lister=lambda: ("GPIB0::2::INSTR", "ASRL1::INSTR"))
+
+    assert resources == ("GPIB0::2::INSTR", "ASRL1::INSTR")
+    assert "Detected VISA resources" in text
+    assert "GPIB0::2::INSTR" in text
+
+
+def test_gui_communication_test_uses_selected_address():
+    text = run_gui_communication_test(
+        "GPIB0::2::INSTR",
+        resource_lister=lambda: ("GPIB0::2::INSTR",),
+        probe_factory=lambda address, timeout: {"idn": f"KEITHLEY,{address}", "language": "SCPI"},
+    )
+
+    assert "OK: True" in text
+    assert "Requested address: GPIB0::2::INSTR" in text
+    assert "KEITHLEY,GPIB0::2::INSTR" in text
 
 
 def test_gui_plan_uses_method_registry():
