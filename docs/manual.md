@@ -501,11 +501,16 @@ of newly measured points:
 ```powershell
 ptm dual-gate-lockin-chunk-plan configs\recipes\<dual_gate_lockin_recipe>.yaml --chunk-size <N> --max-hardware-points <N>
 ptm dual-gate-lockin configs\recipes\<dual_gate_lockin_recipe>.yaml --allow-active-sweep --stop-after-new-points <N> --max-hardware-points <N> --yes --progress
+ptm dual-gate-lockin-chunk-audit data\raw\<chunk_run_folder>
 ```
 
 The run remains incomplete with `abort_class: checkpoint`, turns outputs off,
 and can be continued later through `dual-gate-lockin-resume-check` and
 `--resume-from-run`.
+The chunk audit is intentionally different from strict full-run audit: it
+expects `abort_class: checkpoint`, checks the measured prefix of the planned
+grid, and still requires leakage, SMU readback, output cleanup, and SR860
+setting readback to pass before the next chunk.
 
 After all chunks are measured, stitch them into one analysis-ready run:
 
@@ -642,6 +647,8 @@ commands, and a measurement-parameter table. Review the Keithley voltage range,
 current range, NPLC, source delay, gate sweep, and compliance rows before any
 output is enabled. NPLC is part of the measurement condition because it controls
 the Keithley current integration time in power-line cycles.
+The packet also inserts `dual-gate-lockin-chunk-audit` after each chunk command
+so a clean checkpoint is required before resuming the next chunk.
 
 To reduce manual copy errors, generate a candidate broader recipe from the
 accepted run metadata and only change the gate grid:

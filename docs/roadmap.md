@@ -422,8 +422,14 @@ root.
     parameters, chunked acquisition commands, stitch commands, and strict audit
     in one lab execution packet
   - make NPLC/range/compliance visible before the broader scan starts
-- [ ] Phase 25bc: First Hall-suite chunk acquisition feedback
-  - use lab feedback from the broader packet and first measured chunks
+- [x] Phase 25bc: Dual-gate lock-in checkpoint chunk acceptance
+  - add `ptm dual-gate-lockin-chunk-audit`
+  - accept clean checkpoint runs without requiring full-run completion
+  - still require measured-prefix grid consistency, SMU readback, output
+    cleanup, leakage margin, and SR860 setting readback before resuming
+- [ ] Phase 25bd: First Hall-suite chunk acquisition feedback
+  - use lab feedback from the broader packet, chunk audit, and first measured
+    chunks
   - decide whether chunk size, settle time, NPLC, or SR860 sensitivity needs
     adjustment before full Vxx/+B/-B/0B acquisition
   - keep point-count guard, previous-run acceptance, and preflight mandatory

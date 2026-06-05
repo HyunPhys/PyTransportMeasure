@@ -77,9 +77,11 @@ from .dual_gate_lockin_smoke import (
     run_dual_gate_lockin_readout_smoke,
 )
 from .dual_gate_lockin_review import (
+    audit_dual_gate_lockin_checkpoint_run,
     audit_dual_gate_lockin_scale_up,
     audit_dual_gate_lockin_run,
     format_dual_gate_lockin_acceptance,
+    format_dual_gate_lockin_checkpoint_acceptance,
     format_dual_gate_lockin_scale_up_audit,
     format_dual_gate_lockin_summary,
     format_scale_up_blocking_acceptance_issues,
@@ -427,6 +429,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_audit.add_argument("--write-report", action="store_true")
     dual_gate_lockin_audit.add_argument("--output", type=Path)
+
+    dual_gate_lockin_chunk_audit = subparsers.add_parser(
+        "dual-gate-lockin-chunk-audit",
+        help="Audit a checkpoint chunk run before resuming the next dual-gate lock-in chunk.",
+    )
+    dual_gate_lockin_chunk_audit.add_argument("run_dir", type=Path)
+    dual_gate_lockin_chunk_audit.add_argument(
+        "--allow-missing-lockin-settings",
+        action="store_true",
+        help="Do not fail when saved metadata lacks SR860 setting readback fields.",
+    )
 
     dual_gate_lockin_scale_up_check = subparsers.add_parser(
         "dual-gate-lockin-scale-up-check",
@@ -1515,6 +1528,15 @@ def command_dual_gate_lockin_audit(args: argparse.Namespace) -> int:
             require_lockin_settings=not args.allow_missing_lockin_settings,
         )
         print(f"Dual-gate lock-in acceptance report: {output_path}")
+    return 0 if audit.accepted else 2
+
+
+def command_dual_gate_lockin_chunk_audit(args: argparse.Namespace) -> int:
+    audit = audit_dual_gate_lockin_checkpoint_run(
+        args.run_dir,
+        require_lockin_settings=not args.allow_missing_lockin_settings,
+    )
+    print(format_dual_gate_lockin_checkpoint_acceptance(audit))
     return 0 if audit.accepted else 2
 
 
@@ -2980,6 +3002,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin(args)
     if args.command == "dual-gate-lockin-audit":
         return command_dual_gate_lockin_audit(args)
+    if args.command == "dual-gate-lockin-chunk-audit":
+        return command_dual_gate_lockin_chunk_audit(args)
     if args.command == "dual-gate-lockin-scale-up-check":
         return command_dual_gate_lockin_scale_up_check(args)
     if args.command == "dual-gate-lockin-scale-up-template":

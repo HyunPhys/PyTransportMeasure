@@ -435,6 +435,23 @@ def test_cli_dual_gate_lockin_checkpoint_allows_small_hardware_invocation(tmp_pa
     assert code == 0
     run_dir = list((tmp_path / "raw").glob("*dual_gate_lockin_cli"))[0]
     metadata = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    metadata.setdefault("lockin_probe", {}).update(
+        {
+            "setting_reference_source": "0",
+            "setting_reference_frequency_hz": "17.777",
+            "setting_sine_output_amplitude_v": "0.01",
+            "setting_input_mode": "0",
+            "setting_voltage_input": "0",
+            "setting_input_coupling": "0",
+            "setting_input_grounding": "0",
+            "setting_voltage_input_range_v": "4",
+            "setting_sensitivity_index": "18",
+            "setting_time_constant_index": "10",
+            "setting_filter_slope_index": "3",
+            "setting_synchronous_filter": "0",
+        }
+    )
+    (run_dir / "metadata.json").write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
     assert metadata["abort_class"] == "checkpoint"
     assert metadata["points_written"] == 1
     assert metadata["checkpoint_reached"] is True
@@ -443,6 +460,7 @@ def test_cli_dual_gate_lockin_checkpoint_allows_small_hardware_invocation(tmp_pa
     assert metadata["hardware_guard"]["stop_after_new_points"] == 1
     assert gate1.is_output_on is False
     assert gate2.is_output_on is False
+    assert cli.main(["dual-gate-lockin-chunk-audit", str(run_dir)]) == 0
 
 
 def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_note(tmp_path):
@@ -461,6 +479,14 @@ def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_note(tmp_path):
 
     assert code == 2
     assert not (tmp_path / "raw").exists()
+
+
+def test_cli_dual_gate_lockin_chunk_audit_fails_for_completed_run(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+
+    code = cli.main(["dual-gate-lockin-chunk-audit", str(previous_run)])
+
+    assert code == 2
 
 
 def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_previous_acceptance(tmp_path):
@@ -716,6 +742,7 @@ def test_cli_dual_gate_lockin_broader_scan_packet_writes_lab_runbook(tmp_path):
     assert "ptm dual-gate-lockin-scale-up-check" in text
     assert "ptm dual-gate-lockin-preflight" in text
     assert "ptm dual-gate-lockin-chunk-plan" in text
+    assert "ptm dual-gate-lockin-chunk-audit" in text
     assert "--stop-after-new-points 4 --max-hardware-points 4" in text
     assert "ptm dual-gate-lockin-stitch-chunks" in text
     assert "broader_packet_candidate_chunk_03" in text

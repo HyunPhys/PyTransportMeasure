@@ -242,30 +242,105 @@ def audit_dual_gate_lockin_run(
                 f"expected 0 remaining points, got {remaining_points}",
             )
         )
-    _audit_smu_readback(metadata, "gate1", issues)
-    _audit_smu_readback(metadata, "gate2", issues)
-    _audit_output_cleanup(metadata, "gate1", issues)
-    _audit_output_cleanup(metadata, "gate2", issues)
-    _audit_lockin_probe(metadata, issues)
-    if require_lockin_settings:
-        _audit_lockin_settings(metadata, issues)
-    try:
-        rows = read_dual_gate_lockin_points(path)
-        csv_points = len(rows)
-        leakage = _gate_leakage_acceptance_stats(metadata, rows)
-    except Exception as exc:
-        issues.append(DualGateLockInAcceptanceIssue("error", "points_csv", f"{type(exc).__name__}: {exc}"))
-    else:
-        if points_written is not None and csv_points != points_written:
+    leakage = _audit_dual_gate_lockin_artifacts(
+        path,
+        metadata,
+        issues,
+        points_written=points_written,
+        require_lockin_settings=require_lockin_settings,
+        allow_grid_prefix=False,
+    )
+
+    errors = [issue for issue in issues if issue.severity == "error"]
+    return DualGateLockInAcceptance(
+        run_dir=path,
+        accepted=not errors,
+        measurement_type=measurement_type,
+        completed=completed,
+        points_written=points_written,
+        planned_points=planned_points,
+        remaining_points=remaining_points,
+        gate1_leakage_abs_max_a=leakage["gate1_leakage_abs_max_a"],
+        gate2_leakage_abs_max_a=leakage["gate2_leakage_abs_max_a"],
+        gate1_compliance_a=leakage["gate1_compliance_a"],
+        gate2_compliance_a=leakage["gate2_compliance_a"],
+        gate1_leakage_compliance_margin=leakage["gate1_leakage_compliance_margin"],
+        gate2_leakage_compliance_margin=leakage["gate2_leakage_compliance_margin"],
+        issues=tuple(issues),
+    )
+
+
+def audit_dual_gate_lockin_checkpoint_run(
+    run_dir: str | Path,
+    require_lockin_settings: bool = True,
+) -> DualGateLockInAcceptance:
+    path = Path(run_dir)
+    metadata = read_dual_gate_lockin_metadata(path)
+    issues: list[DualGateLockInAcceptanceIssue] = []
+    measurement_type = metadata.get("measurement_type")
+    completed = metadata.get("completed")
+    points_written = _optional_int(metadata.get("points_written"))
+    planned_points = _optional_int(metadata.get("planned_points"))
+    remaining_points = _optional_int(metadata.get("remaining_points"))
+    rows: list[dict[str, float | int | bool | None]] = []
+    leakage = _gate_leakage_acceptance_stats(metadata, rows)
+
+    if measurement_type != "dual_gate_lockin_sweep":
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "measurement_type",
+                f"expected dual_gate_lockin_sweep, got {measurement_type or 'missing'}",
+            )
+        )
+    if completed is not False:
+        issues.append(DualGateLockInAcceptanceIssue("error", "completed", "checkpoint run should be incomplete"))
+    if metadata.get("abort_class") != "checkpoint":
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "abort_class",
+                f"expected checkpoint, got {metadata.get('abort_class') or 'missing'}",
+            )
+        )
+    if metadata.get("checkpoint_reached") is not True:
+        issues.append(DualGateLockInAcceptanceIssue("error", "checkpoint_reached", "checkpoint was not reached cleanly"))
+    if metadata.get("error_type") or metadata.get("error_message"):
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "error",
+                f"{metadata.get('error_type') or 'unknown'}: {metadata.get('error_message') or ''}".strip(),
+            )
+        )
+    if points_written is None or planned_points is None:
+        issues.append(DualGateLockInAcceptanceIssue("error", "point_count", "points_written/planned_points missing"))
+    elif not (0 < points_written <= planned_points):
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "point_count",
+                f"expected 0 < points_written <= planned_points, got {points_written}/{planned_points}",
+            )
+        )
+    if points_written is not None and planned_points is not None:
+        expected_remaining = planned_points - points_written
+        if remaining_points != expected_remaining:
             issues.append(
                 DualGateLockInAcceptanceIssue(
                     "error",
-                    "points_csv",
-                    f"points.csv row count {csv_points} != metadata points_written {points_written}",
+                    "remaining_points",
+                    f"expected {expected_remaining} remaining points, got {remaining_points}",
                 )
             )
-        _audit_gate_leakage_margin(leakage, rows, issues)
-        _audit_planned_gate_grid(metadata, rows=rows, issues=issues)
+    leakage = _audit_dual_gate_lockin_artifacts(
+        path,
+        metadata,
+        issues,
+        points_written=points_written,
+        require_lockin_settings=require_lockin_settings,
+        allow_grid_prefix=True,
+    )
 
     errors = [issue for issue in issues if issue.severity == "error"]
     return DualGateLockInAcceptance(
@@ -307,6 +382,11 @@ def format_dual_gate_lockin_acceptance(audit: DualGateLockInAcceptance) -> str:
     else:
         lines.append("Issues: none")
     return "\n".join(lines)
+
+
+def format_dual_gate_lockin_checkpoint_acceptance(audit: DualGateLockInAcceptance) -> str:
+    text = format_dual_gate_lockin_acceptance(audit)
+    return text.replace("Dual-gate lock-in acceptance:", "Dual-gate lock-in checkpoint acceptance:", 1)
 
 
 def scale_up_blocking_acceptance_issues(
@@ -529,6 +609,44 @@ def _gate_leakage_acceptance_stats(
     }
 
 
+def _audit_dual_gate_lockin_artifacts(
+    path: Path,
+    metadata: dict[str, Any],
+    issues: list[DualGateLockInAcceptanceIssue],
+    *,
+    points_written: int | None,
+    require_lockin_settings: bool,
+    allow_grid_prefix: bool,
+) -> dict[str, float | None]:
+    _audit_smu_readback(metadata, "gate1", issues)
+    _audit_smu_readback(metadata, "gate2", issues)
+    _audit_output_cleanup(metadata, "gate1", issues)
+    _audit_output_cleanup(metadata, "gate2", issues)
+    _audit_lockin_probe(metadata, issues)
+    if require_lockin_settings:
+        _audit_lockin_settings(metadata, issues)
+
+    leakage = _gate_leakage_acceptance_stats(metadata, [])
+    try:
+        rows = read_dual_gate_lockin_points(path)
+        csv_points = len(rows)
+        leakage = _gate_leakage_acceptance_stats(metadata, rows)
+    except Exception as exc:
+        issues.append(DualGateLockInAcceptanceIssue("error", "points_csv", f"{type(exc).__name__}: {exc}"))
+    else:
+        if points_written is not None and csv_points != points_written:
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    "points_csv",
+                    f"points.csv row count {csv_points} != metadata points_written {points_written}",
+                )
+            )
+        _audit_gate_leakage_margin(leakage, rows, issues)
+        _audit_planned_gate_grid(metadata, rows=rows, issues=issues, allow_prefix=allow_grid_prefix)
+    return leakage
+
+
 def _audit_gate_leakage_margin(
     leakage: dict[str, float | None],
     rows: list[dict[str, float | int | bool | None]],
@@ -672,6 +790,8 @@ def _audit_planned_gate_grid(
     metadata: dict[str, Any],
     rows: list[dict[str, float | int | bool | None]],
     issues: list[DualGateLockInAcceptanceIssue],
+    *,
+    allow_prefix: bool = False,
 ) -> None:
     grid = metadata.get("planned_gate_grid")
     signature = metadata.get("planned_gate_grid_signature")
@@ -703,7 +823,16 @@ def _audit_planned_gate_grid(
                 "planned gate grid signature does not match saved grid",
             )
         )
-    if len(grid) != len(rows):
+    if len(grid) < len(rows):
+        issues.append(
+            DualGateLockInAcceptanceIssue(
+                "error",
+                "planned_gate_grid",
+                f"planned grid length {len(grid)} is shorter than points.csv row count {len(rows)}",
+            )
+        )
+        return
+    if not allow_prefix and len(grid) != len(rows):
         issues.append(
             DualGateLockInAcceptanceIssue(
                 "error",

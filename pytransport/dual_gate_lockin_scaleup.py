@@ -302,8 +302,9 @@ def format_dual_gate_lockin_broader_scan_packet(
             "",
             "```powershell",
             *[
-                _chunk_command(candidate_recipe_path, accepted_run_dir, chunk, max_hardware_points)
+                line
                 for chunk in chunks
+                for line in _chunk_command_block(candidate_recipe_path, accepted_run_dir, chunk, max_hardware_points)
             ],
             "```",
             "",
@@ -380,6 +381,18 @@ def _chunk_command(recipe_path: str | Path, accepted_run_dir: str | Path, chunk,
         f"--stop-after-new-points {chunk.point_count} --max-hardware-points {max_hardware_points} "
         f'--hardware-approval-note "accepted previous run; chunk {chunk.chunk_number}" '
         f"--accepted-previous-run {accepted_run_dir} --yes --progress --plot --report --gate-stats"
+    )
+
+
+def _chunk_command_block(
+    recipe_path: str | Path,
+    accepted_run_dir: str | Path,
+    chunk,
+    max_hardware_points: int,
+) -> tuple[str, str]:
+    return (
+        _chunk_command(recipe_path, accepted_run_dir, chunk, max_hardware_points),
+        f"ptm dual-gate-lockin-chunk-audit data\\raw\\<chunk_{chunk.chunk_number:02d}_run_folder>",
     )
 
 
