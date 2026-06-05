@@ -871,6 +871,12 @@ root.
     commands that rerun preflight internally
   - preserve existing command behavior when the evidence option is omitted
   - test that active command paths pass the evidence file into preflight
+- [x] Phase 25dan: Measurement-parameter audit evidence gate
+  - add `ptm measurement-parameter-audit-check` for saved audit JSON files
+  - compare saved Keithley/SR860 measurement conditions against the current
+    recipe before hardware preflight
+  - add optional `--measurement-audit-json` gates to guarded AC/dual-gate
+    lock-in preflight and hardware commands
 
 ## Next GUI
 

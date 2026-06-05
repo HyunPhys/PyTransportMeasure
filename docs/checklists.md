@@ -171,6 +171,19 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ```
 - [ ] Also pass the same `--sr860-configure-json` to the guarded hardware command
   because hardware commands rerun preflight internally before output/readout.
+- [ ] Generate and save a measurement-parameter audit JSON after editing any
+  hardware recipe.
+  ```powershell
+  ptm measurement-parameter-audit dual_gate_lockin_sweep configs\recipes\<dual_gate_lockin_recipe>.yaml --json-output docs\<sample>_measurement_audit.json
+  ```
+- [ ] Before hardware preflight, confirm the saved audit still matches the
+  current recipe.
+  ```powershell
+  ptm measurement-parameter-audit-check dual_gate_lockin_sweep configs\recipes\<dual_gate_lockin_recipe>.yaml docs\<sample>_measurement_audit.json
+  ```
+- [ ] Pass the same saved audit to guarded lock-in preflight or hardware
+  commands with `--measurement-audit-json`; if it fails, inspect NPLC, ranges,
+  compliance, source delay, and SR860 settings before regenerating the audit.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

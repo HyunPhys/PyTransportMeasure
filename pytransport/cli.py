@@ -185,11 +185,14 @@ from .measurement_parameters import (
     audit_smu_hardware_parameters,
     assert_explicit_nplc_for_hardware,
     assert_required_smu_parameters_for_hardware,
+    build_measurement_parameter_audit_payload,
+    check_measurement_parameter_audit_evidence_file,
+    format_measurement_parameter_audit_evidence_check,
     format_measurement_parameter_audit,
     format_smu_hardware_parameter_audit,
-    measurement_parameter_audit_to_dict,
     missing_required_smu_hardware_parameters,
     smu_hardware_parameter_audit_to_dict,
+    write_measurement_parameter_audit_evidence_check_json,
 )
 from .model import MeasurementPoint
 from .plot import write_iv_svg
@@ -482,6 +485,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Require a saved SR860 configure transcript to match the current recipe during preflight.",
     )
+    dual_gate_lockin_preflight.add_argument(
+        "--measurement-audit-json",
+        type=Path,
+        help="Require a saved measurement-parameter audit JSON to match the current recipe before preflight.",
+    )
 
     dual_gate_lockin_resume_check = subparsers.add_parser(
         "dual-gate-lockin-resume-check",
@@ -521,6 +529,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
     )
+    dual_gate_lockin_smoke.add_argument(
+        "--measurement-audit-json",
+        type=Path,
+        help="Require a saved measurement-parameter audit JSON to match the current recipe before hardware preflight.",
+    )
 
     dual_gate_lockin_active_smoke = subparsers.add_parser(
         "dual-gate-lockin-active-smoke",
@@ -546,6 +559,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--sr860-configure-json",
         type=Path,
         help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
+    dual_gate_lockin_active_smoke.add_argument(
+        "--measurement-audit-json",
+        type=Path,
+        help="Require a saved measurement-parameter audit JSON to match the current recipe before hardware preflight.",
     )
 
     dual_gate_lockin = subparsers.add_parser("dual-gate-lockin", help="Run a dual-gate lock-in recipe. Current milestone is dry-run only.")
@@ -602,6 +620,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--sr860-configure-json",
         type=Path,
         help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
+    dual_gate_lockin.add_argument(
+        "--measurement-audit-json",
+        type=Path,
+        help="Require a saved measurement-parameter audit JSON to match the current recipe before hardware preflight.",
     )
 
     dual_gate_lockin_audit = subparsers.add_parser(
@@ -1058,6 +1081,11 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Require a saved SR860 configure transcript to match the current recipe during preflight.",
     )
+    ac_lockin_preflight.add_argument(
+        "--measurement-audit-json",
+        type=Path,
+        help="Require a saved measurement-parameter audit JSON to match the current recipe before preflight.",
+    )
 
     ac_lockin = subparsers.add_parser("ac-lockin", help="Run an AC/lock-in bias sweep recipe.")
     ac_lockin.add_argument("recipe", type=Path)
@@ -1081,6 +1109,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--sr860-configure-json",
         type=Path,
         help="Require a saved SR860 configure transcript to match the current recipe during hardware preflight.",
+    )
+    ac_lockin.add_argument(
+        "--measurement-audit-json",
+        type=Path,
+        help="Require a saved measurement-parameter audit JSON to match the current recipe before hardware preflight.",
     )
 
     ac_lockin_lab_smoke_intake = subparsers.add_parser(
@@ -1136,6 +1169,15 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_parameter_audit.add_argument("measurement_type", choices=known_measurement_types())
     measurement_parameter_audit.add_argument("recipe", type=Path)
     measurement_parameter_audit.add_argument("--json-output", type=Path)
+
+    measurement_parameter_audit_check = subparsers.add_parser(
+        "measurement-parameter-audit-check",
+        help="Verify a saved measurement-parameter audit JSON against the current recipe without hardware.",
+    )
+    measurement_parameter_audit_check.add_argument("measurement_type", choices=known_measurement_types())
+    measurement_parameter_audit_check.add_argument("recipe", type=Path)
+    measurement_parameter_audit_check.add_argument("audit_json", type=Path)
+    measurement_parameter_audit_check.add_argument("--json-output", type=Path)
 
     measurement_parameter_audit_dir = subparsers.add_parser(
         "measurement-parameter-audit-dir",
@@ -1865,6 +1907,8 @@ def command_dual_gate_lockin_chunk_plan(args: argparse.Namespace) -> int:
 
 
 def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
+    if not measurement_audit_evidence_ok_from_args(args, "dual_gate_lockin_sweep"):
+        return 2
     report = run_dual_gate_lockin_preflight_from_args(args)
     print(format_dual_gate_lockin_preflight_report(report))
     return 0 if report.ok else 1
@@ -1941,6 +1985,8 @@ def command_dual_gate_lockin_smoke(args: argparse.Namespace) -> int:
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 2
+        if not measurement_audit_evidence_ok_from_args(args, method.measurement_type, recipe=recipe):
+            return 2
         report = run_dual_gate_lockin_preflight_from_args(args)
         preflight_text = format_dual_gate_lockin_preflight_report(report)
         print(preflight_text)
@@ -2004,6 +2050,8 @@ def command_dual_gate_lockin_active_smoke(args: argparse.Namespace) -> int:
             assert_required_smu_parameters_for_hardware(recipe, roles=("gate1", "gate2"))
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
+            return 2
+        if not measurement_audit_evidence_ok_from_args(args, method.measurement_type, recipe=recipe):
             return 2
         report = run_dual_gate_lockin_preflight_from_args(args)
         preflight_text = format_dual_gate_lockin_preflight_report(report)
@@ -2072,6 +2120,8 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             args.stop_after_new_points,
         )
     if not args.dry_run and not args.allow_active_sweep:
+        if not measurement_audit_evidence_ok_from_args(args, method.measurement_type, recipe=recipe):
+            return 2
         report = run_dual_gate_lockin_preflight_from_args(args)
         print(format_dual_gate_lockin_preflight_report(report))
         print()
@@ -2160,6 +2210,8 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
             assert_required_smu_parameters_for_hardware(recipe, roles=("gate1", "gate2"))
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
+            return 2
+        if not measurement_audit_evidence_ok_from_args(args, method.measurement_type, recipe=recipe):
             return 2
         report = run_dual_gate_lockin_preflight_from_args(args)
         print(format_dual_gate_lockin_preflight_report(report))
@@ -3009,6 +3061,8 @@ def command_ac_lockin_plan(args: argparse.Namespace) -> int:
 
 
 def command_ac_lockin_preflight(args: argparse.Namespace) -> int:
+    if not measurement_audit_evidence_ok_from_args(args, "ac_lockin_sweep"):
+        return 2
     report = run_ac_lockin_preflight_from_args(args)
     print(format_ac_lockin_preflight_report(report))
     return 0 if report.ok else 2
@@ -3051,6 +3105,8 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
             )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
+            return 2
+        if not measurement_audit_evidence_ok_from_args(args, method.measurement_type, recipe=recipe):
             return 2
         guard_text = format_four_terminal_ac_hardware_guard(hardware_guard)
         if guard_text:
@@ -3504,17 +3560,62 @@ def command_keithley_parameter_audit(args: argparse.Namespace) -> int:
 def command_measurement_parameter_audit(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type(args.measurement_type)
     recipe = method.load_recipe(args.recipe)
-    payload = {
-        "measurement_type": method.measurement_type,
-        "recipe": str(args.recipe),
-        **measurement_parameter_audit_to_dict(recipe),
-    }
+    payload = build_measurement_parameter_audit_payload(method.measurement_type, args.recipe, recipe)
     if args.json_output:
         args.json_output.parent.mkdir(parents=True, exist_ok=True)
         args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
         print(f"Measurement parameter audit JSON: {args.json_output}")
     print(format_measurement_parameter_audit(recipe))
     return 0 if payload["ok_for_hardware"] else 2
+
+
+def command_measurement_parameter_audit_check(args: argparse.Namespace) -> int:
+    try:
+        method = handler_for_measurement_type(args.measurement_type)
+        recipe = method.load_recipe(args.recipe)
+        payload = check_measurement_parameter_audit_evidence_file(
+            method.measurement_type,
+            args.recipe,
+            recipe,
+            args.audit_json,
+        )
+    except Exception as exc:
+        print(f"Measurement parameter audit evidence check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_measurement_parameter_audit_evidence_check_json(payload, args.json_output)
+        print(f"Measurement parameter audit evidence check JSON: {output_path}")
+    print(format_measurement_parameter_audit_evidence_check(payload))
+    return 0 if payload["ok"] else 2
+
+
+def measurement_audit_evidence_ok_from_args(
+    args: argparse.Namespace,
+    measurement_type: str,
+    *,
+    recipe: object | None = None,
+) -> bool:
+    audit_json = getattr(args, "measurement_audit_json", None)
+    if audit_json is None:
+        return True
+    try:
+        method = handler_for_measurement_type(measurement_type)
+        loaded_recipe = recipe if recipe is not None else method.load_recipe(args.recipe)
+        payload = check_measurement_parameter_audit_evidence_file(
+            method.measurement_type,
+            args.recipe,
+            loaded_recipe,
+            audit_json,
+        )
+    except Exception as exc:
+        print(f"Measurement parameter audit evidence check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return False
+    print(format_measurement_parameter_audit_evidence_check(payload))
+    print()
+    if not payload["ok"]:
+        print("Hardware preflight blocked because saved measurement-parameter audit no longer matches the recipe.", file=sys.stderr)
+        return False
+    return True
 
 
 def command_measurement_parameter_audit_dir(args: argparse.Namespace) -> int:
@@ -4497,6 +4598,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_keithley_parameter_audit(args)
     if args.command == "measurement-parameter-audit":
         return command_measurement_parameter_audit(args)
+    if args.command == "measurement-parameter-audit-check":
+        return command_measurement_parameter_audit_check(args)
     if args.command == "measurement-parameter-audit-dir":
         return command_measurement_parameter_audit_dir(args)
     if args.command == "sr860-command-review":

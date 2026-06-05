@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
 from typing import Any
 
 from .instrument_specs import KEITHLEY_2450_CURRENT_NPLC_MAX, KEITHLEY_2450_CURRENT_NPLC_MIN
@@ -364,6 +366,128 @@ def measurement_parameter_audit_to_dict(recipe: Any) -> dict[str, Any]:
     }
 
 
+def build_measurement_parameter_audit_payload(
+    measurement_type: str,
+    recipe_path: str | Path,
+    recipe: Any,
+) -> dict[str, Any]:
+    return {
+        "schema": "pytransport.measurement_parameter_audit.v1",
+        "measurement_type": measurement_type,
+        "recipe": str(recipe_path),
+        **measurement_parameter_audit_to_dict(recipe),
+    }
+
+
+def load_measurement_parameter_audit_json(path: str | Path) -> dict[str, Any]:
+    return json.loads(Path(path).read_text(encoding="utf-8"))
+
+
+def check_measurement_parameter_audit_evidence(
+    measurement_type: str,
+    recipe_path: str | Path,
+    recipe: Any,
+    saved_payload: dict[str, Any],
+) -> dict[str, Any]:
+    current_payload = build_measurement_parameter_audit_payload(measurement_type, recipe_path, recipe)
+    checks = [
+        _evidence_check(
+            "schema",
+            saved_payload.get("schema") in {None, current_payload["schema"]},
+            f"expected {current_payload['schema']}",
+            saved_payload.get("schema"),
+        ),
+        _evidence_check(
+            "measurement_type",
+            saved_payload.get("measurement_type") == current_payload["measurement_type"],
+            current_payload["measurement_type"],
+            saved_payload.get("measurement_type"),
+        ),
+        _evidence_check(
+            "recipe",
+            _same_recipe_path(saved_payload.get("recipe"), current_payload["recipe"]),
+            current_payload["recipe"],
+            saved_payload.get("recipe"),
+        ),
+        _evidence_check(
+            "ok_for_hardware",
+            saved_payload.get("ok_for_hardware") == current_payload["ok_for_hardware"],
+            current_payload["ok_for_hardware"],
+            saved_payload.get("ok_for_hardware"),
+        ),
+        _evidence_check(
+            "smu_parameters",
+            saved_payload.get("smu") == current_payload["smu"],
+            current_payload["smu"],
+            saved_payload.get("smu"),
+        ),
+        _evidence_check(
+            "lockin_parameters",
+            saved_payload.get("lockin") == current_payload["lockin"],
+            current_payload["lockin"],
+            saved_payload.get("lockin"),
+        ),
+    ]
+    return {
+        "schema": "pytransport.measurement_parameter_audit_evidence.v1",
+        "ok": all(check["ok"] for check in checks),
+        "measurement_type": measurement_type,
+        "recipe": str(recipe_path),
+        "checks": checks,
+        "current_audit": current_payload,
+        "saved_audit": saved_payload,
+    }
+
+
+def check_measurement_parameter_audit_evidence_file(
+    measurement_type: str,
+    recipe_path: str | Path,
+    recipe: Any,
+    audit_json: str | Path,
+) -> dict[str, Any]:
+    payload = check_measurement_parameter_audit_evidence(
+        measurement_type,
+        recipe_path,
+        recipe,
+        load_measurement_parameter_audit_json(audit_json),
+    )
+    return {"audit_json": str(audit_json), **payload}
+
+
+def format_measurement_parameter_audit_evidence_check(payload: dict[str, Any]) -> str:
+    lines = [
+        "Measurement parameter audit evidence check",
+        f"Audit JSON: {payload.get('audit_json', 'n/a')}",
+        f"Measurement type: {payload['measurement_type']}",
+        f"Recipe: {payload['recipe']}",
+        f"OK: {payload['ok']}",
+        "",
+        "| Check | OK | Expected/current | Saved |",
+        "| --- | --- | --- | --- |",
+    ]
+    for check in payload["checks"]:
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    check["key"],
+                    str(check["ok"]),
+                    _fmt_evidence_value(check["expected"]),
+                    _fmt_evidence_value(check["actual"]),
+                ]
+            )
+            + " |"
+        )
+    return "\n".join(lines)
+
+
+def write_measurement_parameter_audit_evidence_check_json(payload: dict[str, Any], output_path: str | Path) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def format_smu_hardware_parameter_audit(audits: tuple[SMUHardwareParameterAudit, ...]) -> str:
     lines = [
         "Keithley SMU hardware parameter audit",
@@ -472,6 +596,35 @@ def format_measurement_parameter_audit(recipe: Any) -> str:
             format_lockin_hardware_parameter_audit(audit_lockin_hardware_parameters(recipe)),
         ]
     )
+
+
+def _evidence_check(key: str, ok: bool, expected: Any, actual: Any) -> dict[str, Any]:
+    return {
+        "key": key,
+        "ok": bool(ok),
+        "expected": expected,
+        "actual": actual,
+    }
+
+
+def _same_recipe_path(saved: Any, current: str) -> bool:
+    if saved is None:
+        return False
+    try:
+        return Path(str(saved)).resolve() == Path(current).resolve()
+    except OSError:
+        return str(saved).replace("\\", "/") == str(current).replace("\\", "/")
+
+
+def _fmt_evidence_value(value: Any) -> str:
+    if isinstance(value, (dict, list)):
+        text = json.dumps(value, sort_keys=True)
+    else:
+        text = str(value)
+    text = text.replace("|", "\\|")
+    if len(text) > 120:
+        return text[:117] + "..."
+    return text
 
 
 def missing_explicit_nplc(recipe: Any, roles: tuple[str, ...] | None = None) -> tuple[MeasurementParameterIssue, ...]:

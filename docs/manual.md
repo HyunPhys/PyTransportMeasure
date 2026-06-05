@@ -1679,6 +1679,26 @@ measurement depends on lock-in settings. A PASS result means the recipe declares
 the intended Keithley NPLC/ranges and the intended SR860 measurement
 conditions; it does not replace the live hardware preflight/readback.
 
+After saving an audit JSON, use the evidence check whenever the recipe may have
+changed:
+
+```powershell
+ptm measurement-parameter-audit-check dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml docs\dual_gate_lockin_measurement_audit.json
+```
+
+The check recomputes the current recipe audit and compares Keithley/SR860
+measurement conditions against the saved JSON. Guarded lock-in preflight and
+hardware commands can require the same evidence:
+
+```powershell
+ptm ac-lockin-preflight configs\recipes\ac_lockin_hardware_smoke.yaml --measurement-audit-json docs\ac_measurement_audit.json
+ptm dual-gate-lockin-preflight configs\recipes\dual_gate_lockin_limited_active.yaml --measurement-audit-json docs\dual_gate_measurement_audit.json
+```
+
+If this check fails, treat it as measurement-condition drift. Review NPLC,
+voltage/current ranges, compliance, source delay, and SR860 settings before
+regenerating the audit JSON.
+
 To review the exact SR860 setting commands implied by a lock-in recipe, use:
 
 ```powershell

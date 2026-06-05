@@ -117,6 +117,57 @@ def test_cli_measurement_parameter_audit_writes_combined_json_for_complete_recip
     assert payload["lockin"]["ok_for_hardware"] is True
     assert payload["lockin"]["roles"][0]["sensitivity_index"] == 18
     assert payload["lockin"]["roles"][0]["settle_policy_ok"] is True
+    assert payload["schema"] == "pytransport.measurement_parameter_audit.v1"
+
+
+def test_cli_measurement_parameter_audit_check_passes_for_current_recipe(tmp_path):
+    recipe = write_dual_gate_lockin_recipe(tmp_path, complete_lockin_settings=True)
+    audit = tmp_path / "measurement_audit.json"
+    check_json = tmp_path / "measurement_audit_check.json"
+
+    assert cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe), "--json-output", str(audit)]) == 0
+    code = cli.main(
+        [
+            "measurement-parameter-audit-check",
+            "dual_gate_lockin_sweep",
+            str(recipe),
+            str(audit),
+            "--json-output",
+            str(check_json),
+        ]
+    )
+
+    payload = json.loads(check_json.read_text(encoding="utf-8"))
+    assert code == 0
+    assert payload["ok"] is True
+    assert payload["audit_json"] == str(audit)
+
+
+def test_cli_measurement_parameter_audit_check_fails_when_nplc_drifts(tmp_path):
+    recipe = write_dual_gate_lockin_recipe(tmp_path, complete_lockin_settings=True)
+    audit = tmp_path / "measurement_audit.json"
+
+    assert cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe), "--json-output", str(audit)]) == 0
+    recipe.write_text(recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "  nplc: 3.0\n", 1), encoding="utf-8")
+    code = cli.main(["measurement-parameter-audit-check", "dual_gate_lockin_sweep", str(recipe), str(audit)])
+
+    assert code == 2
+
+
+def test_cli_dual_gate_lockin_preflight_blocks_stale_measurement_audit(tmp_path, monkeypatch):
+    recipe = write_dual_gate_lockin_recipe(tmp_path, complete_lockin_settings=True)
+    audit = tmp_path / "measurement_audit.json"
+    assert cli.main(["measurement-parameter-audit", "dual_gate_lockin_sweep", str(recipe), "--json-output", str(audit)]) == 0
+    recipe.write_text(recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "  nplc: 3.0\n", 1), encoding="utf-8")
+
+    def fail_if_preflight_runs(*args, **kwargs):
+        raise AssertionError("preflight should not run with stale measurement audit evidence")
+
+    monkeypatch.setattr(cli, "run_dual_gate_lockin_preflight", fail_if_preflight_runs)
+
+    code = cli.main(["dual-gate-lockin-preflight", str(recipe), "--measurement-audit-json", str(audit)])
+
+    assert code == 2
 
 
 def test_cli_measurement_parameter_audit_returns_nonzero_for_missing_lockin_conditions(tmp_path):

@@ -4,6 +4,9 @@ from pytransport.measurement_parameters import (
     audit_lockin_hardware_parameters,
     audit_smu_hardware_parameters,
     assert_required_smu_parameters_for_hardware,
+    build_measurement_parameter_audit_payload,
+    check_measurement_parameter_audit_evidence,
+    format_measurement_parameter_audit_evidence_check,
     format_lockin_hardware_parameter_audit,
     format_measurement_parameter_issues,
     format_measurement_parameter_audit,
@@ -314,3 +317,68 @@ def test_lockin_hardware_parameter_audit_flags_missing_settings_and_settle_polic
     assert audits[0].settle_policy_ok is False
     assert payload["ok_for_hardware"] is False
     assert "MISSING positive settle policy" in text
+
+
+def test_measurement_parameter_audit_evidence_passes_for_same_recipe(tmp_path: Path):
+    recipe_path = tmp_path / "drain.yaml"
+    recipe = DrainIVRecipe.model_validate(
+        {
+            "measurement_name": "audit_evidence",
+            "instrument": {
+                "id": "keithley_2450",
+                "address": "GPIB0::2::INSTR",
+                "voltage_range_v": 0.1,
+                "current_range_a": 1e-7,
+                "nplc": 1.0,
+            },
+            "sweep": {
+                "start_v": -0.001,
+                "stop_v": 0.001,
+                "points": 3,
+                "delay_s": 0,
+                "current_compliance_a": 1e-7,
+            },
+            "output": {"directory": tmp_path / "raw"},
+        }
+    )
+    saved = build_measurement_parameter_audit_payload("drain_iv", recipe_path, recipe)
+
+    payload = check_measurement_parameter_audit_evidence("drain_iv", recipe_path, recipe, saved)
+    text = format_measurement_parameter_audit_evidence_check(payload)
+
+    assert payload["ok"] is True
+    assert all(check["ok"] for check in payload["checks"])
+    assert "Measurement parameter audit evidence check" in text
+    assert "OK: True" in text
+
+
+def test_measurement_parameter_audit_evidence_fails_on_nplc_drift(tmp_path: Path):
+    recipe_path = tmp_path / "drain.yaml"
+    original = DrainIVRecipe.model_validate(
+        {
+            "measurement_name": "audit_evidence_drift",
+            "instrument": {
+                "id": "keithley_2450",
+                "address": "GPIB0::2::INSTR",
+                "voltage_range_v": 0.1,
+                "current_range_a": 1e-7,
+                "nplc": 1.0,
+            },
+            "sweep": {
+                "start_v": -0.001,
+                "stop_v": 0.001,
+                "points": 3,
+                "delay_s": 0,
+                "current_compliance_a": 1e-7,
+            },
+            "output": {"directory": tmp_path / "raw"},
+        }
+    )
+    changed = original.model_copy(update={"instrument": original.instrument.model_copy(update={"nplc": 3.0})})
+    saved = build_measurement_parameter_audit_payload("drain_iv", recipe_path, original)
+
+    payload = check_measurement_parameter_audit_evidence("drain_iv", recipe_path, changed, saved)
+
+    failed = [check["key"] for check in payload["checks"] if not check["ok"]]
+    assert payload["ok"] is False
+    assert failed == ["smu_parameters"]
