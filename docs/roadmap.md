@@ -612,10 +612,14 @@ root.
     measurement without wiring it into active runners
   - verify exact `:SENS:CURR:RSEN ON/OFF` command and readback behavior with
     fake VISA before any hardware run exists
-- [ ] Phase 25co: Four-terminal DC preflight readback gate
+- [x] Phase 25co: Four-terminal DC preflight readback gate
   - add non-output preflight readback planning for `:SENS:CURR:RSEN?`
   - keep remote-sense output blocked until preflight proves terminal, range,
     NPLC, compliance, and remote-sense readback checks are available
+- [ ] Phase 25cp: Four-terminal DC fake metadata runner skeleton
+  - add a dry-run/fake artifact path for four-terminal DC metadata and reports
+  - keep real Keithley remote-sense output blocked until lab preflight feedback
+    confirms the readback gate
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

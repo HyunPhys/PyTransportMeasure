@@ -4,8 +4,10 @@ import pytest
 
 from pytransport.cli import main
 from pytransport.four_terminal_dc import (
+    format_four_terminal_dc_preflight,
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
+    run_four_terminal_dc_preflight,
 )
 from pytransport.recipes import FourTerminalDCRecipe, load_four_terminal_dc_recipe
 
@@ -71,6 +73,46 @@ implementation_status: schema_draft_non_executable
     )
 
 
+class FakeKeithleyFourTerminalPreflight:
+    def __init__(self, address, timeout_ms):
+        self.address = address
+        self.timeout_ms = timeout_ms
+        self.connected = False
+        self.closed = False
+
+    def connect(self):
+        self.connected = True
+
+    def probe(self):
+        return {
+            "address": self.address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,1234567,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        }
+
+    def read_current_remote_sense(self):
+        return "0"
+
+    def read_voltage_source_config(self):
+        return {
+            "source_function": "VOLT",
+            "sense_function": '"CURR"',
+            "terminal": "FRONT",
+            "current_nplc": "1",
+            "current_range": "1.0E-7",
+            "current_range_auto": "0",
+            "voltage_range": "0.1",
+            "source_delay": "0.1",
+            "voltage_readback": "1",
+            "source_current_limit": None,
+            "source_current_limit_query": None,
+        }
+
+    def close(self):
+        self.closed = True
+
+
 def test_four_terminal_dc_schema_draft_sample_loads():
     recipe = load_four_terminal_dc_recipe("configs/recipes/four_terminal_dc_schema_draft.yaml")
 
@@ -119,7 +161,7 @@ def test_four_terminal_dc_design_gate_accepts_candidate_recipe_but_keeps_blocker
     assert report.measurement_geometry == {"method": "four_terminal", "terminal_count": 4, "notes": "Future Keithley remote-sense DC recipe; design gate only."}
     assert ("blocker", "runner") in issues
     assert ("info", "driver") in issues
-    assert ("blocker", "preflight") in issues
+    assert ("info", "preflight") in issues
     assert ("warning", "schema") in issues
     assert not any(issue.field.startswith("instrument.") for issue in report.issues)
 
@@ -134,7 +176,55 @@ def test_four_terminal_dc_design_gate_accepts_schema_draft_recipe(tmp_path):
     assert report.measurement_name == "schema_draft_four_terminal_dc"
     assert ("warning", "schema") not in issues
     assert ("info", "driver") in issues
-    assert ("blocker", "preflight") in issues
+    assert ("info", "preflight") in issues
+
+
+def test_four_terminal_dc_preflight_dry_check_keeps_active_hardware_blocked():
+    report = run_four_terminal_dc_preflight(
+        "configs/recipes/four_terminal_dc_schema_draft.yaml",
+        dry_check=True,
+    )
+    text = format_four_terminal_dc_preflight(report)
+
+    assert report.preflight_passed is True
+    assert report.dry_check is True
+    assert report.hardware_checked is False
+    assert report.active_hardware_run_allowed is False
+    assert any(check.name == "explicit_nplc" and check.ok for check in report.checks)
+    assert "NPLC is a measurement condition" in text
+
+
+def test_four_terminal_dc_preflight_probes_remote_sense_without_runner():
+    report = run_four_terminal_dc_preflight(
+        "configs/recipes/four_terminal_dc_schema_draft.yaml",
+        instrument_factory=FakeKeithleyFourTerminalPreflight,
+    )
+    checks = {check.name: check for check in report.checks}
+
+    assert report.preflight_passed is True
+    assert report.hardware_checked is True
+    assert report.hardware_connected is True
+    assert report.active_hardware_run_allowed is False
+    assert report.language == "SCPI"
+    assert report.remote_sense_readback == "0"
+    assert checks["remote_sense_readback_available"].ok is True
+    assert checks["nplc_readback_available"].ok is True
+    assert checks["current_range_readback_available"].ok is True
+    assert checks["voltage_range_readback_available"].ok is True
+
+
+def test_four_terminal_dc_preflight_reports_failed_hardware_readback():
+    class FailingRemoteSense(FakeKeithleyFourTerminalPreflight):
+        def read_current_remote_sense(self):
+            return 'ERROR after :SENS:CURR:RSEN?: -113,"Undefined header"'
+
+    report = run_four_terminal_dc_preflight(
+        "configs/recipes/four_terminal_dc_schema_draft.yaml",
+        instrument_factory=FailingRemoteSense,
+    )
+
+    assert report.preflight_passed is False
+    assert any(check.name == "remote_sense_readback_available" and not check.ok for check in report.checks)
 
 
 def test_cli_four_terminal_dc_design_gate_outputs_text_and_json(tmp_path, capsys):
@@ -168,3 +258,24 @@ def test_cli_four_terminal_dc_validate_outputs_pass_and_json(capsys):
     assert main(["four-terminal-dc-validate", recipe, "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["implementation_status"] == "schema_draft_non_executable"
+
+
+def test_cli_four_terminal_dc_preflight_dry_check_outputs_text_and_json(tmp_path, capsys):
+    recipe = "configs/recipes/four_terminal_dc_schema_draft.yaml"
+    output = tmp_path / "preflight.json"
+
+    assert main(["four-terminal-dc-preflight", recipe, "--dry-check"]) == 0
+    text = capsys.readouterr().out
+    assert "Four-terminal DC preflight" in text
+    assert "Active hardware run allowed: False" in text
+    assert "Hardware checked: False" in text
+
+    assert main(["four-terminal-dc-preflight", recipe, "--dry-check", "--json-output", str(output)]) == 0
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert saved["dry_check"] is True
+    assert saved["preflight_passed"] is True
+    capsys.readouterr()
+
+    assert main(["four-terminal-dc-preflight", recipe, "--dry-check", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["active_hardware_run_allowed"] is False

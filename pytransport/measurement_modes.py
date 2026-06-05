@@ -77,7 +77,10 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         primary_instruments=("Keithley 2450 source", "Keithley 2450 voltage-sense or sense terminals"),
         recipe_examples=("configs/recipes/four_terminal_dc_schema_draft.yaml",),
         plan_commands=(),
-        preflight_commands=(),
+        preflight_commands=(
+            "ptm four-terminal-dc-preflight configs/recipes/four_terminal_dc_schema_draft.yaml --dry-check",
+            "ptm four-terminal-dc-preflight configs/recipes/four_terminal_dc_schema_draft.yaml",
+        ),
         run_commands=(),
         guarded_parameters=(
             "source Keithley NPLC/range/compliance",
@@ -87,10 +90,11 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         ),
         safety_gates=(
             "do not enable output until 4-probe contact topology validates",
-            "verify 2450 remote-sense SCPI from manual before implementation",
+            "read :SENS:CURR:RSEN? before any future output path",
+            "keep active hardware run disabled while preflight is being verified",
         ),
-        current_limitations=("No active runner yet; intentionally left as TODO for future 4-probe DC phase.",),
-        next_step="Add four-terminal DC preflight readback for :SENS:CURR:RSEN? before any active output path.",
+        current_limitations=("No active runner yet; preflight can probe hardware but cannot enable output.",),
+        next_step="Run four-terminal-dc-preflight on the lab laptop, then add a fake metadata runner skeleton.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

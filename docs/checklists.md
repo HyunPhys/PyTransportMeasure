@@ -1146,6 +1146,27 @@ Use this checklist before pulse hardware work begins.
 - [ ] If the bundle is large, rerun with `--no-points`, `--no-plots`, or
   `--no-reports` as appropriate.
 
+## Four-Terminal DC Preflight Checklist
+
+- [ ] Confirm the recipe has `measurement_geometry.method: four_terminal` and
+  `terminal_count: 4`.
+- [ ] Confirm `contacts.source_contact`, `drain_contact`, `sense_hi_contact`,
+  and `sense_lo_contact` match the actual fixture wiring.
+- [ ] Confirm `instrument.nplc`, `voltage_range_v`, `current_range_a`, and
+  `sweep.current_compliance_a` are deliberate measurement settings.
+- [ ] Run:
+  ```powershell
+  ptm four-terminal-dc-preflight configs\recipes\four_terminal_dc_schema_draft.yaml --dry-check
+  ```
+- [ ] Confirm `Preflight passed: True`.
+- [ ] On the lab laptop, run the same command without `--dry-check`.
+- [ ] Confirm `Command set: SCPI`.
+- [ ] Confirm `Remote sense readback (:SENS:CURR:RSEN?)` is readable.
+- [ ] Confirm terminal, NPLC, current range, and voltage range readback checks
+  are PASS, or record which one is unavailable.
+- [ ] Confirm `Active hardware run allowed: False`.
+- [ ] Do not enable four-terminal DC output yet.
+
 ## Development Checklist
 
 - [ ] Keep hardware logic out of CLI argument handling.

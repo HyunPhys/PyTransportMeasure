@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from pydantic import ValidationError
 
@@ -39,6 +39,43 @@ class FourTerminalDCDesignGate:
     def to_dict(self) -> dict[str, Any]:
         payload = asdict(self)
         payload["issues"] = [issue.to_dict() for issue in self.issues]
+        return payload
+
+
+@dataclass(frozen=True)
+class FourTerminalDCPreflightCheck:
+    name: str
+    ok: bool
+    expected: str | None = None
+    actual: str | None = None
+    message: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class FourTerminalDCPreflightReport:
+    recipe_path: str
+    measurement_name: str
+    address: str
+    dry_check: bool
+    hardware_checked: bool
+    hardware_connected: bool
+    active_hardware_run_allowed: bool
+    preflight_passed: bool
+    idn: str | None
+    language: str | None
+    system_error: str | None
+    remote_sense_readback: str | None
+    readback_snapshot: dict[str, str | None]
+    error_type: str | None
+    error_message: str | None
+    checks: tuple[FourTerminalDCPreflightCheck, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["checks"] = [check.to_dict() for check in self.checks]
         return payload
 
 
@@ -84,8 +121,7 @@ REQUIRED_CONTACT_GUARDS = (
 IMPLEMENTATION_TODOS = (
     "Keep the FourTerminalDCRecipe schema non-executable until preflight and runner phases pass.",
     "Add fake driver metadata support without claiming improved physics.",
-    "Keep Keithley current remote-sense driver primitive out of active runners until preflight exists.",
-    "Add preflight readback for :SENS:CURR:RSEN? before enabling output.",
+    "Require a passing four-terminal-dc-preflight report before adding an active runner.",
     "Add resistor/contact-fixture hardware smoke recipe only after preflight and runner tests pass.",
 )
 
@@ -103,9 +139,9 @@ def inspect_four_terminal_dc_design_gate(recipe_path: str | Path | None = None) 
             message="Keithley 2450 current remote-sense primitive exists but is not wired into active runners.",
         ),
         FourTerminalDCDesignIssue(
-            severity="blocker",
+            severity="info",
             field="preflight",
-            message="No active preflight readback checks :SENS:CURR:RSEN? before output.",
+            message="four-terminal-dc-preflight checks recipe parameters and :SENS:CURR:RSEN? without enabling output.",
         ),
     ]
     measurement_name = None
@@ -243,3 +279,274 @@ def format_four_terminal_dc_recipe_validation(recipe: FourTerminalDCRecipe, reci
             "Active hardware run allowed: False",
         ]
     )
+
+
+def run_four_terminal_dc_preflight(
+    recipe_path: str | Path,
+    *,
+    address: str | None = None,
+    timeout_ms: int | None = None,
+    dry_check: bool = False,
+    instrument_factory: Callable[[str, int], Any] | None = None,
+) -> FourTerminalDCPreflightReport:
+    recipe_path = Path(recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    instrument_address = address or recipe.instrument.address
+    instrument_timeout_ms = timeout_ms or recipe.instrument.timeout_ms
+    checks = _recipe_preflight_checks(recipe)
+    idn: str | None = None
+    language: str | None = None
+    system_error: str | None = None
+    remote_sense_readback: str | None = None
+    readback_snapshot: dict[str, str | None] = {}
+    hardware_checked = False
+    hardware_connected = False
+    error_type: str | None = None
+    error_message: str | None = None
+
+    if dry_check:
+        checks.append(
+            FourTerminalDCPreflightCheck(
+                name="hardware_readback_skipped",
+                ok=True,
+                expected="dry_check=False for lab readback",
+                actual="dry_check=True",
+                message="Recipe/preflight structure checked without connecting to hardware.",
+            )
+        )
+    else:
+        hardware_checked = True
+        try:
+            if instrument_factory is None:
+                from .instruments.keithley_2450 import Keithley2450
+
+                instrument_factory = Keithley2450
+            smu = instrument_factory(instrument_address, instrument_timeout_ms)
+            try:
+                smu.connect()
+                hardware_connected = True
+                probe = smu.probe()
+                idn = _string_or_none(probe.get("idn"))
+                language = _string_or_none(probe.get("language"))
+                system_error = _string_or_none(probe.get("system_error"))
+                remote_sense_readback = _string_or_none(smu.read_current_remote_sense())
+                if hasattr(smu, "read_voltage_source_config"):
+                    readback_snapshot = {
+                        key: _string_or_none(value)
+                        for key, value in smu.read_voltage_source_config().items()
+                    }
+                checks.extend(
+                    _hardware_preflight_checks(
+                        language=language,
+                        system_error=system_error,
+                        remote_sense_readback=remote_sense_readback,
+                        readback_snapshot=readback_snapshot,
+                    )
+                )
+            finally:
+                smu.close()
+        except Exception as exc:
+            error_type = type(exc).__name__
+            error_message = str(exc)
+            checks.append(
+                FourTerminalDCPreflightCheck(
+                    name="hardware_connection_and_readback",
+                    ok=False,
+                    expected="connect, probe, and remote-sense readback without enabling output",
+                    actual=f"{error_type}: {error_message}",
+                    message="Hardware preflight failed before any four-terminal DC runner was allowed.",
+                )
+            )
+
+    preflight_passed = all(check.ok for check in checks)
+    return FourTerminalDCPreflightReport(
+        recipe_path=str(recipe_path),
+        measurement_name=recipe.measurement_name,
+        address=instrument_address,
+        dry_check=dry_check,
+        hardware_checked=hardware_checked,
+        hardware_connected=hardware_connected,
+        active_hardware_run_allowed=False,
+        preflight_passed=preflight_passed,
+        idn=idn,
+        language=language,
+        system_error=system_error,
+        remote_sense_readback=remote_sense_readback,
+        readback_snapshot=readback_snapshot,
+        error_type=error_type,
+        error_message=error_message,
+        checks=tuple(checks),
+    )
+
+
+def format_four_terminal_dc_preflight(report: FourTerminalDCPreflightReport) -> str:
+    lines = [
+        "Four-terminal DC preflight",
+        f"Recipe: {report.recipe_path}",
+        f"Measurement name: {report.measurement_name}",
+        f"Keithley address: {report.address}",
+        f"Dry check: {report.dry_check}",
+        f"Hardware checked: {report.hardware_checked}",
+        f"Hardware connected: {report.hardware_connected}",
+        f"Preflight passed: {report.preflight_passed}",
+        f"Active hardware run allowed: {report.active_hardware_run_allowed}",
+    ]
+    if report.idn is not None:
+        lines.append(f"IDN: {report.idn}")
+    if report.language is not None:
+        lines.append(f"Command set: {report.language}")
+    if report.system_error is not None:
+        lines.append(f"System error: {report.system_error}")
+    if report.remote_sense_readback is not None:
+        lines.append(f"Remote sense readback (:SENS:CURR:RSEN?): {report.remote_sense_readback}")
+    if report.error_message:
+        lines.append(f"Error: {report.error_type}: {report.error_message}")
+    if report.readback_snapshot:
+        lines.extend(["", "Readback snapshot:"])
+        for key, value in report.readback_snapshot.items():
+            lines.append(f"- {key}: {value}")
+    lines.extend(["", "Checks:"])
+    for check in report.checks:
+        status = "PASS" if check.ok else "FAIL"
+        detail = f" expected={check.expected}, actual={check.actual}" if check.expected or check.actual else ""
+        suffix = f" - {check.message}" if check.message else ""
+        lines.append(f"- [{status}] {check.name}:{detail}{suffix}")
+    return "\n".join(lines)
+
+
+def write_four_terminal_dc_preflight_json(
+    report: FourTerminalDCPreflightReport,
+    output_path: str | Path,
+) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _recipe_preflight_checks(recipe: FourTerminalDCRecipe) -> list[FourTerminalDCPreflightCheck]:
+    return [
+        FourTerminalDCPreflightCheck(
+            name="measurement_geometry",
+            ok=recipe.measurement_geometry.method == "four_terminal" and recipe.measurement_geometry.terminal_count == 4,
+            expected="four_terminal, 4 terminals",
+            actual=f"{recipe.measurement_geometry.method}, {recipe.measurement_geometry.terminal_count} terminals",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="dc_sense_mode",
+            ok=recipe.dc_sense_mode == "remote_4wire",
+            expected="remote_4wire",
+            actual=recipe.dc_sense_mode,
+        ),
+        FourTerminalDCPreflightCheck(
+            name="explicit_nplc",
+            ok=recipe.instrument.nplc is not None,
+            expected="instrument.nplc explicitly set",
+            actual=str(recipe.instrument.nplc),
+            message="NPLC is a measurement condition and must be deliberate.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="explicit_ranges",
+            ok=recipe.instrument.voltage_range_v is not None and recipe.instrument.current_range_a is not None,
+            expected="voltage_range_v and current_range_a explicitly set",
+            actual=f"voltage_range_v={recipe.instrument.voltage_range_v}, current_range_a={recipe.instrument.current_range_a}",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="explicit_compliance",
+            ok=recipe.sweep.current_compliance_a is not None,
+            expected="sweep.current_compliance_a explicitly set",
+            actual=str(recipe.sweep.current_compliance_a),
+        ),
+        FourTerminalDCPreflightCheck(
+            name="terminal_plane_match",
+            ok=recipe.instrument.terminal is None or recipe.instrument.terminal == recipe.contacts.terminal_plane,
+            expected=f"instrument.terminal matches contacts.terminal_plane={recipe.contacts.terminal_plane}",
+            actual=f"instrument.terminal={recipe.instrument.terminal}",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="distinct_contacts",
+            ok=len(
+                {
+                    recipe.contacts.source_contact,
+                    recipe.contacts.drain_contact,
+                    recipe.contacts.sense_hi_contact,
+                    recipe.contacts.sense_lo_contact,
+                }
+            )
+            == 4,
+            expected="source, drain, sense_hi, sense_lo are all distinct",
+            actual=", ".join(
+                [
+                    recipe.contacts.source_contact,
+                    recipe.contacts.drain_contact,
+                    recipe.contacts.sense_hi_contact,
+                    recipe.contacts.sense_lo_contact,
+                ]
+            ),
+        ),
+    ]
+
+
+def _hardware_preflight_checks(
+    *,
+    language: str | None,
+    system_error: str | None,
+    remote_sense_readback: str | None,
+    readback_snapshot: dict[str, str | None],
+) -> list[FourTerminalDCPreflightCheck]:
+    checks = [
+        FourTerminalDCPreflightCheck(
+            name="keithley_command_set",
+            ok=(language or "").upper() == "SCPI",
+            expected="SCPI",
+            actual=language,
+        ),
+        FourTerminalDCPreflightCheck(
+            name="system_error_queue",
+            ok=_is_no_error_text(system_error),
+            expected="0, no error",
+            actual=system_error,
+        ),
+        FourTerminalDCPreflightCheck(
+            name="remote_sense_readback_available",
+            ok=_readback_available(remote_sense_readback),
+            expected="readable :SENS:CURR:RSEN? response",
+            actual=remote_sense_readback,
+        ),
+    ]
+    readback_fields = {
+        "terminal_readback_available": "terminal",
+        "nplc_readback_available": "current_nplc",
+        "current_range_readback_available": "current_range",
+        "voltage_range_readback_available": "voltage_range",
+    }
+    for check_name, field in readback_fields.items():
+        value = readback_snapshot.get(field)
+        checks.append(
+            FourTerminalDCPreflightCheck(
+                name=check_name,
+                ok=_readback_available(value),
+                expected=f"readable {field} query",
+                actual=value,
+            )
+        )
+    return checks
+
+
+def _string_or_none(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value).strip()
+
+
+def _is_no_error_text(value: str | None) -> bool:
+    if value is None:
+        return False
+    text = value.strip()
+    return text.startswith("0,") or text.upper().startswith("+0,")
+
+
+def _readback_available(value: str | None) -> bool:
+    if value is None:
+        return False
+    return not value.upper().startswith("ERROR")

@@ -1567,6 +1567,22 @@ range, current range, NPLC, source delay, current compliance, and PASS/MISSING
 status. Treat the JSON output as a lab-notebook artifact when comparing
 repeated Hall-bar scans.
 
+For the future Keithley 2450 four-terminal DC path, use the guarded preflight
+before any runner exists:
+
+```powershell
+ptm four-terminal-dc-validate configs\recipes\four_terminal_dc_schema_draft.yaml
+ptm four-terminal-dc-preflight configs\recipes\four_terminal_dc_schema_draft.yaml --dry-check
+ptm four-terminal-dc-preflight configs\recipes\four_terminal_dc_schema_draft.yaml
+```
+
+The `--dry-check` form validates the recipe and preflight gate without hardware.
+The hardware form connects to the Keithley, checks SCPI mode, reads
+`:SENS:CURR:RSEN?`, and records whether terminal, NPLC, current range, and
+voltage range readbacks are available. It still prints
+`Active hardware run allowed: False`; four-terminal DC output remains blocked
+until a later runner phase is written and separately verified.
+
 Keithley source blocks may also set an instrument voltage-source delay:
 
 ```yaml
