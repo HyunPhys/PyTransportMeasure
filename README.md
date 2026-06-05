@@ -22,7 +22,8 @@ Current verified setup and supported workflows:
   building, editor-backed dry-runs, lab doctor, Drain I-V preflight, guarded
   Drain I-V hardware runs, progress streaming, feedback bundles, and report
   review, with GUI session logs included in feedback bundles and usability
-  fixes for collapsed dry-run settings, window resizing, and log scrolling
+  fixes for collapsed dry-run settings, window resizing, log scrolling,
+  workspace-separated instruments/analysis views, and live I-V plotting
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -89,6 +90,7 @@ ptm-gui
 - GUI progress stream: [docs/phase35_gui_progress_stream.md](docs/phase35_gui_progress_stream.md)
 - GUI session log: [docs/phase36_gui_session_log.md](docs/phase36_gui_session_log.md)
 - GUI usability pass: [docs/phase37_gui_usability_pass.md](docs/phase37_gui_usability_pass.md)
+- GUI workspace reorganization and live plot: [docs/phase38_gui_workspace_reorg_and_live_plot.md](docs/phase38_gui_workspace_reorg_and_live_plot.md)
 
 ## Hardware Smoke Test
 

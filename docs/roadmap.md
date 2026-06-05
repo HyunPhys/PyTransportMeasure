@@ -178,6 +178,12 @@ This roadmap tracks the large development phases. Completed items are checked.
   - collapse dry-run settings by default
   - reduce unnecessary GUI minimum-size pressure
   - preserve Session Log scroll position unless the user is already at the bottom
+- [x] Phase 24o: GUI workspace reorganization and live plot
+  - split GUI into Measurement, Instruments, and Analysis workspaces
+  - move Doctor and instrument status into Instruments
+  - move saved-run loading, plot/report review, and feedback bundles into Analysis
+  - replace stretched SVG preview with a points-based Qt plot
+  - add live Drain I-V point plotting during dry-run and guarded hardware run
 
 ## Next GUI
 

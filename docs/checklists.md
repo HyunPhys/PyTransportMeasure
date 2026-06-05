@@ -32,6 +32,9 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   bundles.
 - [x] GUI usability pass collapsed dry-run settings, relaxed resize constraints,
   and fixed Session Log scroll behavior.
+- [x] GUI workspace separates measurement, instruments, and analysis.
+- [x] GUI plot preview uses a non-stretched points-based plot and live Drain I-V
+  plot updates during measurement progress.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -143,7 +146,12 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Confirm `Session Log` shows `GUI session started`.
 - [ ] Confirm `Dry-run Model` starts collapsed and can be opened when fake
   settings need editing.
+- [ ] Confirm workspace tabs are `Measurement`, `Instruments`, and `Analysis`.
 - [ ] Run `Doctor`, `Preflight`, or `Dry Run`.
+- [ ] Confirm `Doctor` lives under `Instruments`.
+- [ ] Confirm prior runs, plot preview, reports, and feedback bundle controls
+  live under `Analysis`.
+- [ ] Confirm `Measurement > Live Plot` updates during a dry-run.
 - [ ] Confirm the Session Log tab accumulates the same major events and progress
   lines.
 - [ ] Keep Session Log at the bottom and confirm new lines stay visible.
@@ -310,7 +318,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Edit YAML in `Recipe YAML`.
 - [ ] Click `Dry Run` before saving and confirm the result uses the unsaved edit.
 - [ ] Open `Progress` and confirm dry-run point lines appear.
-- [ ] Click `Doctor` and confirm the `Doctor` tab updates.
+- [ ] Open `Instruments`, click `Doctor`, and confirm the status view updates.
 - [ ] Click `Preflight` for Drain I-V and confirm the `Preflight` tab updates.
 - [ ] Click `Validate YAML` and confirm validation passes or reports a useful
   schema error.
@@ -320,10 +328,10 @@ Use this checklist before pulse hardware work begins.
 - [ ] Open the generated run folder.
 - [ ] Open the generated plot.
 - [ ] Open the generated report.
-- [ ] Click `Refresh Runs` in the `Runs` tab.
+- [ ] Open `Analysis` and click `Refresh Runs` in the `Runs` subtab.
 - [ ] Select an older indexed run.
 - [ ] Click `Load Selected` and confirm Summary, Metadata, and Report update.
-- [ ] Open `Plot Preview` and confirm the plot appears in the app.
+- [ ] Open `Analysis > Plot` and confirm the points-based plot appears in the app.
 - [ ] Confirm `Hardware Run` appears only for Drain I-V in this GUI phase.
 
 ## GUI Drain I-V Preflight Checklist
@@ -333,7 +341,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Launch `ptm-gui`.
 - [ ] Select `Drain I-V`.
 - [ ] Confirm the YAML editor has the intended address and safety preset.
-- [ ] Click `Doctor` and confirm `OK: True`.
+- [ ] Open `Instruments`, click `Doctor`, and confirm `OK: True`.
 - [ ] Click `Preflight`.
 - [ ] Confirm the `Preflight` tab lists the VISA resources.
 - [ ] Confirm `Recipe address found: True`.
@@ -352,7 +360,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the YAML editor has the intended address, terminal, sweep,
   compliance, safety preset, and output directory.
 - [ ] Click `Plan` and inspect the sweep points.
-- [ ] Click `Doctor` and confirm `Address found: True`.
+- [ ] Open `Instruments`, click `Doctor`, and confirm `Address found: True`.
 - [ ] Click `Preflight` and confirm `Preflight OK: True`.
 - [ ] Click `Hardware Run`.
 - [ ] Read the confirmation dialog and confirm every field.
@@ -360,7 +368,7 @@ Use this checklist before pulse hardware work begins.
 - [ ] Click `Hardware Run` again and click `Yes` only when ready.
 - [ ] Open `Progress` and confirm point lines appear during the run.
 - [ ] Confirm Keithley output turns off after the run.
-- [ ] Confirm Summary, Metadata, Plot Preview, and Report update.
+- [ ] Open `Analysis` and confirm Summary, Metadata, Plot, and Report update.
 - [ ] Confirm `completed=True` for a normal run.
 - [ ] Click `Feedback Bundle` and confirm a ZIP is created under
   `data/feedback`.

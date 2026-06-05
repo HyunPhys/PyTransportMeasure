@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
+import csv
 from pathlib import Path
 from typing import Any
 
@@ -35,8 +36,7 @@ from .gui_services import (
 
 try:
     from PySide6.QtCore import QThread, Signal, Qt
-    from PySide6.QtGui import QAction, QDesktopServices
-    from PySide6.QtSvgWidgets import QSvgWidget
+    from PySide6.QtGui import QAction, QColor, QDesktopServices, QPainter, QPen
     from PySide6.QtWidgets import (
         QApplication,
         QComboBox,
@@ -75,9 +75,9 @@ except ModuleNotFoundError:  # pragma: no cover - exercised manually.
     Signal = lambda *_args, **_kwargs: _MissingSignal()  # type: ignore[assignment]
     Qt = _MissingQt()  # type: ignore[assignment]
     QAction = QDesktopServices = None  # type: ignore[assignment]
+    QColor = QPainter = QPen = None  # type: ignore[assignment]
     QApplication = QComboBox = QFileDialog = QFormLayout = QGridLayout = QGroupBox = QHBoxLayout = QLabel = QLineEdit = QMessageBox = QPushButton = QPlainTextEdit = QScrollArea = QSpinBox = QTabWidget = QTableWidget = QTableWidgetItem = QVBoxLayout = QWidget = None  # type: ignore[assignment]
     QMainWindow = object  # type: ignore[assignment]
-    QSvgWidget = None  # type: ignore[assignment]
 
 
 DEFAULT_RECIPES = {
@@ -92,6 +92,7 @@ class DryRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
     progress = Signal(str)
+    point_progress = Signal(object, int)
 
     def __init__(self, measurement_type: str, recipe_text: str, fake: GuiFakeSettings):
         super().__init__()
@@ -106,11 +107,15 @@ class DryRunWorker(QThread):
                     self.measurement_type,
                     self.recipe_text,
                     fake=self.fake,
-                    progress_callback=lambda point, total: self.progress.emit(format_gui_progress(point, total)),
+                    progress_callback=self.emit_progress,
                 )
             )
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+    def emit_progress(self, point: Any, total: int) -> None:
+        self.progress.emit(format_gui_progress(point, total))
+        self.point_progress.emit(point, total)
 
 
 class PreflightWorker(QThread):
@@ -149,6 +154,7 @@ class HardwareRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
     progress = Signal(str)
+    point_progress = Signal(object, int)
 
     def __init__(self, measurement_type: str, recipe_text: str):
         super().__init__()
@@ -161,11 +167,116 @@ class HardwareRunWorker(QThread):
                 run_gui_hardware_text(
                     self.measurement_type,
                     self.recipe_text,
-                    progress_callback=lambda point, total: self.progress.emit(format_gui_progress(point, total)),
+                    progress_callback=self.emit_progress,
                 )
             )
         except Exception as exc:
             self.failed.emit(f"{type(exc).__name__}: {exc}")
+
+    def emit_progress(self, point: Any, total: int) -> None:
+        self.progress.emit(format_gui_progress(point, total))
+        self.point_progress.emit(point, total)
+
+
+class IvPlotCanvas(QWidget):
+    def __init__(self) -> None:
+        super().__init__()
+        self.setMinimumSize(320, 240)
+        self.live_voltage: list[float] = []
+        self.live_current: list[float] = []
+        self.points: list[tuple[float, float]] = []
+        self.title = "No data"
+
+    def clear(self, title: str = "No data") -> None:
+        self.title = title
+        self.points = []
+        self.update()
+
+    def plot_points(self, points: list[tuple[float, float]], title: str) -> None:
+        if not points:
+            self.clear("No point data")
+            return
+        self.points = list(points)
+        self.title = title
+        self.update()
+
+    def reset_live(self, title: str) -> None:
+        self.live_voltage = []
+        self.live_current = []
+        self.clear(title)
+
+    def append_live_point(self, point: Any, title: str) -> None:
+        if not hasattr(point, "voltage_v") or not hasattr(point, "current_a"):
+            return
+        self.live_voltage.append(float(point.voltage_v))
+        self.live_current.append(float(point.current_a))
+        self.points = list(zip(self.live_voltage, self.live_current))
+        self.title = title
+        self.update()
+
+    def paintEvent(self, _event: Any) -> None:  # noqa: N802 - Qt override
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.fillRect(self.rect(), QColor("#ffffff"))
+        margin_left = 64
+        margin_right = 18
+        margin_top = 38
+        margin_bottom = 46
+        plot_left = margin_left
+        plot_top = margin_top
+        plot_right = max(plot_left + 20, self.width() - margin_right)
+        plot_bottom = max(plot_top + 20, self.height() - margin_bottom)
+        plot_width = plot_right - plot_left
+        plot_height = plot_bottom - plot_top
+
+        painter.setPen(QPen(QColor("#111827"), 1))
+        painter.drawText(12, 22, self.title)
+        painter.setPen(QPen(QColor("#cbd5e1"), 1))
+        painter.drawRect(plot_left, plot_top, plot_width, plot_height)
+        painter.drawText(plot_left + max(0, plot_width // 2 - 38), self.height() - 12, "Voltage (V)")
+        painter.save()
+        painter.translate(16, plot_top + max(0, plot_height // 2 + 34))
+        painter.rotate(-90)
+        painter.drawText(0, 0, "Current (A)")
+        painter.restore()
+
+        if not self.points:
+            painter.setPen(QPen(QColor("#6b7280"), 1))
+            painter.drawText(plot_left + 12, plot_top + 24, "No point data")
+            return
+
+        voltages = [point[0] for point in self.points]
+        currents = [point[1] for point in self.points]
+        min_v, max_v = padded_range(min(voltages), max(voltages))
+        min_i, max_i = padded_range(min(currents), max(currents))
+
+        painter.setPen(QPen(QColor("#e5e7eb"), 1))
+        for step in range(1, 4):
+            x = plot_left + int(plot_width * step / 4)
+            y = plot_top + int(plot_height * step / 4)
+            painter.drawLine(x, plot_top, x, plot_bottom)
+            painter.drawLine(plot_left, y, plot_right, y)
+
+        mapped = [
+            (
+                plot_left + int((voltage - min_v) / (max_v - min_v) * plot_width),
+                plot_bottom - int((current - min_i) / (max_i - min_i) * plot_height),
+            )
+            for voltage, current in self.points
+        ]
+        painter.setPen(QPen(QColor("#2563eb"), 2))
+        for start, end in zip(mapped, mapped[1:]):
+            painter.drawLine(start[0], start[1], end[0], end[1])
+        painter.setPen(QPen(QColor("#1d4ed8"), 1))
+        painter.setBrush(QColor("#60a5fa"))
+        for x, y in mapped:
+            painter.drawEllipse(x - 3, y - 3, 6, 6)
+
+        painter.setPen(QPen(QColor("#374151"), 1))
+        painter.drawText(plot_left, plot_bottom + 18, f"{min_v:.3g}")
+        painter.drawText(plot_right - 48, plot_bottom + 18, f"{max_v:.3g}")
+        painter.drawText(18, plot_bottom, f"{min_i:.3g}")
+        painter.drawText(18, plot_top + 8, f"{max_i:.3g}")
 
 
 class MainWindow(QMainWindow):
@@ -257,6 +368,7 @@ class MainWindow(QMainWindow):
         self.validation_text.setReadOnly(True)
         self.doctor_text = QPlainTextEdit()
         self.doctor_text.setReadOnly(True)
+        self.instrument_status_text = self.doctor_text
         self.preflight_text = QPlainTextEdit()
         self.preflight_text.setReadOnly(True)
         self.progress_text = QPlainTextEdit()
@@ -269,36 +381,22 @@ class MainWindow(QMainWindow):
         self.metadata_text.setReadOnly(True)
         self.report_text = QPlainTextEdit()
         self.report_text.setReadOnly(True)
-        self.plot_widget = QSvgWidget()
-        self.plot_widget.setMinimumSize(320, 240)
-        self.plot_scroll = QScrollArea()
-        self.plot_scroll.setWidgetResizable(True)
-        self.plot_scroll.setWidget(self.plot_widget)
+        self.saved_plot_canvas = IvPlotCanvas()
+        self.live_plot_canvas = IvPlotCanvas()
         self.plot_status = QLabel("No plot loaded")
         self.recent_table = QTableWidget(0, 6)
         self.recent_table.setHorizontalHeaderLabels(["Started", "Method", "Name", "Completed", "Points", "Run folder"])
         self.recent_table.horizontalHeader().setStretchLastSection(True)
         self.recent_table.itemSelectionChanged.connect(self.update_selected_run_controls)
 
-        tabs = QTabWidget()
-        tabs.addTab(self.plan_text, "Plan")
-        tabs.addTab(self.build_drain_iv_form(), "Drain I-V Form")
-        tabs.addTab(self.editor_text, "Recipe YAML")
-        tabs.addTab(self.validation_text, "Validation")
-        tabs.addTab(self.doctor_text, "Doctor")
-        tabs.addTab(self.preflight_text, "Preflight")
-        tabs.addTab(self.progress_text, "Progress")
-        tabs.addTab(self.session_log_text, "Session Log")
-        tabs.addTab(self.summary_text, "Summary")
-        tabs.addTab(self.build_plot_preview(), "Plot Preview")
-        tabs.addTab(self.metadata_text, "Metadata")
-        tabs.addTab(self.report_text, "Report")
-        tabs.addTab(self.recent_table, "Runs")
+        workspace_tabs = QTabWidget()
+        workspace_tabs.addTab(self.build_measurement_workspace(), "Measurement")
+        workspace_tabs.addTab(self.build_instrument_workspace(), "Instruments")
+        workspace_tabs.addTab(self.build_analysis_workspace(), "Analysis")
 
         root = QWidget()
         layout = QVBoxLayout(root)
-        layout.addWidget(self.build_controls())
-        layout.addWidget(tabs, stretch=1)
+        layout.addWidget(workspace_tabs, stretch=1)
         layout.addWidget(self.status_label)
         self.setCentralWidget(root)
         self.setStyleSheet(APP_STYLESHEET)
@@ -344,34 +442,86 @@ class MainWindow(QMainWindow):
         run_button_row = QHBoxLayout()
         run_button_row.addWidget(self.plan_button)
         run_button_row.addWidget(self.run_button)
-        run_button_row.addWidget(self.doctor_button)
         run_button_row.addWidget(self.preflight_button)
         run_button_row.addWidget(self.hardware_run_button)
         run_button_row.addStretch(1)
-        run_button_row.addWidget(self.load_editor_button)
-        run_button_row.addWidget(self.validate_editor_button)
-        run_button_row.addWidget(self.save_editor_button)
         layout.addLayout(run_button_row, 2, 0, 1, 8)
-
-        artifact_button_row = QHBoxLayout()
-        artifact_button_row.addWidget(self.load_form_button)
-        artifact_button_row.addWidget(self.apply_form_button)
-        artifact_button_row.addStretch(1)
-        artifact_button_row.addWidget(self.refresh_runs_button)
-        artifact_button_row.addWidget(self.load_run_button)
-        artifact_button_row.addWidget(self.open_run_button)
-        artifact_button_row.addWidget(self.open_plot_button)
-        artifact_button_row.addWidget(self.open_report_button)
-        artifact_button_row.addWidget(self.feedback_bundle_button)
-        artifact_button_row.addWidget(self.open_log_button)
-        layout.addLayout(artifact_button_row, 3, 0, 1, 8)
         return box
+
+    def build_recipe_tools(self) -> QWidget:
+        box = QGroupBox("Recipe Tools")
+        layout = QHBoxLayout(box)
+        layout.addWidget(self.load_editor_button)
+        layout.addWidget(self.validate_editor_button)
+        layout.addWidget(self.save_editor_button)
+        layout.addWidget(self.load_form_button)
+        layout.addWidget(self.apply_form_button)
+        layout.addStretch(1)
+        return box
+
+    def build_measurement_workspace(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.addWidget(self.build_controls())
+        measurement_tabs = QTabWidget()
+        measurement_tabs.addTab(self.plan_text, "Plan")
+        measurement_tabs.addTab(self.build_drain_iv_form(), "Drain I-V Form")
+        measurement_tabs.addTab(self.editor_text, "Recipe YAML")
+        measurement_tabs.addTab(self.validation_text, "Validation")
+        measurement_tabs.addTab(self.preflight_text, "Preflight")
+        measurement_tabs.addTab(self.progress_text, "Progress")
+        measurement_tabs.addTab(self.build_live_plot(), "Live Plot")
+        measurement_tabs.addTab(self.session_log_text, "Session Log")
+        layout.addWidget(measurement_tabs, stretch=1)
+        layout.addWidget(self.build_recipe_tools())
+        return container
+
+    def build_instrument_workspace(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        controls = QGroupBox("Instrument Status")
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.addWidget(self.doctor_button)
+        controls_layout.addWidget(self.open_log_button)
+        controls_layout.addStretch(1)
+        layout.addWidget(controls)
+        layout.addWidget(self.instrument_status_text, stretch=1)
+        return container
+
+    def build_analysis_workspace(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        controls = QGroupBox("Run Analysis")
+        controls_layout = QHBoxLayout(controls)
+        controls_layout.addWidget(self.refresh_runs_button)
+        controls_layout.addWidget(self.load_run_button)
+        controls_layout.addStretch(1)
+        controls_layout.addWidget(self.open_run_button)
+        controls_layout.addWidget(self.open_plot_button)
+        controls_layout.addWidget(self.open_report_button)
+        controls_layout.addWidget(self.feedback_bundle_button)
+        layout.addWidget(controls)
+        analysis_tabs = QTabWidget()
+        analysis_tabs.addTab(self.recent_table, "Runs")
+        analysis_tabs.addTab(self.summary_text, "Summary")
+        analysis_tabs.addTab(self.build_plot_preview(), "Plot")
+        analysis_tabs.addTab(self.metadata_text, "Metadata")
+        analysis_tabs.addTab(self.report_text, "Report")
+        layout.addWidget(analysis_tabs, stretch=1)
+        return container
 
     def build_plot_preview(self) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
         layout.addWidget(self.plot_status)
-        layout.addWidget(self.plot_scroll, stretch=1)
+        layout.addWidget(self.saved_plot_canvas, stretch=1)
+        return container
+
+    def build_live_plot(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.addWidget(QLabel("Live Drain I-V points"))
+        layout.addWidget(self.live_plot_canvas, stretch=1)
         return container
 
     def build_drain_iv_form(self) -> QWidget:
@@ -614,9 +764,11 @@ class MainWindow(QMainWindow):
         self.metadata_text.clear()
         self.report_text.clear()
         self.progress_text.setPlainText("Dry-run starting...")
+        self.live_plot_canvas.reset_live("Live dry-run Drain I-V")
         self.log_session(f"Dry-run starting: {self.current_method()}")
         self.worker = DryRunWorker(self.current_method(), self.editor_text.toPlainText(), fake)
         self.worker.progress.connect(self.append_progress)
+        self.worker.point_progress.connect(self.append_live_point)
         self.worker.finished_ok.connect(self.handle_result)
         self.worker.failed.connect(self.handle_failure)
         self.worker.finished.connect(lambda: self.set_running(False))
@@ -686,9 +838,11 @@ class MainWindow(QMainWindow):
         self.report_text.clear()
         self.progress_text.setPlainText("Hardware run starting...")
         self.preflight_text.setPlainText("Hardware run starting. Preflight will run before output is enabled.")
+        self.live_plot_canvas.reset_live("Live hardware Drain I-V")
         self.log_session(f"Hardware run starting: {self.current_method()}")
         self.hardware_worker = HardwareRunWorker(self.current_method(), self.editor_text.toPlainText())
         self.hardware_worker.progress.connect(self.append_progress)
+        self.hardware_worker.point_progress.connect(self.append_live_point)
         self.hardware_worker.finished_ok.connect(self.handle_hardware_result)
         self.hardware_worker.failed.connect(self.handle_hardware_failure)
         self.hardware_worker.finished.connect(lambda: self.set_hardware_running(False))
@@ -709,6 +863,10 @@ class MainWindow(QMainWindow):
     def append_progress(self, line: str) -> None:
         self.progress_text.appendPlainText(line)
         self.log_session(f"Progress: {line}")
+
+    def append_live_point(self, point: Any, total_points: int) -> None:
+        title = f"Live Drain I-V ({int(getattr(point, 'index', 0)) + 1}/{total_points})"
+        self.live_plot_canvas.append_live_point(point, title)
 
     def handle_preflight_result(self, text: str) -> None:
         self.preflight_text.setPlainText(text)
@@ -863,13 +1021,23 @@ class MainWindow(QMainWindow):
         return primary_report_path(self.last_result.metadata)
 
     def update_plot_preview(self) -> None:
-        path = self.plot_path()
-        if path is None:
-            self.plot_status.setText("No plot artifact found")
-            self.plot_widget.load(b"")
+        if self.last_result is None:
+            self.plot_status.setText("No run loaded")
+            self.saved_plot_canvas.clear("No run loaded")
             return
-        self.plot_widget.load(str(path.resolve()))
-        self.plot_status.setText(f"Plot preview: {path}")
+        points_path = self.last_result.run_dir / "points.csv"
+        if not points_path.exists():
+            self.plot_status.setText("No points.csv found for Matplotlib preview")
+            self.saved_plot_canvas.clear("No point data")
+            return
+        points = load_iv_points(points_path)
+        title = str(self.last_result.metadata.get("measurement_name") or self.last_result.run_dir.name)
+        self.saved_plot_canvas.plot_points(points, title)
+        artifact = self.plot_path()
+        if artifact is None:
+            self.plot_status.setText(f"Matplotlib preview from {points_path}")
+        else:
+            self.plot_status.setText(f"Matplotlib preview from points.csv | saved artifact: {artifact}")
 
     def open_run_folder(self) -> None:
         if self.last_result is not None:
@@ -926,6 +1094,25 @@ def update_plain_text_preserving_scroll(text_edit: Any, text: str) -> None:
         scrollbar.setValue(scrollbar.maximum())
     else:
         scrollbar.setValue(min(previous_value, scrollbar.maximum()))
+
+
+def load_iv_points(path: Path) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    with path.open(newline="", encoding="utf-8-sig") as handle:
+        for row in csv.DictReader(handle):
+            try:
+                points.append((float(row["voltage_v"]), float(row["current_a"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return points
+
+
+def padded_range(minimum: float, maximum: float) -> tuple[float, float]:
+    if minimum == maximum:
+        padding = abs(minimum) * 0.05 or 1.0
+        return minimum - padding, maximum + padding
+    padding = (maximum - minimum) * 0.05
+    return minimum - padding, maximum + padding
 
 
 def open_path(path: Path) -> None:

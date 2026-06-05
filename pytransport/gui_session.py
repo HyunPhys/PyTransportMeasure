@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+import tempfile
 
 
 @dataclass
@@ -15,7 +16,16 @@ class GuiSessionLogger:
 
     @classmethod
     def create(cls, log_dir: str | Path = "data/gui_logs") -> "GuiSessionLogger":
-        directory = Path(log_dir)
+        try:
+            return cls.create_in_directory(Path(log_dir))
+        except OSError:
+            fallback = Path(tempfile.gettempdir()) / "pytransport_gui_logs"
+            logger = cls.create_in_directory(fallback)
+            logger.write(f"Primary GUI log directory unavailable: {Path(log_dir)}")
+            return logger
+
+    @classmethod
+    def create_in_directory(cls, directory: Path) -> "GuiSessionLogger":
         directory.mkdir(parents=True, exist_ok=True)
         path = unique_session_log_path(directory)
         logger = cls(path=path)

@@ -368,11 +368,12 @@ ptm-gui
 
 The current GUI phase supports method selection, recipe selection, YAML recipe
 editing, schema validation, saving edited recipes, plan preview, dry-run
-execution, summary, metadata, in-app SVG plot preview, report preview, indexed
+execution, summary, metadata, in-app points-based plot preview, report preview, indexed
 run browsing, opening generated run artifacts, structured Drain I-V recipe
 editing, editor-backed plan/dry-run, lab doctor, Drain I-V preflight, and
 guarded Drain I-V hardware runs with progress streaming and persistent GUI
-session logs.
+session logs. The GUI is organized into `Measurement`, `Instruments`, and
+`Analysis` workspaces.
 
 Drain I-V form workflow:
 
@@ -390,8 +391,10 @@ Recipe editing workflow:
 1. Select the measurement method.
 2. Edit the YAML in `Recipe YAML`.
 3. Click `Plan` or `Dry Run` to use the current unsaved editor contents.
-4. Click `Doctor` to check the lab laptop, VISA resources, and Keithley probe.
-5. Click `Preflight` to check recipe safety and probe readiness.
+4. Open `Instruments` and click `Doctor` to check the lab laptop, VISA
+   resources, and Keithley probe.
+5. Return to `Measurement` and click `Preflight` to check recipe safety and
+   probe readiness.
 6. Click `Validate YAML`.
 7. Click `Save Recipe` if the draft should become a persistent recipe file.
 
@@ -403,9 +406,9 @@ Preflight workflow:
 
 1. Confirm the Keithley is in SCPI mode.
 2. Confirm the expected VISA address is in the YAML editor.
-3. Click `Doctor` and confirm `OK: True`.
-4. Click `Preflight`.
-5. Open the `Preflight` tab.
+3. Open `Instruments`, click `Doctor`, and confirm `OK: True`.
+4. Return to `Measurement` and click `Preflight`.
+5. Open the `Preflight` subtab.
 6. Confirm `Recipe address found: True` and `Preflight OK: True`.
 
 Guarded hardware run workflow:
@@ -418,9 +421,10 @@ Guarded hardware run workflow:
 5. Click `Yes` only when the wiring and recipe are correct.
 6. Wait for the run to finish.
 7. Open `Progress` and confirm point lines appear during the run.
-8. Open `Session Log` and confirm Doctor/Preflight/Progress events were saved.
-9. Inspect `Summary`, `Metadata`, `Plot Preview`, and `Report`.
-10. Click `Feedback Bundle` if the run should be shared for review/debugging.
+8. Open `Live Plot` and confirm points accumulate during the run.
+9. Open `Session Log` and confirm Doctor/Preflight/Progress events were saved.
+10. Open `Analysis` and inspect `Summary`, `Metadata`, `Plot`, and `Report`.
+11. Click `Feedback Bundle` if the run should be shared for review/debugging.
 
 `Hardware Run` reruns preflight immediately before enabling output. If preflight
 does not pass, the run is blocked before the Keithley output is enabled. GUI
@@ -455,12 +459,13 @@ GUI session log workflow:
 
 Run browsing workflow:
 
-1. Open the `Runs` tab.
-2. Click `Refresh Runs`.
-3. Select a saved run.
-4. Click `Load Selected`.
-5. Open `Plot Preview` to inspect the SVG inside the app.
-6. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
+1. Open `Analysis`.
+2. Open the `Runs` subtab.
+3. Click `Refresh Runs`.
+4. Select a saved run.
+5. Click `Load Selected`.
+6. Open `Plot` to inspect a points-based GUI plot that is redrawn on resize.
+7. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
    artifacts externally.
 
 The GUI calls the same core recipe, runner, safety, method registry, quality,
