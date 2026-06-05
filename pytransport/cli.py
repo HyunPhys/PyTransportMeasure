@@ -55,6 +55,7 @@ from .dual_gate_lockin_scaleup import (
 )
 from .dual_gate_lockin_hall_suite import (
     audit_dual_gate_lockin_hall_suite,
+    format_dual_gate_lockin_hall_suite_plan,
     format_hall_suite_audit,
     write_dual_gate_lockin_hall_suite_template,
 )
@@ -421,6 +422,17 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_check.add_argument("plus_hall_recipe", type=Path)
     dual_gate_lockin_hall_suite_check.add_argument("minus_hall_recipe", type=Path)
     dual_gate_lockin_hall_suite_check.add_argument("--zero-field-recipe", type=Path)
+
+    dual_gate_lockin_hall_suite_plan = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-plan",
+        help="Print an aggregate Vxx/+B/-B/0B Hall-bar runbook without hardware.",
+    )
+    dual_gate_lockin_hall_suite_plan.add_argument("longitudinal_recipe", type=Path)
+    dual_gate_lockin_hall_suite_plan.add_argument("plus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_plan.add_argument("minus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_plan.add_argument("--zero-field-recipe", type=Path)
+    dual_gate_lockin_hall_suite_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_plan.add_argument("--preview-points", type=int, default=3)
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -1431,6 +1443,26 @@ def command_dual_gate_lockin_hall_suite_check(args: argparse.Namespace) -> int:
         zero_hall_recipe=args.zero_field_recipe,
     )
     print(format_hall_suite_audit(audit))
+    return 0 if audit.compatible else 2
+
+
+def command_dual_gate_lockin_hall_suite_plan(args: argparse.Namespace) -> int:
+    audit = audit_dual_gate_lockin_hall_suite(
+        args.longitudinal_recipe,
+        args.plus_hall_recipe,
+        args.minus_hall_recipe,
+        zero_hall_recipe=args.zero_field_recipe,
+    )
+    print(
+        format_dual_gate_lockin_hall_suite_plan(
+            args.longitudinal_recipe,
+            args.plus_hall_recipe,
+            args.minus_hall_recipe,
+            zero_hall_recipe=args.zero_field_recipe,
+            safety_dir=args.safety_dir,
+            preview_points=args.preview_points,
+        )
+    )
     return 0 if audit.compatible else 2
 
 
@@ -2705,6 +2737,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_template(args)
     if args.command == "dual-gate-lockin-hall-suite-check":
         return command_dual_gate_lockin_hall_suite_check(args)
+    if args.command == "dual-gate-lockin-hall-suite-plan":
+        return command_dual_gate_lockin_hall_suite_plan(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

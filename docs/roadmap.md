@@ -384,7 +384,12 @@ root.
     point counts across generated Vxx/Vxy recipes
   - verify Vxx/Hall roles and `+B`/`-B`/`0B` magnetic-field metadata before
     hardware use
-- [ ] Phase 25au: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25au: Hall-bar suite aggregate plan
+  - add `ptm dual-gate-lockin-hall-suite-plan`
+  - print one hardware-free Vxx/+B/-B/0B runbook with measurement order,
+    preflight commands, guarded hardware templates, and Hall analysis commands
+  - stop with a nonzero exit code when the suite consistency check fails
+- [ ] Phase 25av: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

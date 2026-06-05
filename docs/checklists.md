@@ -503,6 +503,13 @@ remain point-guarded.
   ptm dual-gate-lockin-hall-suite-check configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml
   ```
 - [ ] Confirm it prints `Dual-gate lock-in Hall suite consistency: PASS`.
+- [ ] Print the aggregate Hall-suite runbook before hardware use.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-plan configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml
+  ```
+- [ ] Confirm the suite plan shows the Vxx/+B/-B/0B measurement order,
+  per-recipe plan snapshots, preflight commands, guarded hardware command
+  templates, and Hall analysis commands.
 - [ ] When matched `+B` and `-B` Hall runs are available, run
   `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
   --output-dir data\analysis\<hall_antisym_folder>` and confirm

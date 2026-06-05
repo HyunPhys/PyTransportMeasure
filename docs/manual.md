@@ -473,6 +473,17 @@ The check verifies shared gate sweeps, Keithley settings, SR860 settings,
 safety preset, excitation topology, point count, Hall probe roles, and magnetic
 field signs/magnitudes. It does not touch hardware.
 
+To print one aggregate runbook for the whole Hall suite, use:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-plan configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml
+```
+
+The suite plan is also hardware-free. It repeats the consistency result, lists
+the Vxx/+B/-B/0B measurement order, prints preflight and guarded hardware command
+templates, and shows the downstream Hall antisymmetry, zero-field correction,
+and mobility commands.
+
 When matched `+B` and `-B` Hall runs are available, use:
 
 ```powershell

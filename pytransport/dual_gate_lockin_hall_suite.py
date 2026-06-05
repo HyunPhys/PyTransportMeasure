@@ -173,6 +173,8 @@ def format_hall_suite_review(
             "```powershell",
             f"ptm dual-gate-lockin-hall-suite-check {longitudinal_recipe} {plus_hall_recipe} {minus_hall_recipe}"
             + (f" --zero-field-recipe {zero_hall_recipe}" if zero_hall_recipe is not None else ""),
+            f"ptm dual-gate-lockin-hall-suite-plan {longitudinal_recipe} {plus_hall_recipe} {minus_hall_recipe}"
+            + (f" --zero-field-recipe {zero_hall_recipe}" if zero_hall_recipe is not None else ""),
             f"ptm dual-gate-lockin-plan {longitudinal_recipe}",
             f"ptm dual-gate-lockin-plan {plus_hall_recipe}",
             f"ptm dual-gate-lockin-plan {minus_hall_recipe}",
@@ -304,6 +306,117 @@ def format_hall_suite_audit(audit: HallSuiteAudit) -> str:
     return "\n".join(lines)
 
 
+def format_dual_gate_lockin_hall_suite_plan(
+    longitudinal_recipe: str | Path,
+    plus_hall_recipe: str | Path,
+    minus_hall_recipe: str | Path,
+    zero_hall_recipe: str | Path | None = None,
+    *,
+    safety_dir: str | Path = "configs/safety",
+    preview_points: int = 3,
+) -> str:
+    audit = audit_dual_gate_lockin_hall_suite(
+        longitudinal_recipe,
+        plus_hall_recipe,
+        minus_hall_recipe,
+        zero_hall_recipe=zero_hall_recipe,
+    )
+    lines = [
+        "Dual-Gate Lock-In Hall Suite Plan",
+        "",
+        format_hall_suite_audit(audit),
+        "",
+    ]
+    if not audit.compatible:
+        lines.extend(
+            [
+                "Suite plan stopped because consistency check failed.",
+                "Fix the listed issue(s) before preflight or hardware use.",
+                "",
+            ]
+        )
+        return "\n".join(lines)
+
+    longitudinal = DualGateLockInRecipe.model_validate(load_yaml(audit.longitudinal_recipe))
+    plus = DualGateLockInRecipe.model_validate(load_yaml(audit.plus_hall_recipe))
+    minus = DualGateLockInRecipe.model_validate(load_yaml(audit.minus_hall_recipe))
+    zero = DualGateLockInRecipe.model_validate(load_yaml(audit.zero_hall_recipe)) if audit.zero_hall_recipe else None
+    safety = load_named_safety_preset(longitudinal.safety_preset, safety_dir)
+    suite = [
+        ("1", "Longitudinal Vxx", audit.longitudinal_recipe, longitudinal),
+        ("2", "+B Hall Vxy", audit.plus_hall_recipe, plus),
+        ("3", "-B Hall Vxy", audit.minus_hall_recipe, minus),
+    ]
+    if zero is not None and audit.zero_hall_recipe is not None:
+        suite.append(("4", "0B Hall Vxy", audit.zero_hall_recipe, zero))
+
+    lines.extend(
+        [
+            "Measurement Order",
+            "",
+            *[
+                (
+                    f"{index}. {label}: `{path}` "
+                    f"(role={recipe.topology.voltage_probe_role}, B={_fmt_field(recipe.topology.magnetic_field_t)}, "
+                    f"contacts={', '.join(recipe.topology.lockin_input_contacts)})"
+                )
+                for index, label, path, recipe in suite
+            ],
+            "",
+            "Hardware-Free Gate Commands",
+            "",
+            "```powershell",
+            f"ptm dual-gate-lockin-hall-suite-check {audit.longitudinal_recipe} {audit.plus_hall_recipe} {audit.minus_hall_recipe}"
+            + (f" --zero-field-recipe {audit.zero_hall_recipe}" if audit.zero_hall_recipe is not None else ""),
+            *[f"ptm dual-gate-lockin-plan {path}" for _, _, path, _ in suite],
+            *[f"ptm dual-gate-lockin-preflight {path}" for _, _, path, _ in suite],
+            "```",
+            "",
+            "Guarded Hardware Run Templates",
+            "",
+            "```powershell",
+            *[
+                (
+                    f"ptm dual-gate-lockin {path} --allow-active-sweep --max-hardware-points <N> "
+                    f"--hardware-approval-note \"<lab note>\" --accepted-previous-run data\\raw\\<accepted_run> "
+                    "--progress --plot --report --gate-stats"
+                )
+                for _, _, path, _ in suite
+            ],
+            "```",
+            "",
+            "Analysis Commands",
+            "",
+            "```powershell",
+            f"ptm dual-gate-lockin-hall-antisym data\\raw\\<{plus.measurement_name}_run> data\\raw\\<{minus.measurement_name}_run> --output-dir data\\analysis\\<hall_antisym_folder>",
+            *(
+                [
+                    f"ptm dual-gate-lockin-hall-zero-correct data\\raw\\<{plus.measurement_name}_run> data\\raw\\<{zero.measurement_name}_run> --output-dir data\\analysis\\<hall_zero_corrected_folder>"
+                ]
+                if zero is not None
+                else []
+            ),
+            f"ptm dual-gate-lockin-hall-mobility data\\analysis\\<hall_density_folder> data\\raw\\<{longitudinal.measurement_name}_run> --output-dir data\\analysis\\<hall_mobility_folder>",
+            "```",
+            "",
+            "Plan Snapshots",
+            "",
+        ]
+    )
+    for _, label, path, recipe in suite:
+        lines.extend(
+            [
+                f"### {label}",
+                "",
+                "```text",
+                format_dual_gate_lockin_plan(recipe, safety, path, preview_points=preview_points),
+                "```",
+                "",
+            ]
+        )
+    return "\n".join(lines)
+
+
 def _recipe_variant(
     base_data: dict[str, Any],
     *,
@@ -424,3 +537,7 @@ def _compare_topology_shared_fields(
                 f"{label} recipe differs from longitudinal recipe in {', '.join(mismatches)}",
             )
         )
+
+
+def _fmt_field(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.6g} T"
