@@ -194,6 +194,9 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
     assert saved_metadata["planned_points"] == 9
     assert saved_metadata["outputs_off_after_run"] is True
+    assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
+    assert saved_metadata["configured_gate1_smu"]["nplc"] == pytest.approx(1.0)
+    assert saved_metadata["configured_gate2_smu"]["current_range_a"] == pytest.approx(1e-9)
 
     summary = summarize_dual_gate_lockin_run(run_dir)
     assert summary.points == 9
@@ -270,6 +273,9 @@ def test_dual_gate_lockin_active_gate_smoke_writes_readout_and_turns_outputs_off
     rows = list(csv.DictReader((Path(metadata["run_dir"]) / "active_gate_smoke.csv").open(newline="", encoding="utf-8")))
     assert len(rows) == 3
     assert float(rows[0]["gate1_voltage_v"]) == pytest.approx(0.01)
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
+    assert saved_metadata["configured_gate2_smu"]["current_range_a"] == pytest.approx(1e-9)
 
 
 def test_dual_gate_lockin_active_gate_smoke_compliance_stop_turns_outputs_off(tmp_path):

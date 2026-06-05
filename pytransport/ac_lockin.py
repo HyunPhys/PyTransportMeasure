@@ -14,11 +14,12 @@ import yaml
 
 from .batch import safe_name
 from .errors import SafetyLimitError
-from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMeasureUnit
+from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import AcLockInRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_ac_lockin_recipe_against_safety, validate_point_current
+from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
 
 
 AC_LOCKIN_COLUMNS = [
@@ -184,6 +185,7 @@ def run_ac_lockin_sweep(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
+    source_config = build_voltage_source_config(recipe.source_instrument, recipe.bias_sweep.current_compliance_a)
     lockin_tc_s = lockin_time_constant_s(recipe.lockin)
     lockin_settle_s = lockin_read_settle_s(recipe.lockin)
     metadata: dict[str, Any] = {
@@ -202,6 +204,7 @@ def run_ac_lockin_sweep(
         "run_dir": str(writer.run_dir),
         "source_instrument_probe": None,
         "lockin_probe": None,
+        "configured_source_smu": voltage_source_config_snapshot(source_config),
         "lockin_time_constant_s": lockin_tc_s,
         "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
         "lockin_read_settle_s": lockin_settle_s,
@@ -216,15 +219,7 @@ def run_ac_lockin_sweep(
         lockin.connect()
         metadata["source_instrument_probe"] = source_smu.probe()
         metadata["lockin_probe"] = lockin.probe()
-        source_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.bias_sweep.current_compliance_a,
-                voltage_range_v=recipe.source_instrument.voltage_range_v,
-                current_range_a=recipe.source_instrument.current_range_a,
-                terminal=recipe.source_instrument.terminal,
-                nplc=recipe.source_instrument.nplc,
-            )
-        )
+        source_smu.configure_voltage_source(source_config)
         source_smu.output_on()
 
         start = time.monotonic()

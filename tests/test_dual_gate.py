@@ -122,6 +122,10 @@ def test_dual_gate_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert rows[0]["drain_voltage_v"] == "-0.02"
     assert saved_metadata["gate1_instrument_probe"]["idn"].startswith("FAKE,GATE1-SMU")
     assert saved_metadata["gate2_instrument_probe"]["idn"].startswith("FAKE,GATE2-SMU")
+    assert saved_metadata["configured_drain_smu"]["current_compliance_a"] == pytest.approx(1e-7)
+    assert saved_metadata["configured_drain_smu"]["nplc"] == pytest.approx(1.0)
+    assert saved_metadata["configured_gate1_smu"]["current_compliance_a"] == pytest.approx(1e-8)
+    assert saved_metadata["configured_gate2_smu"]["current_range_a"] == pytest.approx(1e-9)
 
     summary = summarize_dual_gate_run(run_dir)
     assert summary.points == 45

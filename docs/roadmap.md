@@ -230,7 +230,12 @@ root.
     recipes
   - apply the computed read settle before AC and dual-gate lock-in readout
   - print and save `lockin_time_constant_s` and `lockin_read_settle_s`
-- [ ] Phase 25o: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25o: SMU configuration snapshot
+  - build Keithley source configs through a shared helper
+  - save normalized compliance/range/terminal/NPLC snapshots in run metadata
+  - cover Drain I-V, single-gate, dual-gate, AC lock-in, dual-gate lock-in,
+    active-gate smoke, and pulse paths
+- [ ] Phase 25p: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

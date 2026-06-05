@@ -8,11 +8,12 @@ from pathlib import Path
 from typing import Any, Callable
 
 from .errors import SafetyLimitError
-from .instruments.base import SMUVoltageSourceConfig, SourceMeasureUnit
+from .instruments.base import SourceMeasureUnit
 from .io import RunWriter
 from .model import MeasurementPoint
 from .recipes import DrainIVRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_point_current, validate_recipe_against_safety
+from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
 
 
 def run_drain_iv(
@@ -28,6 +29,7 @@ def run_drain_iv(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
+    smu_config = build_voltage_source_config(recipe.instrument, recipe.sweep.current_compliance_a)
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "started_at": datetime.now().isoformat(timespec="seconds"),
@@ -43,6 +45,7 @@ def run_drain_iv(
         "run_dir": str(writer.run_dir),
         "instrument_idn": None,
         "instrument_probe": None,
+        "configured_smu": voltage_source_config_snapshot(smu_config),
         "current_limit_command": None,
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
@@ -57,15 +60,7 @@ def run_drain_iv(
         probe = smu.probe()
         metadata["instrument_probe"] = probe
         metadata["instrument_idn"] = probe.get("idn")
-        smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.sweep.current_compliance_a,
-                voltage_range_v=recipe.instrument.voltage_range_v,
-                current_range_a=recipe.instrument.current_range_a,
-                terminal=recipe.instrument.terminal,
-                nplc=recipe.instrument.nplc,
-            )
-        )
+        smu.configure_voltage_source(smu_config)
         metadata["current_limit_command"] = getattr(smu, "current_limit_command", None)
         smu.output_on()
 

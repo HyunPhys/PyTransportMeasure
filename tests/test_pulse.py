@@ -78,6 +78,8 @@ def test_pulse_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert float(rows[0]["pulse_voltage_v"]) == pytest.approx(0.1)
     assert float(rows[0]["source_current_a"]) == pytest.approx(1e-7)
     assert saved_metadata["source_instrument_probe"]["idn"] == "FAKE,SMU,DRY-RUN,0"
+    assert saved_metadata["configured_source_smu"]["current_compliance_a"] == pytest.approx(1e-6)
+    assert saved_metadata["configured_source_smu"]["voltage_range_v"] == pytest.approx(0.2)
 
     summary = summarize_pulse_run(run_dir)
     assert summary.points == 5

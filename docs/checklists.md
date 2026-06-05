@@ -510,6 +510,8 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm lock-in readout appears in summary/report artifacts.
 - [ ] Confirm source instruments still turn off after completion, stop, and
   interrupt.
+- [ ] Open `metadata.json` and confirm the relevant `configured_*_smu`
+  snapshot records the intended compliance, range, terminal, and NPLC values.
 
 ## Pulse Measurement Dry-Run Checklist
 

@@ -928,6 +928,13 @@ Longer NPLC improves current averaging at the cost of sweep speed. For DC gate
 leakage and source-current checks, set NPLC deliberately in every active
 Keithley block before a hardware run.
 
+Run metadata also stores the normalized SMU configuration that was passed to
+the instrument layer. Look for `configured_smu`, `configured_source_smu`,
+`configured_drain_smu`, `configured_gate_smu`, `configured_gate1_smu`, or
+`configured_gate2_smu` in `metadata.json`. These snapshots include compliance,
+voltage range, current range, terminal selection, and NPLC, and are saved even
+for partial or failed runs.
+
 For the first AC/lock-in hardware smoke test, use:
 
 ```powershell

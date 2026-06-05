@@ -14,10 +14,11 @@ import yaml
 
 from .batch import safe_name
 from .errors import SafetyLimitError
-from .instruments.base import SMUVoltageSourceConfig, SourceMeasureUnit
+from .instruments.base import SourceMeasureUnit
 from .io import unique_run_dir
 from .recipes import SafetyPreset, SingleGateRecipe, gate_voltages_from_config, sweep_delays, sweep_voltages
 from .safety import validate_point_current, validate_single_gate_recipe_against_safety
+from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
 
 
 SINGLE_GATE_COLUMNS = [
@@ -144,6 +145,8 @@ def run_single_gate_sweep(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
+    drain_config = build_voltage_source_config(recipe.drain_instrument, recipe.drain_sweep.current_compliance_a)
+    gate_config = build_voltage_source_config(recipe.gate_instrument, recipe.gate_sweep.current_compliance_a)
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "measurement_type": "single_gate_sweep",
@@ -160,6 +163,8 @@ def run_single_gate_sweep(
         "run_dir": str(writer.run_dir),
         "drain_instrument_probe": None,
         "gate_instrument_probe": None,
+        "configured_drain_smu": voltage_source_config_snapshot(drain_config),
+        "configured_gate_smu": voltage_source_config_snapshot(gate_config),
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
@@ -171,24 +176,8 @@ def run_single_gate_sweep(
         gate_smu.connect()
         metadata["drain_instrument_probe"] = drain_smu.probe()
         metadata["gate_instrument_probe"] = gate_smu.probe()
-        drain_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.drain_sweep.current_compliance_a,
-                voltage_range_v=recipe.drain_instrument.voltage_range_v,
-                current_range_a=recipe.drain_instrument.current_range_a,
-                terminal=recipe.drain_instrument.terminal,
-                nplc=recipe.drain_instrument.nplc,
-            )
-        )
-        gate_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.gate_sweep.current_compliance_a,
-                voltage_range_v=recipe.gate_instrument.voltage_range_v,
-                current_range_a=recipe.gate_instrument.current_range_a,
-                terminal=recipe.gate_instrument.terminal,
-                nplc=recipe.gate_instrument.nplc,
-            )
-        )
+        drain_smu.configure_voltage_source(drain_config)
+        gate_smu.configure_voltage_source(gate_config)
         gate_smu.output_on()
         drain_smu.output_on()
 

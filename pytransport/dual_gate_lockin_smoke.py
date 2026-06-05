@@ -15,10 +15,11 @@ import yaml
 from .batch import safe_name
 from .dual_gate_lockin import format_topology_settings
 from .errors import SafetyLimitError
-from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMeasureUnit
+from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .recipes import DualGateLockInRecipe, SafetyPreset
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
+from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
 
 
 DUAL_GATE_LOCKIN_SMOKE_COLUMNS = [
@@ -311,6 +312,8 @@ def run_dual_gate_lockin_active_gate_smoke(
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
     outputs_were_enabled = False
+    gate1_config = build_voltage_source_config(recipe.gate1_instrument, recipe.gate1_sweep.current_compliance_a)
+    gate2_config = build_voltage_source_config(recipe.gate2_instrument, recipe.gate2_sweep.current_compliance_a)
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "measurement_type": "dual_gate_lockin_active_gate_smoke",
@@ -337,6 +340,8 @@ def run_dual_gate_lockin_active_gate_smoke(
         "gate1_instrument_probe": None,
         "gate2_instrument_probe": None,
         "lockin_probe": None,
+        "configured_gate1_smu": voltage_source_config_snapshot(gate1_config),
+        "configured_gate2_smu": voltage_source_config_snapshot(gate2_config),
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
@@ -349,24 +354,8 @@ def run_dual_gate_lockin_active_gate_smoke(
         metadata["gate1_instrument_probe"] = gate1_smu.probe()
         metadata["gate2_instrument_probe"] = gate2_smu.probe()
         metadata["lockin_probe"] = lockin.probe()
-        gate1_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.gate1_sweep.current_compliance_a,
-                voltage_range_v=recipe.gate1_instrument.voltage_range_v,
-                current_range_a=recipe.gate1_instrument.current_range_a,
-                terminal=recipe.gate1_instrument.terminal,
-                nplc=recipe.gate1_instrument.nplc,
-            )
-        )
-        gate2_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.gate2_sweep.current_compliance_a,
-                voltage_range_v=recipe.gate2_instrument.voltage_range_v,
-                current_range_a=recipe.gate2_instrument.current_range_a,
-                terminal=recipe.gate2_instrument.terminal,
-                nplc=recipe.gate2_instrument.nplc,
-            )
-        )
+        gate1_smu.configure_voltage_source(gate1_config)
+        gate2_smu.configure_voltage_source(gate2_config)
         gate1_smu.set_voltage(float(gate1_voltage_v))
         gate2_smu.set_voltage(float(gate2_voltage_v))
         gate1_smu.output_on()

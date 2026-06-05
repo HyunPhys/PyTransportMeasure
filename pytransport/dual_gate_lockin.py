@@ -19,11 +19,12 @@ import yaml
 
 from .batch import safe_name
 from .errors import SafetyLimitError
-from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMeasureUnit
+from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import DualGateLockInRecipe, SafetyPreset, gate_voltages_from_config
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
+from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
 from .ac_lockin import format_lockin_settings
 
 
@@ -278,6 +279,8 @@ def run_dual_gate_lockin_sweep(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
+    gate1_config = build_voltage_source_config(recipe.gate1_instrument, recipe.gate1_sweep.current_compliance_a)
+    gate2_config = build_voltage_source_config(recipe.gate2_instrument, recipe.gate2_sweep.current_compliance_a)
     gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
     gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
     total_points = len(gate1_voltages) * len(gate2_voltages)
@@ -317,6 +320,8 @@ def run_dual_gate_lockin_sweep(
         "gate1_instrument_probe": None,
         "gate2_instrument_probe": None,
         "lockin_probe": None,
+        "configured_gate1_smu": voltage_source_config_snapshot(gate1_config),
+        "configured_gate2_smu": voltage_source_config_snapshot(gate2_config),
         "lockin_time_constant_s": lockin_tc_s,
         "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
         "lockin_read_settle_s": lockin_settle_s,
@@ -333,24 +338,8 @@ def run_dual_gate_lockin_sweep(
         metadata["gate1_instrument_probe"] = gate1_smu.probe()
         metadata["gate2_instrument_probe"] = gate2_smu.probe()
         metadata["lockin_probe"] = lockin.probe()
-        gate1_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.gate1_sweep.current_compliance_a,
-                voltage_range_v=recipe.gate1_instrument.voltage_range_v,
-                current_range_a=recipe.gate1_instrument.current_range_a,
-                terminal=recipe.gate1_instrument.terminal,
-                nplc=recipe.gate1_instrument.nplc,
-            )
-        )
-        gate2_smu.configure_voltage_source(
-            SMUVoltageSourceConfig(
-                current_compliance_a=recipe.gate2_sweep.current_compliance_a,
-                voltage_range_v=recipe.gate2_instrument.voltage_range_v,
-                current_range_a=recipe.gate2_instrument.current_range_a,
-                terminal=recipe.gate2_instrument.terminal,
-                nplc=recipe.gate2_instrument.nplc,
-            )
-        )
+        gate1_smu.configure_voltage_source(gate1_config)
+        gate2_smu.configure_voltage_source(gate2_config)
         gate1_smu.output_on()
         gate2_smu.output_on()
         metadata["gate_outputs_enabled"] = True
