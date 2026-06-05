@@ -641,6 +641,14 @@ declared reference frequency, sine amplitude, input mode, input range,
 sensitivity, time constant, filter slope, or synchronous filter blocks the
 preflight before any Keithley output is enabled.
 
+`ptm ac-lockin` repeats this readback check inside the runner after connecting
+to the SR860 and before enabling Keithley source output. When SR860 setting
+readback is available, metadata records `lockin_settings_readback_available`,
+`lockin_settings_readback_check`, `lockin_settings_readback_matched`, and
+`lockin_settings_readback_enforced`. If the runtime readback contradicts the
+recipe, the run stops with `triggered_limit: lockin_settings_readback` before
+source output turns on.
+
 For hardware lock-in reads, the runner can wait after the DC/gate settle and
 before `SNAP?`/`OUTP?` readout. Set `settle_time_constants` to derive this
 delay from the SR860 `time_constant_index`, or set `read_settle_s` for an

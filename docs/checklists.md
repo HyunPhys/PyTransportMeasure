@@ -586,6 +586,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Verify `lockin_x_v`, `lockin_y_v`,
   `lockin_r_v`, and `lockin_theta_deg` columns.
 - [ ] Confirm lock-in readout appears in summary/report artifacts.
+- [ ] Open `metadata.json` and confirm `lockin_settings_readback_available:
+  true`, `lockin_settings_readback_matched: true`, and
+  `lockin_settings_readback_enforced: true`.
 - [ ] Confirm source instruments still turn off after completion, stop, and
   interrupt.
 - [ ] Open `metadata.json` and confirm the relevant `configured_*_smu`

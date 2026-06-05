@@ -58,6 +58,33 @@ def ac_lockin_recipe_data(output_dir: Path) -> dict:
     }
 
 
+class ReadbackFakeLockIn(FakeLockIn):
+    def __init__(self, *args, setting_overrides: dict[str, str] | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setting_overrides = setting_overrides or {}
+
+    def probe(self) -> dict[str, str]:
+        probe = super().probe()
+        probe.update(
+            {
+                "setting_reference_source": "0",
+                "setting_reference_frequency_hz": "17.777",
+                "setting_sine_output_amplitude_v": "0.01",
+                "setting_input_mode": "0",
+                "setting_voltage_input": "0",
+                "setting_input_coupling": "0",
+                "setting_input_grounding": "0",
+                "setting_voltage_input_range_v": "4",
+                "setting_sensitivity_index": "18",
+                "setting_time_constant_index": "10",
+                "setting_filter_slope_index": "3",
+                "setting_synchronous_filter": "0",
+            }
+        )
+        probe.update(self.setting_overrides)
+        return probe
+
+
 def test_ac_lockin_recipe_sample_and_plan():
     recipe = load_ac_lockin_recipe("configs/recipes/ac_lockin_dry_run.yaml")
     safety = load_named_safety_preset(recipe.safety_preset)
@@ -125,6 +152,9 @@ def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert len(rows) == 5
     assert float(rows[0]["lockin_r_v"]) == pytest.approx(2e-6)
     assert saved_metadata["lockin_probe"]["idn"] == "FAKE,LOCKIN,SR860-DRY-RUN,0"
+    assert saved_metadata["lockin_settings_readback_available"] is False
+    assert saved_metadata["lockin_settings_readback_matched"] is None
+    assert saved_metadata["lockin_settings_readback_enforced"] is False
     assert saved_metadata["configured_source_smu"]["current_compliance_a"] == pytest.approx(1e-6)
     assert saved_metadata["configured_source_smu"]["voltage_range_v"] == pytest.approx(0.1)
     assert saved_metadata["configured_source_smu_readback"]["voltage_range"] == "0.1"
@@ -165,6 +195,55 @@ def test_ac_lockin_four_terminal_differential_voltage_dry_run(tmp_path):
     report = format_ac_lockin_report(Path(metadata["run_dir"]))
     assert "Measurement geometry: four_terminal, 4-terminal" in report
     assert "- Lock-in voltage input: a-b" in report
+
+
+def test_ac_lockin_saves_matching_lockin_settings_readback(tmp_path):
+    recipe = AcLockInRecipe.model_validate(ac_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
+    lockin = ReadbackFakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0)
+
+    metadata = run_ac_lockin_sweep(recipe, safety, source, lockin, recipe_path="ac_lockin_readback.yaml")
+
+    assert metadata["completed"] is True
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["lockin_settings_readback_available"] is True
+    assert saved_metadata["lockin_settings_readback_matched"] is True
+    assert saved_metadata["lockin_settings_readback_enforced"] is True
+    assert saved_metadata["lockin_settings_readback_check"][0] == {
+        "field": "reference_source",
+        "expected": "internal",
+        "actual": "0",
+        "ok": True,
+    }
+
+
+def test_ac_lockin_blocks_lockin_settings_mismatch_before_source_output(tmp_path):
+    recipe = AcLockInRecipe.model_validate(ac_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
+    lockin = ReadbackFakeLockIn(
+        signal_r_v=2e-6,
+        phase_deg=30,
+        noise_std_v=0,
+        setting_overrides={"setting_reference_source": "1"},
+    )
+
+    metadata = run_ac_lockin_sweep(recipe, safety, source, lockin, recipe_path="ac_lockin_bad_readback.yaml")
+
+    assert metadata["completed"] is False
+    assert metadata["points_written"] == 0
+    assert metadata["triggered_limit"] == "lockin_settings_readback"
+    assert metadata["output_state"]["source"]["output_on_attempted"] is False
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["lockin_settings_readback_available"] is True
+    assert saved_metadata["lockin_settings_readback_matched"] is False
+    failed = [
+        check for check in saved_metadata["lockin_settings_readback_check"] if check["field"] == "reference_source"
+    ][0]
+    assert failed["expected"] == "internal"
+    assert failed["actual"] == "1"
+    assert failed["ok"] is False
 
 
 def test_ac_lockin_compliance_stop_saves_partial_and_turns_off(tmp_path):

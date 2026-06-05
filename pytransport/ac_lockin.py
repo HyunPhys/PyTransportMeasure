@@ -16,6 +16,13 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
+from .lockin_settings import (
+    compare_lockin_settings,
+    lockin_setting_checks_to_dicts,
+    lockin_settings_ok,
+    lockin_settings_readback_available,
+    raise_for_lockin_settings_mismatch,
+)
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .output_state import (
     command_voltage_with_state,
@@ -218,6 +225,10 @@ def run_ac_lockin_sweep(
         "run_dir": str(writer.run_dir),
         "source_instrument_probe": None,
         "lockin_probe": None,
+        "lockin_settings_readback_available": None,
+        "lockin_settings_readback_check": None,
+        "lockin_settings_readback_matched": None,
+        "lockin_settings_readback_enforced": False,
         "configured_source_smu": voltage_source_config_snapshot(source_config),
         "configured_source_smu_readback": None,
         "configured_source_smu_readback_check": None,
@@ -236,6 +247,19 @@ def run_ac_lockin_sweep(
         lockin.connect()
         metadata["source_instrument_probe"] = source_smu.probe()
         metadata["lockin_probe"] = lockin.probe()
+        lockin_checks = compare_lockin_settings(recipe.lockin.model_dump(mode="json"), metadata["lockin_probe"])
+        lockin_readback_available = lockin_settings_readback_available(metadata["lockin_probe"])
+        metadata["lockin_settings_readback_available"] = lockin_readback_available
+        metadata["lockin_settings_readback_check"] = lockin_setting_checks_to_dicts(lockin_checks)
+        metadata["lockin_settings_readback_matched"] = (
+            lockin_settings_ok(lockin_checks) if lockin_readback_available else None
+        )
+        metadata["lockin_settings_readback_enforced"] = lockin_readback_available
+        raise_for_lockin_settings_mismatch(
+            "lockin",
+            lockin_checks,
+            readback_available=lockin_readback_available,
+        )
         source_smu.configure_voltage_source(source_config)
         metadata["configured_source_smu_readback"] = read_voltage_source_config_if_available(source_smu)
         metadata["configured_source_smu_readback_check"] = compare_voltage_source_config_readback(

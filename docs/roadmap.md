@@ -351,7 +351,11 @@ root.
   - have `dual-gate-lockin-scale-up-template` write a companion review markdown
   - include scale-up check, preflight, hardware command template, and full plan
   - keep actual broader hardware execution tied to lab feedback
-- [ ] Phase 25an: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25an: AC lock-in runtime SR860 gate
+  - save runtime SR860 setting readback checks in AC lock-in metadata
+  - block Keithley source output when SR860 readback contradicts the recipe
+  - keep fake-lock-in dry-runs available when readback is unavailable
+- [ ] Phase 25ao: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory
