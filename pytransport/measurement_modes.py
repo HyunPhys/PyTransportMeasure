@@ -115,6 +115,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         preflight_commands=("ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml",),
         run_commands=(
             "ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report",
+            "ptm ac-lockin-lab-smoke-intake data/raw/<run> --min-points 5 --min-abs-lockin-r-v <low> --max-abs-lockin-r-v <high>",
         ),
         guarded_parameters=(
             "Keithley voltage_range_v",
@@ -128,10 +129,11 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         safety_gates=(
             "AC preflight probes Keithley and SR860",
             "SR860 readback mismatch blocks hardware run when readback is available",
+            "post-run intake requires source SMU readback, SR860 readback, output cleanup, and lock-in signal window",
             "Keithley output off in finally path",
         ),
         current_limitations=("Requires lab hardware confirmation for actual AC wiring/noise floor.",),
-        next_step="Run lab smoke test with known resistor/current-bias wiring and record SR860 readback.",
+        next_step="Run lab smoke with known resistor/current-bias wiring, then pass ac-lockin-lab-smoke-intake before broadening.",
     ),
     MeasurementMode(
         key="four_terminal_ac",

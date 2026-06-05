@@ -639,6 +639,11 @@ root.
     fixture metadata, or pause for driver correction
   - keep NPLC/range/compliance changes explicit and reviewable before any
     device measurement
+- [x] Phase 25cu: AC lock-in lab smoke intake
+  - add `ptm ac-lockin-lab-smoke-intake` for saved Keithley + SR860 smoke runs
+  - require source SMU readback, SR860 setting readback, output cleanup, NPLC,
+    ranges, compliance, point count, and optional lock-in signal bounds
+  - keep broader AC and Hall-bar lock-in work gated by real lab smoke evidence
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

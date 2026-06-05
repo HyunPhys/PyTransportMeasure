@@ -18,6 +18,11 @@ from .batch import (
 )
 from .ac_lockin import run_ac_lockin_sweep
 from .ac_lockin_review import write_ac_lockin_plot_svg, write_ac_lockin_report
+from .ac_lockin_review import (
+    format_ac_lockin_lab_smoke_intake,
+    intake_ac_lockin_lab_smoke,
+    write_ac_lockin_lab_smoke_intake_json,
+)
 from .batch_review import (
     evaluate_batch_quality,
     format_batch_quality,
@@ -1009,6 +1014,17 @@ def build_parser() -> argparse.ArgumentParser:
     ac_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     ac_lockin.add_argument("--preview-points", type=int, default=5)
     ac_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
+
+    ac_lockin_lab_smoke_intake = subparsers.add_parser(
+        "ac-lockin-lab-smoke-intake",
+        help="Audit a saved AC lock-in hardware smoke run before expanding SR860 measurements.",
+    )
+    ac_lockin_lab_smoke_intake.add_argument("run_dir", type=Path)
+    ac_lockin_lab_smoke_intake.add_argument("--min-points", type=int, default=2)
+    ac_lockin_lab_smoke_intake.add_argument("--min-abs-lockin-r-v", type=float)
+    ac_lockin_lab_smoke_intake.add_argument("--max-abs-lockin-r-v", type=float)
+    ac_lockin_lab_smoke_intake.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    ac_lockin_lab_smoke_intake.add_argument("--json-output", type=Path, help="Write machine-readable JSON to a file.")
 
     pulse_plan = subparsers.add_parser("pulse-plan", help="Show a pulse measurement plan without hardware.")
     pulse_plan.add_argument("recipe", type=Path)
@@ -2924,6 +2940,27 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
     return exit_code_for_metadata(metadata)
 
 
+def command_ac_lockin_lab_smoke_intake(args: argparse.Namespace) -> int:
+    try:
+        intake = intake_ac_lockin_lab_smoke(
+            args.run_dir,
+            min_points=args.min_points,
+            min_abs_lockin_r_v=args.min_abs_lockin_r_v,
+            max_abs_lockin_r_v=args.max_abs_lockin_r_v,
+        )
+    except Exception as exc:
+        print(f"AC lock-in lab smoke intake failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_ac_lockin_lab_smoke_intake_json(intake, args.json_output)
+        print(f"AC lock-in lab smoke intake JSON: {output_path}")
+    if args.json:
+        print(json.dumps(intake.to_dict(), indent=2, sort_keys=True))
+    elif not args.json_output:
+        print(format_ac_lockin_lab_smoke_intake(intake))
+    return 0 if intake.accepted else 2
+
+
 def command_pulse_plan(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type("pulse_measurement")
     recipe = method.load_recipe(args.recipe)
@@ -4165,6 +4202,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_ac_lockin_preflight(args)
     if args.command == "ac-lockin":
         return command_ac_lockin(args)
+    if args.command == "ac-lockin-lab-smoke-intake":
+        return command_ac_lockin_lab_smoke_intake(args)
     if args.command == "pulse-plan":
         return command_pulse_plan(args)
     if args.command == "pulse":

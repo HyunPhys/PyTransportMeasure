@@ -74,7 +74,7 @@ Important modules:
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
 | Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
 | Dual-gate lock-in sweep | Dry-run verified; preflight/topology-gated; SR860 readout smoke, active-gate smoke, and guarded tiny active sweep available | `ptm dual-gate-lockin-plan`, `ptm dual-gate-lockin-preflight`, `ptm dual-gate-lockin-smoke`, `ptm dual-gate-lockin --dry-run` |
-| SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
+| SR860 / AC lock-in | Conservative two-terminal hardware smoke path plus post-run intake audit | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin`, `ptm ac-lockin-lab-smoke-intake` |
 | 4-probe / remote sense | Guarded active smoke path plus post-run intake audit | `ptm four-terminal-dc-preflight`, `ptm four-terminal-dc-command-review`, `ptm four-terminal-dc-lab-smoke-intake` |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
 | GUI | Dry-run desktop foundation | `ptm-gui` |
@@ -1096,6 +1096,7 @@ Before hardware:
 ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
 ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
 ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
+ptm ac-lockin-lab-smoke-intake data\raw\<run> --min-points 5 --min-abs-lockin-r-v <low> --max-abs-lockin-r-v <high> --json-output docs\ac_lockin_lab_smoke_intake.json
 ```
 
 SR860 expected settings are written in the `lockin` block:
@@ -1135,6 +1136,16 @@ readback is available, metadata records `lockin_settings_readback_available`,
 `lockin_settings_readback_enforced`. If the runtime readback contradicts the
 recipe, the run stops with `triggered_limit: lockin_settings_readback` before
 source output turns on.
+
+After a hardware smoke run, `ptm ac-lockin-lab-smoke-intake` audits the saved
+run folder before the method is broadened. It requires a completed
+`ac_lockin_sweep`, matching `points_written`, explicit Keithley NPLC/ranges and
+compliance in `configured_source_smu`, source SMU readback match, SR860 setting
+readback availability and match, source output-off cleanup, zero-before-off
+cleanup, and optional lock-in `R` signal bounds. Use the `--min-abs-lockin-r-v`
+and `--max-abs-lockin-r-v` window to catch disconnected/noisy lock-in wiring
+before changing sensitivity, increasing point count, or connecting a graphene
+device.
 
 For hardware lock-in reads, the runner can wait after the DC/gate settle and
 before `SNAP?`/`OUTP?` readout. Set `settle_time_constants` to derive this

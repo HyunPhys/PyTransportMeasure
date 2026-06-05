@@ -36,6 +36,7 @@ ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
 ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
 ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0
 ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
+ptm ac-lockin-lab-smoke-intake data\raw\<run> --min-points 5 --min-abs-lockin-r-v <low> --max-abs-lockin-r-v <high> --json-output docs\ac_lockin_lab_smoke_intake.json
 ```
 
 Use `--yes` only after the prompt path has already been tested.
@@ -47,9 +48,12 @@ Use `--yes` only after the prompt path has already been tested.
 - `ac_lockin_plot.svg` and `ac_lockin_report.md` are written when requested
 - Keithley output is off after the run
 - SR860 communication is closed after the run
+- `ptm ac-lockin-lab-smoke-intake` reports PASS before broader AC work
 
 ## Next Step
 
-After the smoke test is verified on the lab laptop, extend the recipe model with
-explicit terminal geometry so two-terminal AC and four-terminal AC measurements
-do not become hidden variants of the same method.
+After the smoke test is verified on the lab laptop, keep the saved intake JSON
+with the lab notebook. Do not broaden the AC sweep, change SR860 sensitivity, or
+use a graphene device until the intake confirms source SMU readback, SR860
+setting readback, output cleanup, Keithley NPLC/ranges/compliance, and lock-in
+signal bounds.

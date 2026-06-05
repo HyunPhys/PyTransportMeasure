@@ -6,9 +6,12 @@ import pytest
 
 from pytransport.ac_lockin import ac_lockin_point_count, format_ac_lockin_plan, run_ac_lockin_sweep
 from pytransport.ac_lockin_review import (
+    format_ac_lockin_lab_smoke_intake,
     format_ac_lockin_report,
     format_ac_lockin_summary,
+    intake_ac_lockin_lab_smoke,
     summarize_ac_lockin_run,
+    write_ac_lockin_lab_smoke_intake_json,
     write_ac_lockin_plot_svg,
     write_ac_lockin_report,
 )
@@ -216,6 +219,78 @@ def test_ac_lockin_saves_matching_lockin_settings_readback(tmp_path):
         "actual": "0",
         "ok": True,
     }
+
+
+def test_ac_lockin_lab_smoke_intake_accepts_clean_hardware_like_run(tmp_path):
+    data = ac_lockin_recipe_data(tmp_path)
+    data["source_instrument"]["nplc"] = 1.0
+    recipe = AcLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
+    lockin = ReadbackFakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0)
+
+    metadata = run_ac_lockin_sweep(recipe, safety, source, lockin, recipe_path="ac_lockin_readback.yaml")
+    intake = intake_ac_lockin_lab_smoke(
+        metadata["run_dir"],
+        min_points=5,
+        min_abs_lockin_r_v=1e-6,
+        max_abs_lockin_r_v=3e-6,
+    )
+    text = format_ac_lockin_lab_smoke_intake(intake)
+
+    assert intake.accepted is True
+    assert intake.points == 5
+    assert intake.points_written == 5
+    assert intake.source_nplc == pytest.approx(1.0)
+    assert intake.source_readback_available is True
+    assert intake.source_readback_matched is True
+    assert intake.lockin_readback_available is True
+    assert intake.lockin_readback_matched is True
+    assert intake.lockin_r_mean_v == pytest.approx(2e-6)
+    assert intake.output_off_after_run_ok is True
+    assert intake.output_zero_before_off_ok is True
+    assert "AC lock-in lab smoke intake: PASS" in text
+    assert "SR860 readback matched: True" in text
+
+
+def test_ac_lockin_lab_smoke_intake_rejects_missing_lockin_readback_and_nplc(tmp_path):
+    recipe = AcLockInRecipe.model_validate(ac_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
+    lockin = FakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0)
+
+    metadata = run_ac_lockin_sweep(recipe, safety, source, lockin, recipe_path="ac_lockin_no_readback.yaml")
+    intake = intake_ac_lockin_lab_smoke(metadata["run_dir"])
+    issue_checks = {issue.check for issue in intake.issues}
+
+    assert intake.accepted is False
+    assert "source_nplc" in issue_checks
+    assert "lockin_readback_available" in issue_checks
+
+
+def test_ac_lockin_lab_smoke_intake_writes_json(tmp_path):
+    data = ac_lockin_recipe_data(tmp_path)
+    data["source_instrument"]["nplc"] = 1.0
+    recipe = AcLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_ac_lockin_sweep(
+        recipe,
+        safety,
+        FakeSMU(resistance_ohm=1_000_000, noise_std_a=0),
+        ReadbackFakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0),
+        recipe_path="ac_lockin_readback.yaml",
+    )
+    output = tmp_path / "ac_lockin_lab_smoke_intake.json"
+
+    path = write_ac_lockin_lab_smoke_intake_json(
+        intake_ac_lockin_lab_smoke(metadata["run_dir"], min_points=5),
+        output,
+    )
+    saved = json.loads(path.read_text(encoding="utf-8"))
+
+    assert saved["accepted"] is True
+    assert saved["source_nplc"] == pytest.approx(1.0)
+    assert saved["lockin_readback_matched"] is True
 
 
 def test_ac_lockin_blocks_lockin_settings_mismatch_before_source_output(tmp_path):

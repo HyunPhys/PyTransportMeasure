@@ -13,6 +13,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Dual-gate lock-in workflow is dry-run verified and preflight-gated.
 - [x] SR860 / AC lock-in workflow is dry-run verified.
 - [x] Two-terminal AC lock-in hardware smoke path is available after preflight.
+- [x] AC lock-in lab smoke intake audits saved Keithley/SR860 run metadata
+  before broader AC or Hall-bar lock-in work.
 - [x] Measurement-mode execution matrix tracks two-terminal DC, four-terminal
   DC, two-terminal AC, four-terminal AC, and Hall-suite dual-gate readiness.
 - [x] Four-terminal DC design gate documents required Keithley remote-sense
@@ -900,6 +902,24 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
   ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
   ```
+- [ ] Run the guarded hardware smoke only after preflight passes.
+  ```powershell
+  ptm ac-lockin configs\recipes\ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
+  ```
+- [ ] Audit the saved hardware run folder before broadening AC measurements.
+  ```powershell
+  ptm ac-lockin-lab-smoke-intake data\raw\<run> --min-points 5 --min-abs-lockin-r-v <low> --max-abs-lockin-r-v <high> --json-output docs\ac_lockin_lab_smoke_intake.json
+  ```
+- [ ] Confirm the command prints `AC lock-in lab smoke intake: PASS`.
+- [ ] Confirm `Source NPLC`, source voltage range, source current range, and
+  source compliance match the recipe and lab notebook.
+- [ ] Confirm `Source SMU readback matched: True`.
+- [ ] Confirm `SR860 readback available: True` and `SR860 readback matched:
+  True`.
+- [ ] Confirm `Source output off after run OK: True`.
+- [ ] Confirm `Source zero before output off OK: True`.
+- [ ] Confirm lock-in R is inside the expected signal/noise window before
+  increasing point count, changing sensitivity, or connecting a graphene device.
 - [ ] Confirm the hardware smoke plan prints `Lock-in read settle: 0.3 s` when
   using `time_constant_index: 10` and `settle_time_constants: 3.0`.
 - [ ] Run the first hardware smoke test without `--yes`.

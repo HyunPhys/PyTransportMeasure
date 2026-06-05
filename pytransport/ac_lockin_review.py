@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from html import escape
 from pathlib import Path
 from typing import Any
@@ -29,6 +29,53 @@ class AcLockInSummary:
     lockin_theta_max_deg: float | None
     error_type: str | None
     error_message: str | None
+
+
+@dataclass(frozen=True)
+class AcLockInLabSmokeIssue:
+    severity: str
+    check: str
+    message: str
+
+    def to_dict(self) -> dict[str, str]:
+        return asdict(self)
+
+
+@dataclass(frozen=True)
+class AcLockInLabSmokeIntake:
+    run_dir: str
+    metadata_path: str
+    points_path: str
+    accepted: bool
+    completed: bool | None
+    points: int
+    points_written: int | None
+    min_points: int
+    measurement_name: str | None
+    measurement_geometry: str
+    source_nplc: float | None
+    source_voltage_range_v: float | None
+    source_current_range_a: float | None
+    source_current_compliance_a: float | None
+    source_readback_available: bool
+    source_readback_matched: bool | None
+    lockin_readback_available: bool | None
+    lockin_readback_matched: bool | None
+    lockin_r_min_v: float | None
+    lockin_r_max_v: float | None
+    lockin_r_mean_v: float | None
+    lockin_theta_min_deg: float | None
+    lockin_theta_max_deg: float | None
+    min_abs_lockin_r_v: float | None
+    max_abs_lockin_r_v: float | None
+    output_off_after_run_ok: bool
+    output_zero_before_off_ok: bool
+    issues: tuple[AcLockInLabSmokeIssue, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        payload = asdict(self)
+        payload["issues"] = [issue.to_dict() for issue in self.issues]
+        return payload
 
 
 def read_ac_lockin_metadata(run_dir: str | Path) -> dict[str, Any]:
@@ -100,6 +147,168 @@ def summarize_ac_lockin_run(run_dir: str | Path) -> AcLockInSummary:
         error_type=metadata.get("error_type"),
         error_message=metadata.get("error_message"),
     )
+
+
+def intake_ac_lockin_lab_smoke(
+    run_dir: str | Path,
+    *,
+    min_points: int = 2,
+    min_abs_lockin_r_v: float | None = None,
+    max_abs_lockin_r_v: float | None = None,
+) -> AcLockInLabSmokeIntake:
+    if min_points < 1:
+        raise ValueError("min_points must be >= 1")
+    if min_abs_lockin_r_v is not None and min_abs_lockin_r_v < 0:
+        raise ValueError("min_abs_lockin_r_v must be >= 0")
+    if max_abs_lockin_r_v is not None and max_abs_lockin_r_v < 0:
+        raise ValueError("max_abs_lockin_r_v must be >= 0")
+    if (
+        min_abs_lockin_r_v is not None
+        and max_abs_lockin_r_v is not None
+        and min_abs_lockin_r_v > max_abs_lockin_r_v
+    ):
+        raise ValueError("min_abs_lockin_r_v cannot exceed max_abs_lockin_r_v")
+
+    path = Path(run_dir)
+    metadata_path = path / "metadata.json"
+    points_path = path / "points.csv"
+    metadata = read_ac_lockin_metadata(path)
+    points = read_ac_lockin_points(path)
+    summary = summarize_ac_lockin_run(path)
+    recipe = metadata.get("recipe") if isinstance(metadata.get("recipe"), dict) else {}
+    geometry = recipe.get("measurement_geometry") if isinstance(recipe.get("measurement_geometry"), dict) else {}
+    source = metadata.get("configured_source_smu") if isinstance(metadata.get("configured_source_smu"), dict) else {}
+    source_readback_check = metadata.get("configured_source_smu_readback_check")
+    output_state = metadata.get("output_state") if isinstance(metadata.get("output_state"), dict) else {}
+    source_output = output_state.get("source") if isinstance(output_state.get("source"), dict) else {}
+    lockin_r_values = [float(point["lockin_r_v"]) for point in points if point["lockin_r_v"] is not None]
+    lockin_theta_values = [
+        float(point["lockin_theta_deg"]) for point in points if point["lockin_theta_deg"] is not None
+    ]
+    lockin_r_mean_v = sum(lockin_r_values) / len(lockin_r_values) if lockin_r_values else None
+    max_abs_r = max((abs(value) for value in lockin_r_values), default=None)
+    issues: list[AcLockInLabSmokeIssue] = []
+
+    def add_if_failed(condition: bool, check: str, message: str, severity: str = "error") -> None:
+        if not condition:
+            issues.append(AcLockInLabSmokeIssue(severity, check, message))
+
+    source_readback_matched = None
+    if isinstance(source_readback_check, dict):
+        source_readback_matched = source_readback_check.get("matched")
+    lockin_readback_available = metadata.get("lockin_settings_readback_available")
+    lockin_readback_matched = metadata.get("lockin_settings_readback_matched")
+    points_written = metadata.get("points_written")
+
+    add_if_failed(metadata.get("measurement_type") == "ac_lockin_sweep", "measurement_type", "metadata is not ac_lockin_sweep")
+    add_if_failed(metadata.get("completed") is True, "completed", f"completed={metadata.get('completed')}")
+    add_if_failed(points_written == len(points), "points_written", f"metadata points_written={points_written}, points.csv rows={len(points)}")
+    add_if_failed(len(points) >= min_points, "points", f"points={len(points)}, min_points={min_points}")
+    add_if_failed(source.get("nplc") is not None, "source_nplc", "configured_source_smu.nplc missing")
+    add_if_failed(source.get("voltage_range_v") is not None, "source_voltage_range", "configured_source_smu.voltage_range_v missing")
+    add_if_failed(source.get("current_range_a") is not None, "source_current_range", "configured_source_smu.current_range_a missing")
+    add_if_failed(source.get("current_compliance_a") is not None, "source_compliance", "configured_source_smu.current_compliance_a missing")
+    add_if_failed(isinstance(source_readback_check, dict), "source_readback_available", "configured_source_smu_readback_check missing")
+    add_if_failed(source_readback_matched is True, "source_readback", f"configured_source_smu_readback_check.matched={source_readback_matched}")
+    add_if_failed(lockin_readback_available is True, "lockin_readback_available", f"lockin_settings_readback_available={lockin_readback_available}")
+    add_if_failed(lockin_readback_matched is True, "lockin_readback", f"lockin_settings_readback_matched={lockin_readback_matched}")
+    add_if_failed(len(lockin_r_values) == len(points), "lockin_r", f"lockin_r rows={len(lockin_r_values)}, points={len(points)}")
+    add_if_failed(
+        source_output.get("off_after_run") is True,
+        "source_output_off",
+        f"output_state.source.off_after_run={source_output.get('off_after_run')}",
+    )
+    add_if_failed(
+        source_output.get("zero_before_off_succeeded") is True,
+        "source_zero_before_off",
+        f"output_state.source.zero_before_off_succeeded={source_output.get('zero_before_off_succeeded')}",
+    )
+    if min_abs_lockin_r_v is not None:
+        add_if_failed(
+            max_abs_r is not None and max_abs_r >= min_abs_lockin_r_v,
+            "lockin_r_min",
+            f"max_abs_lockin_r_v={max_abs_r}, min={min_abs_lockin_r_v}",
+        )
+    if max_abs_lockin_r_v is not None:
+        add_if_failed(
+            max_abs_r is not None and max_abs_r <= max_abs_lockin_r_v,
+            "lockin_r_max",
+            f"max_abs_lockin_r_v={max_abs_r}, max={max_abs_lockin_r_v}",
+        )
+
+    accepted = not any(issue.severity == "error" for issue in issues)
+    return AcLockInLabSmokeIntake(
+        run_dir=str(path),
+        metadata_path=str(metadata_path),
+        points_path=str(points_path),
+        accepted=accepted,
+        completed=metadata.get("completed"),
+        points=len(points),
+        points_written=points_written if isinstance(points_written, int) else None,
+        min_points=min_points,
+        measurement_name=metadata.get("measurement_name"),
+        measurement_geometry=format_geometry(geometry),
+        source_nplc=source.get("nplc"),
+        source_voltage_range_v=source.get("voltage_range_v"),
+        source_current_range_a=source.get("current_range_a"),
+        source_current_compliance_a=source.get("current_compliance_a"),
+        source_readback_available=isinstance(source_readback_check, dict),
+        source_readback_matched=source_readback_matched,
+        lockin_readback_available=lockin_readback_available if isinstance(lockin_readback_available, bool) else None,
+        lockin_readback_matched=lockin_readback_matched if isinstance(lockin_readback_matched, bool) else None,
+        lockin_r_min_v=summary.lockin_r_min_v,
+        lockin_r_max_v=summary.lockin_r_max_v,
+        lockin_r_mean_v=lockin_r_mean_v,
+        lockin_theta_min_deg=min(lockin_theta_values) if lockin_theta_values else None,
+        lockin_theta_max_deg=max(lockin_theta_values) if lockin_theta_values else None,
+        min_abs_lockin_r_v=min_abs_lockin_r_v,
+        max_abs_lockin_r_v=max_abs_lockin_r_v,
+        output_off_after_run_ok=source_output.get("off_after_run") is True,
+        output_zero_before_off_ok=source_output.get("zero_before_off_succeeded") is True,
+        issues=tuple(issues),
+    )
+
+
+def format_ac_lockin_lab_smoke_intake(intake: AcLockInLabSmokeIntake) -> str:
+    lines = [
+        f"AC lock-in lab smoke intake: {'PASS' if intake.accepted else 'FAIL'}",
+        f"Run directory: {intake.run_dir}",
+        f"Metadata: {intake.metadata_path}",
+        f"Points CSV: {intake.points_path}",
+        f"Measurement name: {intake.measurement_name}",
+        f"Measurement geometry: {intake.measurement_geometry}",
+        f"Completed: {intake.completed}",
+        f"Points: {intake.points} (metadata points_written={intake.points_written}, min={intake.min_points})",
+        f"Source NPLC: {fmt(intake.source_nplc)}",
+        f"Source voltage range: {fmt(intake.source_voltage_range_v, ' V')}",
+        f"Source current range: {fmt(intake.source_current_range_a, ' A')}",
+        f"Source compliance: {fmt(intake.source_current_compliance_a, ' A')}",
+        f"Source SMU readback available: {intake.source_readback_available}",
+        f"Source SMU readback matched: {intake.source_readback_matched}",
+        f"SR860 readback available: {intake.lockin_readback_available}",
+        f"SR860 readback matched: {intake.lockin_readback_matched}",
+        f"Lock-in R range: {fmt(intake.lockin_r_min_v, ' V')} to {fmt(intake.lockin_r_max_v, ' V')}",
+        f"Lock-in R mean: {fmt(intake.lockin_r_mean_v, ' V')}",
+        f"Accepted |R| window: {fmt(intake.min_abs_lockin_r_v, ' V')} to {fmt(intake.max_abs_lockin_r_v, ' V')}",
+        f"Lock-in theta range: {fmt(intake.lockin_theta_min_deg, ' deg')} to {fmt(intake.lockin_theta_max_deg, ' deg')}",
+        f"Source output off after run OK: {intake.output_off_after_run_ok}",
+        f"Source zero before output off OK: {intake.output_zero_before_off_ok}",
+    ]
+    if intake.issues:
+        lines.extend(["", "Issues:"])
+        for issue in intake.issues:
+            lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    return "\n".join(lines)
+
+
+def write_ac_lockin_lab_smoke_intake_json(
+    intake: AcLockInLabSmokeIntake,
+    output_path: str | Path,
+) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(intake.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return path
 
 
 def format_ac_lockin_summary(summary: AcLockInSummary) -> str:
