@@ -380,6 +380,10 @@ remain point-guarded.
   compliance flags, and SR860 X/Y/R/theta columns.
 - [ ] Confirm metadata has `outputs_off_after_run: true` and
   `gate_outputs_enabled: false` after the run.
+- [ ] Confirm metadata has `lockin_settings_readback_available: true`,
+  `lockin_settings_readback_matched: true`, and
+  `lockin_settings_readback_enforced: true`. If any SR860 setting changed after
+  preflight, the runner should stop before gate output turns on.
 - [ ] Confirm leakage currents are below the chosen safety/current-compliance
   limits before any active gate sweep work begins.
 - [ ] Preview the limited active 2x2 sweep recipe.
@@ -396,6 +400,8 @@ remain point-guarded.
   unless `--yes` is explicitly used.
 - [ ] Confirm metadata has `outputs_off_after_run: true` and
   `gate_outputs_enabled: false` after the sweep.
+- [ ] Confirm metadata has `lockin_settings_readback_matched: true` before
+  treating the sweep as an accepted run for scale-up.
 - [ ] Confirm metadata has `planned_points`, `points_written`,
   `remaining_points`, `abort_class`, `last_completed_index`,
   `next_point_index`, and `recovery_recommendation`.

@@ -13,7 +13,7 @@ from typing import Any
 from .dual_gate_lockin import planned_dual_gate_lockin_grid
 from .measurement_context import format_contact_list, format_geometry, format_lockin_contact_context
 from .dual_gate_review import fmt
-from .preflight import compare_lockin_settings, lockin_settings_ok
+from .lockin_settings import compare_lockin_settings, lockin_settings_ok
 from .recipes import DualGateLockInRecipe
 from .single_gate_review import current_color, legend_svg, mean, parse_bool, parse_optional_float
 

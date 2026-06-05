@@ -3,12 +3,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import math
 from pathlib import Path
 from typing import Any, Callable
 
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import probe_srs_sr860
+from .lockin_settings import (
+    LockInSettingCheck,
+    compare_lockin_settings,
+    lockin_settings_ok,
+)
 from .dual_gate_lockin import format_dual_gate_lockin_scan_readiness
 from .recipes import (
     AcLockInRecipe,
@@ -54,14 +58,6 @@ class InstrumentPreflight:
     @property
     def ok(self) -> bool:
         return self.address_found and self.probe_error is None and self.probe is not None
-
-
-@dataclass(frozen=True)
-class LockInSettingCheck:
-    field: str
-    expected: str
-    actual: str | None
-    ok: bool
 
 
 @dataclass(frozen=True)
@@ -410,114 +406,6 @@ def probe_keithley(address: str, timeout_ms: int) -> dict[str, str]:
         return smu.probe()
     finally:
         smu.close()
-
-
-def lockin_settings_ok(checks: tuple[LockInSettingCheck, ...]) -> bool:
-    return all(check.ok for check in checks)
-
-
-def compare_lockin_settings(lockin: dict[str, Any], probe: dict[str, str] | None) -> tuple[LockInSettingCheck, ...]:
-    checks: list[LockInSettingCheck] = []
-    for field, expected in expected_lockin_settings(lockin).items():
-        actual = None if probe is None else probe.get(f"setting_{lockin_probe_setting_key(field)}")
-        checks.append(
-            LockInSettingCheck(
-                field=field,
-                expected=str(expected),
-                actual=actual,
-                ok=lockin_setting_matches(field, expected, actual),
-            )
-        )
-    return tuple(checks)
-
-
-def lockin_probe_setting_key(field: str) -> str:
-    if field == "filter_slope_db_per_oct":
-        return "filter_slope_index"
-    return field
-
-
-def expected_lockin_settings(lockin: dict[str, Any]) -> dict[str, Any]:
-    expected: dict[str, Any] = {}
-    for field in [
-        "reference_source",
-        "reference_frequency_hz",
-        "sine_output_amplitude_v",
-        "input_mode",
-        "voltage_input",
-        "input_coupling",
-        "input_grounding",
-        "voltage_input_range_v",
-        "sensitivity_index",
-        "time_constant_index",
-        "filter_slope_db_per_oct",
-        "synchronous_filter",
-    ]:
-        value = lockin.get(field)
-        if value is not None:
-            expected[field] = value
-    return expected
-
-
-def lockin_setting_matches(field: str, expected: Any, actual: str | None) -> bool:
-    if actual is None:
-        return False
-    actual_text = actual.strip()
-    if field in {"reference_frequency_hz", "sine_output_amplitude_v"}:
-        try:
-            return math.isclose(float(actual_text), float(expected), rel_tol=1e-6, abs_tol=1e-12)
-        except ValueError:
-            return False
-    expected_code = expected_lockin_setting_code(field, expected)
-    if expected_code is None:
-        return False
-    return normalize_setting_token(actual_text) == normalize_setting_token(expected_code)
-
-
-def expected_lockin_setting_code(field: str, expected: Any) -> str | None:
-    mappings = {
-        "reference_source": {"internal": "0", "external": "1", "dual": "2", "chop": "3"},
-        "input_mode": {"voltage": "0", "current": "1"},
-        "voltage_input": {"a": "0", "a-b": "1"},
-        "input_coupling": {"ac": "0", "dc": "1"},
-        "input_grounding": {"float": "0", "ground": "1"},
-        "voltage_input_range_v": {1.0: "0", 0.3: "1", 0.1: "2", 0.03: "3", 0.01: "4"},
-        "filter_slope_db_per_oct": {6: "0", 12: "1", 18: "2", 24: "3"},
-        "synchronous_filter": {False: "0", True: "1"},
-    }
-    if field in {"sensitivity_index", "time_constant_index"}:
-        return str(int(expected))
-    mapping = mappings.get(field)
-    if mapping is None:
-        return None
-    return mapping.get(expected)
-
-
-def normalize_setting_token(value: str) -> str:
-    token = value.strip().lower().replace("_", "").replace("-", "")
-    aliases = {
-        "int": "0",
-        "internal": "0",
-        "ext": "1",
-        "external": "1",
-        "dual": "2",
-        "chop": "3",
-        "voltage": "0",
-        "volt": "0",
-        "current": "1",
-        "curr": "1",
-        "a": "0",
-        "ab": "1",
-        "ac": "0",
-        "dc": "1",
-        "float": "0",
-        "flo": "0",
-        "ground": "1",
-        "gro": "1",
-        "off": "0",
-        "on": "1",
-    }
-    return aliases.get(token, token)
 
 
 def format_preflight_report(report: PreflightReport) -> str:

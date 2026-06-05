@@ -543,6 +543,14 @@ and raised-point hardware runs until another limited run has comfortable leakage
 margin. A `PASS` result without scale-up-blocking warnings is the artifact-level
 checkpoint for deciding whether the next hardware grid can be larger.
 
+Active dual-gate lock-in runners repeat the SR860 setting check after connecting
+to the lock-in and before enabling either gate output. When the SR860 probe
+returns `setting_*` readback fields, metadata records
+`lockin_settings_readback_available`, `lockin_settings_readback_check`,
+`lockin_settings_readback_matched`, and `lockin_settings_readback_enforced`. If
+the readback contradicts the recipe, the run stops with
+`triggered_limit: lockin_settings_readback` before gate output turns on.
+
 For dry-run artifact checks only, fake SR860 metadata can be relaxed:
 
 ```powershell

@@ -23,6 +23,13 @@ from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SourceMeasureUnit
 from .io import unique_run_dir
 from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
+from .lockin_settings import (
+    compare_lockin_settings,
+    lockin_setting_checks_to_dicts,
+    lockin_settings_ok,
+    lockin_settings_readback_available,
+    raise_for_lockin_settings_mismatch,
+)
 from .output_state import (
     all_outputs_off_after_run,
     any_output_enabled,
@@ -409,6 +416,10 @@ def run_dual_gate_lockin_sweep(
         "gate1_instrument_probe": None,
         "gate2_instrument_probe": None,
         "lockin_probe": None,
+        "lockin_settings_readback_available": None,
+        "lockin_settings_readback_check": None,
+        "lockin_settings_readback_matched": None,
+        "lockin_settings_readback_enforced": False,
         "configured_gate1_smu": voltage_source_config_snapshot(gate1_config),
         "configured_gate2_smu": voltage_source_config_snapshot(gate2_config),
         "configured_gate1_smu_readback": None,
@@ -432,6 +443,19 @@ def run_dual_gate_lockin_sweep(
         metadata["gate1_instrument_probe"] = gate1_smu.probe()
         metadata["gate2_instrument_probe"] = gate2_smu.probe()
         metadata["lockin_probe"] = lockin.probe()
+        lockin_checks = compare_lockin_settings(recipe.lockin.model_dump(mode="json"), metadata["lockin_probe"])
+        lockin_readback_available = lockin_settings_readback_available(metadata["lockin_probe"])
+        metadata["lockin_settings_readback_available"] = lockin_readback_available
+        metadata["lockin_settings_readback_check"] = lockin_setting_checks_to_dicts(lockin_checks)
+        metadata["lockin_settings_readback_matched"] = (
+            lockin_settings_ok(lockin_checks) if lockin_readback_available else None
+        )
+        metadata["lockin_settings_readback_enforced"] = lockin_readback_available
+        raise_for_lockin_settings_mismatch(
+            "lockin",
+            lockin_checks,
+            readback_available=lockin_readback_available,
+        )
         gate1_smu.configure_voltage_source(gate1_config)
         gate2_smu.configure_voltage_source(gate2_config)
         metadata["configured_gate1_smu_readback"] = read_voltage_source_config_if_available(gate1_smu)

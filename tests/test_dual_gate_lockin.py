@@ -114,6 +114,52 @@ def build_fake_dual_gate_lockin() -> tuple[DualGateFakeSMU, DualGateFakeSMU, Dua
     return DualGateFakeSMU("gate1", state), DualGateFakeSMU("gate2", state), lockin
 
 
+class ReadbackDualGateFakeLockIn(DualGateFakeLockIn):
+    def __init__(self, *args, setting_overrides: dict[str, str] | None = None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setting_overrides = setting_overrides or {}
+
+    def probe(self) -> dict[str, str]:
+        probe = super().probe()
+        probe.update(
+            {
+                "setting_reference_source": "0",
+                "setting_reference_frequency_hz": "17.777",
+                "setting_sine_output_amplitude_v": "0.01",
+                "setting_input_mode": "0",
+                "setting_voltage_input": "0",
+                "setting_input_coupling": "0",
+                "setting_input_grounding": "0",
+                "setting_voltage_input_range_v": "4",
+                "setting_sensitivity_index": "18",
+                "setting_time_constant_index": "10",
+                "setting_filter_slope_index": "3",
+                "setting_synchronous_filter": "0",
+            }
+        )
+        probe.update(self.setting_overrides)
+        return probe
+
+
+def build_readback_dual_gate_lockin(
+    setting_overrides: dict[str, str] | None = None,
+) -> tuple[DualGateFakeSMU, DualGateFakeSMU, ReadbackDualGateFakeLockIn]:
+    state = DualGateFakeDeviceState(
+        gate1_leak_resistance_ohm=1_000_000_000.0,
+        gate2_leak_resistance_ohm=1_000_000_000.0,
+    )
+    lockin = ReadbackDualGateFakeLockIn(
+        state,
+        base_r_v=2e-6,
+        gate1_sensitivity_v_per_v=1e-6,
+        gate2_sensitivity_v_per_v=-5e-7,
+        phase_deg=30,
+        noise_std_v=0,
+        setting_overrides=setting_overrides,
+    )
+    return DualGateFakeSMU("gate1", state), DualGateFakeSMU("gate2", state), lockin
+
+
 def test_dual_gate_lockin_recipe_sample_and_plan():
     recipe = load_dual_gate_lockin_recipe("configs/recipes/dual_gate_lockin_dry_run.yaml")
     safety = load_named_safety_preset(recipe.safety_preset)
@@ -313,6 +359,9 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert rows[0]["lockin_hall_resistance_ohm"] == ""
     assert rows[0]["lockin_hall_carrier_density_per_m2"] == ""
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
+    assert saved_metadata["lockin_settings_readback_available"] is False
+    assert saved_metadata["lockin_settings_readback_matched"] is None
+    assert saved_metadata["lockin_settings_readback_enforced"] is False
     assert saved_metadata["planned_points"] == 9
     assert saved_metadata["planned_gate_grid"] == planned_dual_gate_lockin_grid(recipe)
     assert saved_metadata["planned_gate_grid_signature"] == dual_gate_lockin_grid_signature(recipe)
@@ -449,6 +498,66 @@ def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):
     assert "- Channel geometry: L=5e-06 m, W=2e-06 m" in report
     assert "Sheet resistance range:" in report
     assert "- Excitation contacts: S, D" in report
+
+
+def test_dual_gate_lockin_saves_matching_lockin_settings_readback(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_readback_dual_gate_lockin()
+
+    metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_readback.yaml",
+    )
+
+    assert metadata["completed"] is True
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["lockin_settings_readback_available"] is True
+    assert saved_metadata["lockin_settings_readback_matched"] is True
+    assert saved_metadata["lockin_settings_readback_enforced"] is True
+    assert saved_metadata["lockin_settings_readback_check"][0] == {
+        "field": "reference_source",
+        "expected": "internal",
+        "actual": "0",
+        "ok": True,
+    }
+
+
+def test_dual_gate_lockin_blocks_lockin_settings_mismatch_before_gate_output(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_readback_dual_gate_lockin(
+        {"setting_reference_source": "1"}
+    )
+
+    metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_bad_readback.yaml",
+    )
+
+    assert metadata["completed"] is False
+    assert metadata["points_written"] == 0
+    assert metadata["triggered_limit"] == "lockin_settings_readback"
+    assert metadata["gate_outputs_enabled"] is False
+    assert metadata["output_state"]["gate1"]["output_on_attempted"] is False
+    assert metadata["output_state"]["gate2"]["output_on_attempted"] is False
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["lockin_settings_readback_available"] is True
+    assert saved_metadata["lockin_settings_readback_matched"] is False
+    failed = [
+        check for check in saved_metadata["lockin_settings_readback_check"] if check["field"] == "reference_source"
+    ][0]
+    assert failed["expected"] == "internal"
+    assert failed["actual"] == "1"
+    assert failed["ok"] is False
 
 
 def test_dual_gate_lockin_four_terminal_rejects_voltage_contact_overlap(tmp_path):

@@ -343,7 +343,11 @@ root.
   - keep Keithley `nplc` explicit in the shared SMU config path
   - document NPLC as current integration time in power-line cycles
   - centralize required Keithley hardware parameter labels and reasons
-- [ ] Phase 25al: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25al: Runtime SR860 settings gate
+  - reuse the shared SR860 setting comparison path outside preflight
+  - save active-run SR860 setting readback checks in metadata
+  - block gate output when runtime SR860 readback contradicts the recipe
+- [ ] Phase 25am: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory
