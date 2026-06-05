@@ -377,6 +377,15 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm the active method recipe owns the lock-in block.
 - [ ] Confirm the timing mode is explicit, starting with `after_dc_settle`.
 - [ ] Confirm every Keithley source block has the intended `nplc` value.
+- [ ] Confirm SR860 expected settings are explicit when they matter:
+  `reference_source`, `reference_frequency_hz`, `sine_output_amplitude_v`,
+  `input_mode`, `voltage_input`, `input_coupling`, `input_grounding`,
+  `voltage_input_range_v`, `sensitivity_index`, `time_constant_index`,
+  `filter_slope_db_per_oct`, and `synchronous_filter`.
+- [ ] Confirm the plan output prints the expected SR860 settings before any
+  hardware run.
+- [ ] Confirm the physical SR860 front-panel settings match the recipe; current
+  hardware code records expected settings but does not configure the SR860.
 - [ ] Run the two-instrument AC preflight.
   ```powershell
   ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml

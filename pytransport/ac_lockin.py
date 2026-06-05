@@ -102,6 +102,7 @@ def format_ac_lockin_plan(
         f"Lock-in: {recipe.lockin.id} at {recipe.lockin.address}",
         f"Lock-in channels: {', '.join(recipe.lockin.channels)}",
         f"Lock-in timing: {recipe.lockin.read_timing}",
+        *format_lockin_settings(recipe.lockin.model_dump(mode="json")),
         f"Bias sweep: {voltages[0]:.6g} V -> {voltages[-1]:.6g} V, {len(voltages)} points, mode {recipe.bias_sweep.mode}",
         f"Source compliance: {recipe.bias_sweep.current_compliance_a:.6g} A",
         f"Safety current limit: {safety.max_abs_current_a:.6g} A",
@@ -128,6 +129,37 @@ def format_geometry(geometry: dict) -> str:
     notes = geometry.get("notes")
     text = f"{method}, {terminal_count}-terminal"
     return f"{text}, {notes}" if notes else text
+
+
+def format_lockin_settings(lockin: dict[str, Any]) -> list[str]:
+    fields = [
+        ("reference_source", "Lock-in reference source"),
+        ("reference_frequency_hz", "Lock-in reference frequency"),
+        ("sine_output_amplitude_v", "Lock-in sine output amplitude"),
+        ("input_mode", "Lock-in input mode"),
+        ("voltage_input", "Lock-in voltage input"),
+        ("input_coupling", "Lock-in input coupling"),
+        ("input_grounding", "Lock-in input grounding"),
+        ("voltage_input_range_v", "Lock-in voltage input range"),
+        ("sensitivity_index", "Lock-in sensitivity index"),
+        ("time_constant_index", "Lock-in time constant index"),
+        ("filter_slope_db_per_oct", "Lock-in filter slope"),
+        ("synchronous_filter", "Lock-in sync filter"),
+    ]
+    lines = []
+    for key, label in fields:
+        value = lockin.get(key)
+        if value is None:
+            continue
+        suffix = ""
+        if key == "reference_frequency_hz":
+            suffix = " Hz"
+        elif key in {"sine_output_amplitude_v", "voltage_input_range_v"}:
+            suffix = " V"
+        elif key == "filter_slope_db_per_oct":
+            suffix = " dB/oct"
+        lines.append(f"{label}: {value}{suffix}")
+    return lines
 
 
 def run_ac_lockin_sweep(

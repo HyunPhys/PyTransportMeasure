@@ -31,6 +31,18 @@ def ac_lockin_recipe_data(output_dir: Path) -> dict:
             "address": "GPIB0::4::INSTR",
             "channels": ["x", "y", "r", "theta"],
             "read_timing": "after_dc_settle",
+            "reference_source": "internal",
+            "reference_frequency_hz": 17.777,
+            "sine_output_amplitude_v": 0.01,
+            "input_mode": "voltage",
+            "voltage_input": "a",
+            "input_coupling": "ac",
+            "input_grounding": "float",
+            "voltage_input_range_v": 0.01,
+            "sensitivity_index": 18,
+            "time_constant_index": 10,
+            "filter_slope_db_per_oct": 24,
+            "synchronous_filter": False,
         },
         "bias_sweep": {
             "mode": "linear_one_way",
@@ -55,6 +67,8 @@ def test_ac_lockin_recipe_sample_and_plan():
     assert "AC Lock-In Sweep Plan" in plan
     assert "Measurement geometry: two_terminal, 2-terminal" in plan
     assert "Lock-in timing: after_dc_settle" in plan
+    assert "Lock-in reference frequency: 17.777 Hz" in plan
+    assert "Lock-in filter slope: 24 dB/oct" in plan
 
 
 def test_ac_lockin_hardware_smoke_recipe_is_conservative():
@@ -65,8 +79,11 @@ def test_ac_lockin_hardware_smoke_recipe_is_conservative():
     assert recipe.measurement_name == "ac_lockin_hardware_smoke"
     assert recipe.source_instrument.nplc == pytest.approx(1.0)
     assert recipe.bias_sweep.current_compliance_a <= 1e-7
+    assert recipe.lockin.reference_frequency_hz == pytest.approx(17.777)
+    assert recipe.lockin.time_constant_index == 10
     assert ac_lockin_point_count(recipe) == 5
     assert "Source NPLC: 1.0" in plan
+    assert "Lock-in sine output amplitude: 0.01 V" in plan
 
 
 def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):

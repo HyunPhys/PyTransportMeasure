@@ -23,6 +23,7 @@ from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMea
 from .io import unique_run_dir
 from .recipes import DualGateLockInRecipe, SafetyPreset, gate_voltages_from_config
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
+from .ac_lockin import format_lockin_settings
 
 
 DUAL_GATE_LOCKIN_COLUMNS = [
@@ -118,6 +119,7 @@ def format_dual_gate_lockin_plan(
         f"Lock-in: {recipe.lockin.id} at {recipe.lockin.address}",
         f"Lock-in channels: {', '.join(recipe.lockin.channels)}",
         f"Lock-in timing: {recipe.lockin.read_timing}",
+        *format_lockin_settings(recipe.lockin.model_dump(mode="json")),
         f"Gate1 sweep: {gate1_voltages[0]:.6g} V -> {gate1_voltages[-1]:.6g} V, {len(gate1_voltages)} points, settle {recipe.gate1_sweep.settle_s:.6g} s",
         f"Gate2 sweep: {gate2_voltages[0]:.6g} V -> {gate2_voltages[-1]:.6g} V, {len(gate2_voltages)} points, settle {recipe.gate2_sweep.settle_s:.6g} s",
         f"Total points: {len(gate1_voltages) * len(gate2_voltages)}",

@@ -30,6 +30,18 @@ class LockInConfig(BaseModel):
     timeout_ms: int = Field(default=10000, gt=0)
     channels: list[Literal["x", "y", "r", "theta"]] = Field(default_factory=lambda: ["x", "y", "r", "theta"])
     read_timing: Literal["after_dc_settle", "continuous", "external_trigger"] = "after_dc_settle"
+    reference_source: Literal["internal", "external", "dual", "chop"] | None = None
+    reference_frequency_hz: float | None = Field(default=None, ge=0.001, le=500000)
+    sine_output_amplitude_v: float | None = Field(default=None, ge=1e-9, le=2.0)
+    input_mode: Literal["voltage", "current"] | None = None
+    voltage_input: Literal["a", "a-b"] | None = None
+    input_coupling: Literal["ac", "dc"] | None = None
+    input_grounding: Literal["float", "ground"] | None = None
+    voltage_input_range_v: Literal[1.0, 0.3, 0.1, 0.03, 0.01] | None = None
+    sensitivity_index: int | None = Field(default=None, ge=0, le=27)
+    time_constant_index: int | None = Field(default=None, ge=0, le=21)
+    filter_slope_db_per_oct: Literal[6, 12, 18, 24] | None = None
+    synchronous_filter: bool | None = None
 
     @model_validator(mode="after")
     def enabled_requires_address_and_channels(self) -> "LockInConfig":

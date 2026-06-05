@@ -28,6 +28,29 @@ parameters. For the first driver implementation, PyTransportMeasure reads
   - `lockin_r_v`
   - `lockin_theta_deg`
 
+## Measurement Settings To Record
+
+The SR860 manual lists the following setting commands that directly affect
+lock-in measurement interpretation. PyTransportMeasure recipes may record these
+as expected settings, but the current hardware runners do not write them to the
+SR860 yet.
+
+- `RSRC(?)`: reference source, internal/external/dual/chop.
+- `FREQ(?)`: internal reference frequency, 1 mHz to 500 kHz.
+- `SLVL(?)`: sine output amplitude, 1 nV to 2 V.
+- `IVMD(?)`: voltage or current input mode.
+- `ISRC(?)`: voltage input A or A-B.
+- `ICPL(?)`: AC/DC input coupling.
+- `IGND(?)`: floating or grounded input shield.
+- `IRNG(?)`: voltage input range, 1 V to 10 mV.
+- `SCAL(?)`: sensitivity index, 0 to 27.
+- `OFLT(?)`: time-constant index, 0 to 21.
+- `OFSL(?)`: output filter slope, 6/12/18/24 dB/oct.
+- `SYNC(?)`: synchronous filter off/on.
+
+These expected settings are saved in recipe snapshots and metadata so a run can
+be interpreted later even before active SR860 configuration is enabled.
+
 ## Smoke-Test Commands
 
 ```powershell

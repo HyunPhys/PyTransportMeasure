@@ -32,6 +32,18 @@ lockin:
     - r
     - theta
   read_timing: after_dc_settle
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
+  input_mode: voltage
+  voltage_input: a
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
 bias_sweep:
   mode: linear_one_way
   start_v: -0.01

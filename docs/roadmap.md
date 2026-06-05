@@ -152,6 +152,11 @@ root.
   - add dry-run runner over gate1 x gate2 lock-in readout points
   - add lock-in heatmap, stats, report, and registry support
   - keep hardware execution blocked until SR860 excitation/readout topology is smoke-tested
+- [x] Phase 25d: SR860 expected-settings snapshot
+  - add manual-backed SR860 settings fields to the shared lock-in recipe block
+  - print expected reference/input/filter settings in AC and dual-gate lock-in plans
+  - save expected settings in recipe snapshots and metadata without writing to SR860
+  - keep hardware configuration as a separate future smoke-tested phase
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -173,7 +178,7 @@ root.
   - decide DC three-source path vs AC source/readout plus two Keithley gates
   - define Hall-bar graphene dual-gate wiring and safety checklist
   - add preflight for the selected real hardware topology before enabling output
-- [ ] Phase 25d: Dual-gate lock-in hardware preflight
+- [ ] Phase 25e: Dual-gate lock-in hardware preflight
   - validate two gate Keithley addresses and one SR860 address
   - require distinct resources and successful read-only probes
   - print SR860 excitation/readout assumptions before output can be enabled

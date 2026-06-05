@@ -418,6 +418,33 @@ ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
 ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
 ```
 
+SR860 expected settings are written in the `lockin` block:
+
+```yaml
+lockin:
+  enabled: true
+  id: srs_sr860
+  address: GPIB0::4::INSTR
+  read_timing: after_dc_settle
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
+  input_mode: voltage
+  voltage_input: a
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
+```
+
+These values are recorded in recipe snapshots, plan output, and metadata.
+Current hardware code reads SR860 channels but does not reset or reconfigure the
+SR860. Confirm the front-panel settings before a hardware run until an explicit
+SR860 configuration phase is implemented.
+
 ## Pulse Measurement
 
 The current pulse workflow is dry-run only. It validates the recipe, fake SMU

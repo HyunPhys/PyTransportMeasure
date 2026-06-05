@@ -41,6 +41,18 @@ def dual_gate_lockin_recipe_data(output_dir: Path) -> dict:
             "address": "GPIB0::4::INSTR",
             "channels": ["x", "y", "r", "theta"],
             "read_timing": "after_dc_settle",
+            "reference_source": "internal",
+            "reference_frequency_hz": 17.777,
+            "sine_output_amplitude_v": 0.01,
+            "input_mode": "voltage",
+            "voltage_input": "a",
+            "input_coupling": "ac",
+            "input_grounding": "float",
+            "voltage_input_range_v": 0.01,
+            "sensitivity_index": 18,
+            "time_constant_index": 10,
+            "filter_slope_db_per_oct": 24,
+            "synchronous_filter": False,
         },
         "gate1_sweep": {
             "start_v": -0.1,
@@ -85,9 +97,13 @@ def test_dual_gate_lockin_recipe_sample_and_plan():
     assert recipe.measurement_name == "dual_gate_lockin_dry_run"
     assert recipe.gate1_instrument.nplc == pytest.approx(1.0)
     assert recipe.gate2_instrument.nplc == pytest.approx(1.0)
+    assert recipe.lockin.reference_frequency_hz == pytest.approx(17.777)
+    assert recipe.lockin.sensitivity_index == 18
     assert dual_gate_lockin_point_count(recipe) == 25
     assert "Dual-Gate Lock-In Sweep Plan" in plan
     assert "Lock-in timing: after_dc_settle" in plan
+    assert "Lock-in reference source: internal" in plan
+    assert "Lock-in time constant index: 10" in plan
     assert "Total points: 25" in plan
 
 
