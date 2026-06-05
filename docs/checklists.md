@@ -400,6 +400,13 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --allow-active-sweep --max-hardware-points 4 --yes
   ```
+- [ ] If raising `--max-hardware-points` above the default guard, provide
+  `--hardware-approval-note` with the lab reason.
+- [ ] Confirm runs with raised hardware point guards save `metadata.json`
+  `hardware_guard.default_max_hardware_points`,
+  `hardware_guard.requested_max_hardware_points`,
+  `hardware_guard.raised_above_default`, and
+  `hardware_guard.approval_note`.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

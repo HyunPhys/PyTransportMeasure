@@ -438,6 +438,12 @@ before raising `--max-hardware-points`:
 - default hardware point guard status,
 - nominal source-drain AC current.
 
+If `--max-hardware-points` is raised above the default guard, the CLI requires
+`--hardware-approval-note`. The note is saved in `metadata.json` under
+`hardware_guard` with the default guard, requested guard, recipe point count,
+and whether the guard was raised. Use this for short lab-context notes such as
+`"2x2 smoke passed, leakage < 10 pA, expanding to 5x5"`.
+
 Dual-gate lock-in active sweep metadata includes recovery checkpoints:
 `planned_points`, `points_written`, `remaining_points`, `abort_class`,
 `last_completed_index`, last completed gate voltages, `next_point_index`,

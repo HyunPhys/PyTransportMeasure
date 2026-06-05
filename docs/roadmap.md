@@ -218,7 +218,13 @@ root.
   - make broad recipes visibly fail the default hardware point guard before
     output can be enabled
   - keep the actual allowed broader scan size tied to lab feedback
-- [ ] Phase 25m: Dual-gate lock-in broader hardware threshold
+- [x] Phase 25m: Dual-gate lock-in broader hardware threshold audit trail
+  - require `--hardware-approval-note` when raising `--max-hardware-points`
+    above the default guard
+  - save default/requested guard, recipe point count, raised status, and
+    approval note in run metadata
+  - keep actual broad-scan size decision tied to lab feedback
+- [ ] Phase 25n: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

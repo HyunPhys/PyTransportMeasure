@@ -137,7 +137,10 @@ from .validation import format_validation_report, validate_recipe_file
 from .visa_utils import list_resources
 
 
-def update_metadata_file(metadata_path: Path, updates: dict[str, str | None]) -> None:
+DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS = 9
+
+
+def update_metadata_file(metadata_path: Path, updates: dict) -> None:
     with metadata_path.open("r", encoding="utf-8") as handle:
         metadata = json.load(handle)
     metadata.update(updates)
@@ -311,7 +314,17 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     dual_gate_lockin.add_argument("--preview-points", type=int, default=5)
     dual_gate_lockin.add_argument("--allow-active-sweep", action="store_true", help="Enable the guarded hardware gate sweep path.")
-    dual_gate_lockin.add_argument("--max-hardware-points", type=int, default=9, help="Maximum allowed hardware points for guarded active sweep.")
+    dual_gate_lockin.add_argument(
+        "--max-hardware-points",
+        type=int,
+        default=DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+        help="Maximum allowed hardware points for guarded active sweep.",
+    )
+    dual_gate_lockin.add_argument(
+        "--hardware-approval-note",
+        default="",
+        help="Required when raising --max-hardware-points above the default guard; saved into run metadata.",
+    )
     dual_gate_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
@@ -1002,12 +1015,28 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
         total_points = dual_gate_lockin_point_count(recipe)
         if args.max_hardware_points < 1:
             raise ValueError("--max-hardware-points must be >= 1")
+        approval_note = str(args.hardware_approval_note or "").strip()
+        raised_point_guard = args.max_hardware_points > DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS
+        if raised_point_guard and not approval_note:
+            print(
+                "Dual-gate lock-in active sweep blocked: raising --max-hardware-points above "
+                f"the default guard {DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS} requires --hardware-approval-note.",
+                file=sys.stderr,
+            )
+            return 2
         if total_points > args.max_hardware_points:
             print(
                 f"Dual-gate lock-in active sweep blocked: {total_points} points exceeds --max-hardware-points {args.max_hardware_points}.",
                 file=sys.stderr,
             )
             return 2
+        print(
+            "Dual-gate lock-in hardware guard: "
+            f"default={DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS}, requested={args.max_hardware_points}, "
+            f"points={total_points}, raised={raised_point_guard}"
+        )
+        if raised_point_guard:
+            print(f"Hardware approval note: {approval_note}")
         report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
         print(format_dual_gate_lockin_preflight_report(report))
         print()
@@ -1036,6 +1065,19 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
     print(f"CSV: {metadata['csv_path']}")
     print(f"Metadata: {metadata['metadata_path']}")
     print(f"Metadata completed: {metadata['completed']}")
+    if not args.dry_run:
+        update_metadata_file(
+            Path(metadata["metadata_path"]),
+            {
+                "hardware_guard": {
+                    "default_max_hardware_points": DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+                    "requested_max_hardware_points": args.max_hardware_points,
+                    "recipe_points": dual_gate_lockin_point_count(recipe),
+                    "raised_above_default": args.max_hardware_points > DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+                    "approval_note": str(args.hardware_approval_note or "").strip() or None,
+                }
+            },
+        )
     if args.gate_stats and metadata["points_written"] > 0:
         stats_path = write_dual_gate_lockin_stats_csv(run_dir)
         update_metadata_file(Path(metadata["metadata_path"]), {"dual_gate_lockin_stats_path": str(stats_path)})
