@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-import csv
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +31,7 @@ from .gui_services import (
     load_recipe_text,
     primary_plot_path,
     primary_report_path,
+    read_gui_iv_points,
     refresh_gui_instruments,
     run_gui_communication_test,
     run_gui_doctor_text,
@@ -43,6 +43,7 @@ from .gui_services import (
     schema_form_from_text,
     schema_form_text_from_values,
     scheme_builder_from_text,
+    scheme_plot_series,
     scheme_text_from_builder,
     validate_scheme_text,
     validate_recipe_text,
@@ -286,11 +287,13 @@ class IvPlotCanvas(QWidget):
         self.live_voltage: list[float] = []
         self.live_current: list[float] = []
         self.points: list[tuple[float, float]] = []
+        self.series: list[tuple[str, list[tuple[float, float]]]] = []
         self.title = "No data"
 
     def clear(self, title: str = "No data") -> None:
         self.title = title
         self.points = []
+        self.series = []
         self.update()
 
     def plot_points(self, points: list[tuple[float, float]], title: str) -> None:
@@ -298,6 +301,17 @@ class IvPlotCanvas(QWidget):
             self.clear("No point data")
             return
         self.points = list(points)
+        self.series = [(title, self.points)]
+        self.title = title
+        self.update()
+
+    def plot_series(self, series: list[tuple[str, list[tuple[float, float]]]], title: str) -> None:
+        cleaned = [(label, list(points)) for label, points in series if points]
+        if not cleaned:
+            self.clear("No plottable series")
+            return
+        self.series = cleaned
+        self.points = [point for _label, points in cleaned for point in points]
         self.title = title
         self.update()
 
@@ -312,6 +326,7 @@ class IvPlotCanvas(QWidget):
         self.live_voltage.append(float(point.voltage_v))
         self.live_current.append(float(point.current_a))
         self.points = list(zip(self.live_voltage, self.live_current))
+        self.series = [(title, self.points)]
         self.title = title
         self.update()
 
@@ -346,8 +361,10 @@ class IvPlotCanvas(QWidget):
             painter.drawText(plot_left + 12, plot_top + 24, "No point data")
             return
 
-        voltages = [point[0] for point in self.points]
-        currents = [point[1] for point in self.points]
+        series = self.series or [(self.title, self.points)]
+        all_points = [point for _label, points in series for point in points]
+        voltages = [point[0] for point in all_points]
+        currents = [point[1] for point in all_points]
         min_v, max_v = padded_range(min(voltages), max(voltages))
         min_i, max_i = padded_range(min(currents), max(currents))
 
@@ -358,20 +375,28 @@ class IvPlotCanvas(QWidget):
             painter.drawLine(x, plot_top, x, plot_bottom)
             painter.drawLine(plot_left, y, plot_right, y)
 
-        mapped = [
-            (
-                plot_left + int((voltage - min_v) / (max_v - min_v) * plot_width),
-                plot_bottom - int((current - min_i) / (max_i - min_i) * plot_height),
-            )
-            for voltage, current in self.points
-        ]
-        painter.setPen(QPen(QColor("#2563eb"), 2))
-        for start, end in zip(mapped, mapped[1:]):
-            painter.drawLine(start[0], start[1], end[0], end[1])
-        painter.setPen(QPen(QColor("#1d4ed8"), 1))
-        painter.setBrush(QColor("#60a5fa"))
-        for x, y in mapped:
-            painter.drawEllipse(x - 3, y - 3, 6, 6)
+        colors = ["#2563eb", "#0f766e", "#b45309", "#7c3aed", "#be123c", "#15803d", "#0891b2", "#4d7c0f"]
+        for series_index, (label, points) in enumerate(series):
+            color = QColor(colors[series_index % len(colors)])
+            mapped = [
+                (
+                    plot_left + int((voltage - min_v) / (max_v - min_v) * plot_width),
+                    plot_bottom - int((current - min_i) / (max_i - min_i) * plot_height),
+                )
+                for voltage, current in points
+            ]
+            painter.setPen(QPen(color, 2))
+            for start, end in zip(mapped, mapped[1:]):
+                painter.drawLine(start[0], start[1], end[0], end[1])
+            painter.setBrush(color)
+            for x, y in mapped:
+                painter.drawEllipse(x - 3, y - 3, 6, 6)
+            if len(series) > 1 and series_index < 5:
+                legend_y = plot_top + 18 + series_index * 18
+                painter.setPen(QPen(color, 2))
+                painter.drawLine(plot_right - 120, legend_y - 4, plot_right - 96, legend_y - 4)
+                painter.setPen(QPen(QColor("#374151"), 1))
+                painter.drawText(plot_right - 90, legend_y, str(label)[:22])
 
         painter.setPen(QPen(QColor("#374151"), 1))
         painter.drawText(plot_left, plot_bottom + 18, f"{min_v:.3g}")
@@ -585,6 +610,8 @@ class MainWindow(QMainWindow):
         self.scheme_report_text.setReadOnly(True)
         self.scheme_compare_text = QPlainTextEdit()
         self.scheme_compare_text.setReadOnly(True)
+        self.scheme_overlay_canvas = IvPlotCanvas()
+        self.scheme_overlay_status = QLabel("No scheme loaded")
         self.scheme_step_table = QTableWidget(0, 12)
         self.scheme_step_table.setHorizontalHeaderLabels(
             [
@@ -875,9 +902,17 @@ class MainWindow(QMainWindow):
         scheme_tabs.addTab(self.scheme_validation_text, "Validation")
         scheme_tabs.addTab(self.scheme_result_text, "Result")
         scheme_tabs.addTab(self.scheme_report_text, "Report")
+        scheme_tabs.addTab(self.build_scheme_overlay_view(), "Overlay")
         scheme_tabs.addTab(self.saved_scheme_table, "Saved")
         scheme_tabs.addTab(self.build_scheme_compare_view(), "Compare")
         layout.addWidget(scheme_tabs, stretch=1)
+        return container
+
+    def build_scheme_overlay_view(self) -> QWidget:
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.addWidget(self.scheme_overlay_status)
+        layout.addWidget(self.scheme_overlay_canvas, stretch=1)
         return container
 
     def build_scheme_compare_view(self) -> QWidget:
@@ -1369,8 +1404,23 @@ class MainWindow(QMainWindow):
         self.last_scheme_result = result
         self.scheme_result_text.setPlainText(result.summary_text)
         self.scheme_report_text.setPlainText(result.report_text)
+        self.update_scheme_overlay_preview(result)
         self.open_scheme_folder_button.setEnabled(True)
         self.open_scheme_report_button.setEnabled(bool(result.artifact_paths.get("report_path")))
+
+    def update_scheme_overlay_preview(self, result: GuiSchemeRunResult) -> None:
+        try:
+            series = scheme_plot_series(result.summary_path)
+        except Exception as exc:
+            self.scheme_overlay_status.setText(f"Overlay unavailable: {type(exc).__name__}: {exc}")
+            self.scheme_overlay_canvas.clear("Overlay unavailable")
+            return
+        if not series:
+            self.scheme_overlay_status.setText("No Drain I-V style runs found for overlay preview")
+            self.scheme_overlay_canvas.clear("No plottable scheme runs")
+            return
+        self.scheme_overlay_canvas.plot_series(series, f"Scheme overlay: {result.scheme_dir.name}")
+        self.scheme_overlay_status.setText(f"Overlay preview from saved points.csv files | traces={len(series)}")
 
     def browse_scheme_source_folder(self) -> None:
         selected = QFileDialog.getExistingDirectory(
@@ -2162,14 +2212,7 @@ def update_plain_text_preserving_scroll(text_edit: Any, text: str) -> None:
 
 
 def load_iv_points(path: Path) -> list[tuple[float, float]]:
-    points: list[tuple[float, float]] = []
-    with path.open(newline="", encoding="utf-8-sig") as handle:
-        for row in csv.DictReader(handle):
-            try:
-                points.append((float(row["voltage_v"]), float(row["current_a"])))
-            except (KeyError, TypeError, ValueError):
-                continue
-    return points
+    return read_gui_iv_points(path)
 
 
 def padded_range(minimum: float, maximum: float) -> tuple[float, float]:

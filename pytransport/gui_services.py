@@ -7,6 +7,7 @@ window.
 
 from __future__ import annotations
 
+import csv
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -1625,6 +1626,34 @@ def compare_gui_schemes(paths: list[str | Path]) -> GuiSchemeComparison:
             rows.append(gui_scheme_comparison_row(review, stat))
     text_lines.extend(["", f"Comparison rows: {len(rows)}"])
     return GuiSchemeComparison(tuple(rows), "\n".join(text_lines))
+
+
+def scheme_plot_series(path: str | Path, max_series: int = 12) -> list[tuple[str, list[tuple[float, float]]]]:
+    review = summarize_scheme(path)
+    series: list[tuple[str, list[tuple[float, float]]]] = []
+    for run in review.runs:
+        if run.type == "single_gate" or run.run_dir is None:
+            continue
+        points_path = run.run_dir / "points.csv"
+        if not points_path.exists():
+            continue
+        points = read_gui_iv_points(points_path)
+        if points:
+            series.append((run.label, points))
+        if len(series) >= max_series:
+            break
+    return series
+
+
+def read_gui_iv_points(path: str | Path) -> list[tuple[float, float]]:
+    points: list[tuple[float, float]] = []
+    with Path(path).open(newline="", encoding="utf-8-sig") as handle:
+        for row in csv.DictReader(handle):
+            try:
+                points.append((float(row["voltage_v"]), float(row["current_a"])))
+            except (KeyError, TypeError, ValueError):
+                continue
+    return points
 
 
 def unique_existing_scheme_paths(paths: list[str | Path]) -> list[Path]:

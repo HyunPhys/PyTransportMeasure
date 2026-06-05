@@ -35,6 +35,7 @@ from pytransport.gui_services import (
     schema_form_from_text,
     schema_form_text_from_values,
     scheme_builder_from_text,
+    scheme_plot_series,
     scheme_text_from_builder,
     validate_scheme_text,
     format_scheme_plan_text,
@@ -235,6 +236,16 @@ def test_gui_scheme_comparison_builds_step_stats_from_saved_schemes(tmp_path):
     assert comparison.rows[0]["runs"] == 1
     assert comparison.rows[0]["mean_fitted_resistance_ohm"] == pytest.approx(1000.0)
     assert comparison.rows[1]["mean_fitted_resistance_ohm"] == pytest.approx(2000.0)
+
+
+def test_gui_scheme_plot_series_reads_plottable_saved_runs(tmp_path):
+    scheme_dir = write_saved_scheme_for_compare(tmp_path, "scheme_overlay", 1500.0)
+
+    series = scheme_plot_series(scheme_dir)
+
+    assert len(series) == 1
+    assert series[0][0] == "iv"
+    assert series[0][1] == [(0.0, 0.0), (0.0015, 1e-06)]
 
 
 def write_saved_scheme_for_compare(tmp_path: Path, name: str, resistance_ohm: float) -> Path:

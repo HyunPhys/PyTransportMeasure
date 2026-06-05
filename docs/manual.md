@@ -513,6 +513,15 @@ Scheme Comparison workflow:
 7. Use the table to decide which scheme/step should be inspected in more
    detail.
 
+Scheme Overlay workflow:
+
+1. Open `Schemes`.
+2. Click `Refresh Saved`.
+3. Select a saved scheme with Drain I-V-style runs.
+4. Click `Load Selected`.
+5. Open `Overlay`.
+6. Resize the window and confirm the plot redraws without image stretching.
+
 Drain I-V overrides let one base recipe be reused for several sweep conditions
 without copying the recipe file. For example, a row can set `Suffix` to
 `_small`, `Start V` to `-0.05`, `Stop V` to `0.05`, and `Points` to `5`.
@@ -525,7 +534,9 @@ can validate the workflow quickly. The `Saved` table reloads previous
 `scheme_summary.json` files from the selected source folder, including nested
 batch run counts when a linked batch summary is available. `Compare Selected`
 uses the same scheme statistics path as CLI review exports, so GUI comparison
-values stay consistent with `ptm scheme-stats`.
+values stay consistent with `ptm scheme-stats`. `Overlay` redraws saved
+`points.csv` data directly on the GUI canvas instead of embedding
+`scheme_overlay.svg`.
 
 Hardware scheme execution remains a CLI workflow until separate lab smoke tests
 gate it:

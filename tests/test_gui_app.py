@@ -347,12 +347,19 @@ def test_qt_plot_widget_stores_saved_and_live_points(app):
     window = MainWindow()
 
     window.saved_plot_canvas.plot_points([(0.0, 0.0), (1.0, 1e-6)], "saved")
+    window.scheme_overlay_canvas.plot_series(
+        [("a", [(0.0, 0.0), (1.0, 1e-6)]), ("b", [(0.0, 0.0), (1.0, 2e-6)])],
+        "overlay",
+    )
     window.live_plot_canvas.reset_live("live")
     point = type("Point", (), {"index": 0, "voltage_v": 0.1, "current_a": 1e-7})()
     window.append_live_point(point, 3)
 
     assert window.saved_plot_canvas.title == "saved"
     assert window.saved_plot_canvas.points == [(0.0, 0.0), (1.0, 1e-6)]
+    assert window.scheme_overlay_canvas.title == "overlay"
+    assert len(window.scheme_overlay_canvas.series) == 2
+    assert window.scheme_overlay_canvas.points == [(0.0, 0.0), (1.0, 1e-6), (0.0, 0.0), (1.0, 2e-6)]
     assert window.live_plot_canvas.points == [(0.1, 1e-7)]
     assert padded_range(1.0, 1.0) == (0.95, 1.05)
     window.close()
