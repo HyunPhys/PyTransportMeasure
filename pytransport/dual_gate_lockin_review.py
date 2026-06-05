@@ -33,6 +33,12 @@ class DualGateLockInAcceptance:
     points_written: int | None
     planned_points: int | None
     remaining_points: int | None
+    gate1_leakage_abs_max_a: float | None
+    gate2_leakage_abs_max_a: float | None
+    gate1_compliance_a: float | None
+    gate2_compliance_a: float | None
+    gate1_leakage_compliance_margin: float | None
+    gate2_leakage_compliance_margin: float | None
     issues: tuple[DualGateLockInAcceptanceIssue, ...]
 
 
@@ -156,6 +162,8 @@ def audit_dual_gate_lockin_run(
     points_written = _optional_int(metadata.get("points_written"))
     planned_points = _optional_int(metadata.get("planned_points"))
     remaining_points = _optional_int(metadata.get("remaining_points"))
+    rows: list[dict[str, float | int | bool | None]] = []
+    leakage = _gate_leakage_acceptance_stats(metadata, rows)
 
     if measurement_type != "dual_gate_lockin_sweep":
         issues.append(
@@ -209,7 +217,9 @@ def audit_dual_gate_lockin_run(
     if require_lockin_settings:
         _audit_lockin_settings(metadata, issues)
     try:
-        csv_points = len(read_dual_gate_lockin_points(path))
+        rows = read_dual_gate_lockin_points(path)
+        csv_points = len(rows)
+        leakage = _gate_leakage_acceptance_stats(metadata, rows)
     except Exception as exc:
         issues.append(DualGateLockInAcceptanceIssue("error", "points_csv", f"{type(exc).__name__}: {exc}"))
     else:
@@ -221,7 +231,8 @@ def audit_dual_gate_lockin_run(
                     f"points.csv row count {csv_points} != metadata points_written {points_written}",
                 )
             )
-        _audit_planned_gate_grid(metadata, rows=read_dual_gate_lockin_points(path), issues=issues)
+        _audit_gate_leakage_margin(leakage, rows, issues)
+        _audit_planned_gate_grid(metadata, rows=rows, issues=issues)
 
     errors = [issue for issue in issues if issue.severity == "error"]
     return DualGateLockInAcceptance(
@@ -232,6 +243,12 @@ def audit_dual_gate_lockin_run(
         points_written=points_written,
         planned_points=planned_points,
         remaining_points=remaining_points,
+        gate1_leakage_abs_max_a=leakage["gate1_leakage_abs_max_a"],
+        gate2_leakage_abs_max_a=leakage["gate2_leakage_abs_max_a"],
+        gate1_compliance_a=leakage["gate1_compliance_a"],
+        gate2_compliance_a=leakage["gate2_compliance_a"],
+        gate1_leakage_compliance_margin=leakage["gate1_leakage_compliance_margin"],
+        gate2_leakage_compliance_margin=leakage["gate2_leakage_compliance_margin"],
         issues=tuple(issues),
     )
 
@@ -245,6 +262,10 @@ def format_dual_gate_lockin_acceptance(audit: DualGateLockInAcceptance) -> str:
         f"Completed: {audit.completed}",
         f"Points: {audit.points_written if audit.points_written is not None else 'n/a'} / {audit.planned_points if audit.planned_points is not None else 'n/a'}",
         f"Remaining points: {audit.remaining_points if audit.remaining_points is not None else 'n/a'}",
+        f"Gate1 leakage max: {fmt(audit.gate1_leakage_abs_max_a, ' A')}",
+        f"Gate2 leakage max: {fmt(audit.gate2_leakage_abs_max_a, ' A')}",
+        f"Gate1 leakage/compliance margin: {fmt(audit.gate1_leakage_compliance_margin, 'x')}",
+        f"Gate2 leakage/compliance margin: {fmt(audit.gate2_leakage_compliance_margin, 'x')}",
     ]
     if audit.issues:
         lines.append("Issues:")
@@ -434,6 +455,70 @@ def _rounded_grid_voltage(value: Any) -> float:
     return round(float(value), 12)
 
 
+def _gate_leakage_acceptance_stats(
+    metadata: dict[str, Any],
+    rows: list[dict[str, float | int | bool | None]],
+) -> dict[str, float | None]:
+    recipe = metadata.get("recipe") or {}
+    gate1_compliance = _optional_float(((recipe.get("gate1_sweep") or {}).get("current_compliance_a")))
+    gate2_compliance = _optional_float(((recipe.get("gate2_sweep") or {}).get("current_compliance_a")))
+    gate1_max = max((abs(float(row["gate1_current_a"])) for row in rows), default=None)
+    gate2_max = max((abs(float(row["gate2_current_a"])) for row in rows), default=None)
+    return {
+        "gate1_leakage_abs_max_a": gate1_max,
+        "gate2_leakage_abs_max_a": gate2_max,
+        "gate1_compliance_a": gate1_compliance,
+        "gate2_compliance_a": gate2_compliance,
+        "gate1_leakage_compliance_margin": _leakage_margin(gate1_max, gate1_compliance),
+        "gate2_leakage_compliance_margin": _leakage_margin(gate2_max, gate2_compliance),
+    }
+
+
+def _audit_gate_leakage_margin(
+    leakage: dict[str, float | None],
+    rows: list[dict[str, float | int | bool | None]],
+    issues: list[DualGateLockInAcceptanceIssue],
+) -> None:
+    if any(row["gate1_compliance_hit"] for row in rows):
+        issues.append(DualGateLockInAcceptanceIssue("error", "gate1_leakage", "gate1 compliance hit appears in points.csv"))
+    if any(row["gate2_compliance_hit"] for row in rows):
+        issues.append(DualGateLockInAcceptanceIssue("error", "gate2_leakage", "gate2 compliance hit appears in points.csv"))
+    for role in ["gate1", "gate2"]:
+        leakage_max = leakage[f"{role}_leakage_abs_max_a"]
+        compliance = leakage[f"{role}_compliance_a"]
+        margin = leakage[f"{role}_leakage_compliance_margin"]
+        if leakage_max is None:
+            issues.append(DualGateLockInAcceptanceIssue("error", f"{role}_leakage", "leakage current data missing"))
+            continue
+        if compliance is None:
+            issues.append(DualGateLockInAcceptanceIssue("warning", f"{role}_leakage", "compliance unavailable; margin not computed"))
+            continue
+        if leakage_max > compliance:
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "error",
+                    f"{role}_leakage",
+                    f"max leakage {leakage_max:g} A exceeds compliance {compliance:g} A",
+                )
+            )
+        elif margin is not None and margin < 10:
+            issues.append(
+                DualGateLockInAcceptanceIssue(
+                    "warning",
+                    f"{role}_leakage_margin",
+                    f"leakage/compliance margin is {margin:g}x; review before broader scans",
+                )
+            )
+
+
+def _leakage_margin(leakage_max: float | None, compliance: float | None) -> float | None:
+    if leakage_max is None or compliance is None:
+        return None
+    if leakage_max == 0:
+        return float("inf")
+    return compliance / leakage_max
+
+
 def _audit_smu_readback(
     metadata: dict[str, Any],
     role: str,
@@ -615,6 +700,15 @@ def _optional_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
     except (TypeError, ValueError):
         return None
 

@@ -235,7 +235,14 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
 
     acceptance = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=False)
     assert acceptance.accepted is True
+    gate1_leakage_max = max(abs(float(row["gate1_current_a"])) for row in rows)
+    gate2_leakage_max = max(abs(float(row["gate2_current_a"])) for row in rows)
+    assert acceptance.gate1_leakage_abs_max_a == pytest.approx(gate1_leakage_max)
+    assert acceptance.gate2_leakage_abs_max_a == pytest.approx(gate2_leakage_max)
+    assert acceptance.gate1_leakage_compliance_margin == pytest.approx(1e-8 / gate1_leakage_max)
+    assert acceptance.gate2_leakage_compliance_margin == pytest.approx(1e-8 / gate2_leakage_max)
     assert "Dual-gate lock-in acceptance: PASS" in format_dual_gate_lockin_acceptance(acceptance)
+    assert "Gate1 leakage/compliance margin:" in format_dual_gate_lockin_acceptance(acceptance)
     assert write_dual_gate_lockin_acceptance_report(run_dir, require_lockin_settings=False).name == "dual_gate_lockin_acceptance.md"
 
     strict_acceptance = audit_dual_gate_lockin_run(run_dir)
@@ -293,6 +300,28 @@ def test_dual_gate_lockin_acceptance_fails_grid_signature_mismatch(tmp_path):
 
     assert acceptance.accepted is False
     assert any(issue.check == "planned_gate_grid" for issue in acceptance.issues)
+
+
+def test_dual_gate_lockin_acceptance_warns_when_leakage_margin_is_small(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1_smu, gate2_smu, lockin)
+    run_dir = Path(metadata["run_dir"])
+    csv_path = run_dir / "points.csv"
+    rows = list(csv.DictReader(csv_path.open(newline="", encoding="utf-8")))
+    for row in rows:
+        row["gate1_current_a"] = "2e-9"
+    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+
+    acceptance = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=False)
+
+    assert acceptance.accepted is True
+    assert acceptance.gate1_leakage_compliance_margin == pytest.approx(5)
+    assert any(issue.check == "gate1_leakage_margin" and issue.severity == "warning" for issue in acceptance.issues)
 
 
 def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):

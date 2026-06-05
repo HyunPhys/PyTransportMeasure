@@ -308,7 +308,11 @@ root.
   - copy accepted run topology, SR860 settings, Keithley settings, compliance,
     and metadata structure into a candidate recipe
   - change only the requested gate grid and immediately run scale-up pre-check
-- [ ] Phase 25ae: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ae: Dual-gate lock-in leakage margin audit
+  - compute gate1/gate2 leakage maxima from accepted `points.csv`
+  - report leakage/compliance margin in `dual-gate-lockin-audit`
+  - warn when margin is below 10x even if the run otherwise passes
+- [ ] Phase 25af: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

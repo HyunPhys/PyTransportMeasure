@@ -406,6 +406,10 @@ remain point-guarded.
   ptm dual-gate-lockin-audit data\raw\<dual_gate_lockin_run_folder> --write-report
   ```
 - [ ] Confirm the audit prints `Dual-gate lock-in acceptance: PASS`.
+- [ ] Confirm the audit prints gate1/gate2 leakage maxima and
+  leakage/compliance margins.
+- [ ] If any leakage/compliance margin warning appears, review leakage behavior
+  before increasing gate range or point count.
 - [ ] Confirm `dual_gate_lockin_acceptance.md` is written.
 - [ ] If the audit fails, review the listed issue before changing gate range,
   point count, NPLC, compliance, or SR860 settings.
