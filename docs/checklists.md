@@ -342,6 +342,19 @@ preflight is available.
 - [ ] Confirm metadata says `gate_outputs_enabled: false`.
 - [ ] Confirm SR860 X/Y/R/theta values are reasonable for the current
   front-panel settings and wiring.
+- [ ] Run the active-gate smoke only after readout smoke looks reasonable.
+  Start with a small gate voltage pair.
+  ```powershell
+  ptm dual-gate-lockin-active-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --gate1-v 0.01 --gate2-v 0 --samples 3 --settle-s 0.2 --interval-s 0.2 --progress
+  ```
+- [ ] Confirm the command asks for confirmation before enabling gate outputs
+  unless `--yes` is explicitly used.
+- [ ] Confirm `active_gate_smoke.csv` includes gate voltage, leakage current,
+  compliance flags, and SR860 X/Y/R/theta columns.
+- [ ] Confirm metadata has `outputs_off_after_run: true` and
+  `gate_outputs_enabled: false` after the run.
+- [ ] Confirm leakage currents are below the chosen safety/current-compliance
+  limits before any active gate sweep work begins.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

@@ -365,6 +365,7 @@ path is still blocked, but the read-only preflight gate is available.
 ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
 ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
 ptm dual-gate-lockin-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --samples 5 --interval-s 0.2 --progress
+ptm dual-gate-lockin-active-smoke configs/recipes/dual_gate_lockin_dry_run.yaml --gate1-v 0.01 --gate2-v 0 --samples 3 --settle-s 0.2 --interval-s 0.2 --progress
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
 ```
 
@@ -400,6 +401,13 @@ The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
 samples to `lockin_smoke.csv`. It does not configure Keithley source mode and
 does not enable gate output. Use it to confirm that the SR860 signal path and
 front-panel settings make sense before any future active gate sweep.
+
+The active-gate smoke command is the first dual-gate lock-in command that may
+enable Keithley gate outputs. It applies one static `gate1/gate2` voltage pair,
+records leakage current and SR860 X/Y/R/theta samples to `active_gate_smoke.csv`,
+then turns both gate outputs off in normal, error, and interrupt paths. Start
+with small voltages and do not use `--yes` until the prompt has been checked on
+the lab laptop.
 
 Hardware output is intentionally blocked:
 

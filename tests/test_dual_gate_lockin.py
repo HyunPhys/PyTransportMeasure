@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from pytransport.dual_gate_lockin import dual_gate_lockin_point_count, format_dual_gate_lockin_plan, run_dual_gate_lockin_sweep
+from pytransport.dual_gate_lockin_smoke import run_dual_gate_lockin_active_gate_smoke
 from pytransport.dual_gate_lockin_review import (
     format_dual_gate_lockin_summary,
     summarize_dual_gate_lockin_run,
@@ -177,5 +178,68 @@ def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):
     assert metadata["completed"] is False
     assert metadata["error_type"] == "SafetyLimitError"
     assert metadata["triggered_limit"] == "gate1_instrument_compliance"
+    assert gate1_smu.is_output_on is False
+    assert gate2_smu.is_output_on is False
+
+
+def test_dual_gate_lockin_active_gate_smoke_writes_readout_and_turns_outputs_off(tmp_path):
+    recipe = DualGateLockInRecipe.model_validate(dual_gate_lockin_recipe_data(tmp_path))
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+
+    metadata = run_dual_gate_lockin_active_gate_smoke(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        gate1_voltage_v=0.01,
+        gate2_voltage_v=-0.01,
+        samples=3,
+        interval_s=0,
+        settle_s=0,
+        recipe_path="active_smoke.yaml",
+    )
+
+    assert metadata["completed"] is True
+    assert metadata["measurement_type"] == "dual_gate_lockin_active_gate_smoke"
+    assert metadata["points_written"] == 3
+    assert metadata["gate_outputs_enabled"] is False
+    assert metadata["outputs_off_after_run"] is True
+    assert gate1_smu.is_output_on is False
+    assert gate2_smu.is_output_on is False
+    rows = list(csv.DictReader((Path(metadata["run_dir"]) / "active_gate_smoke.csv").open(newline="", encoding="utf-8")))
+    assert len(rows) == 3
+    assert float(rows[0]["gate1_voltage_v"]) == pytest.approx(0.01)
+
+
+def test_dual_gate_lockin_active_gate_smoke_compliance_stop_turns_outputs_off(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["gate1_sweep"]["current_compliance_a"] = 1e-9
+    recipe = DualGateLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    state = DualGateFakeDeviceState(gate1_leak_resistance_ohm=1_000_000.0)
+    gate1_smu = DualGateFakeSMU("gate1", state)
+    gate2_smu = DualGateFakeSMU("gate2", state)
+    lockin = DualGateFakeLockIn(state, base_r_v=1e-6, noise_std_v=0)
+
+    metadata = run_dual_gate_lockin_active_gate_smoke(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        gate1_voltage_v=0.01,
+        gate2_voltage_v=0.0,
+        samples=3,
+        interval_s=0,
+        settle_s=0,
+    )
+
+    assert metadata["completed"] is False
+    assert metadata["error_type"] == "SafetyLimitError"
+    assert metadata["triggered_limit"] == "gate1_instrument_compliance"
+    assert metadata["gate_outputs_enabled"] is False
+    assert metadata["outputs_off_after_run"] is True
     assert gate1_smu.is_output_on is False
     assert gate2_smu.is_output_on is False

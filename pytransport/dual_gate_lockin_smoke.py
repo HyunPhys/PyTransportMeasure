@@ -14,15 +14,32 @@ import yaml
 
 from .batch import safe_name
 from .dual_gate_lockin import format_topology_settings
-from .instruments.base import LockInAmplifier
+from .errors import SafetyLimitError
+from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMeasureUnit
 from .io import unique_run_dir
 from .recipes import DualGateLockInRecipe, SafetyPreset
-from .safety import validate_dual_gate_lockin_recipe_against_safety
+from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
 
 
 DUAL_GATE_LOCKIN_SMOKE_COLUMNS = [
     "sample_index",
     "elapsed_s",
+    "lockin_x_v",
+    "lockin_y_v",
+    "lockin_r_v",
+    "lockin_theta_deg",
+]
+
+
+DUAL_GATE_LOCKIN_ACTIVE_SMOKE_COLUMNS = [
+    "sample_index",
+    "elapsed_s",
+    "gate1_voltage_v",
+    "gate2_voltage_v",
+    "gate1_current_a",
+    "gate2_current_a",
+    "gate1_compliance_hit",
+    "gate2_compliance_hit",
     "lockin_x_v",
     "lockin_y_v",
     "lockin_r_v",
@@ -43,17 +60,43 @@ class DualGateLockInSmokePoint:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class DualGateLockInActiveSmokePoint:
+    sample_index: int
+    elapsed_s: float
+    gate1_voltage_v: float
+    gate2_voltage_v: float
+    gate1_current_a: float
+    gate2_current_a: float
+    gate1_compliance_hit: bool
+    gate2_compliance_hit: bool
+    lockin_x_v: float | None
+    lockin_y_v: float | None
+    lockin_r_v: float | None
+    lockin_theta_deg: float | None
+
+    def to_dict(self) -> dict[str, float | int | bool | None]:
+        return asdict(self)
+
+
 class DualGateLockInSmokeWriter:
-    def __init__(self, output_dir: Path, measurement_name: str):
+    def __init__(
+        self,
+        output_dir: Path,
+        measurement_name: str,
+        suffix: str = "readout_smoke",
+        csv_name: str = "lockin_smoke.csv",
+        columns: list[str] | None = None,
+    ):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.run_dir = unique_run_dir(output_dir, f"{timestamp}_{safe_name(measurement_name)}_readout_smoke")
+        self.run_dir = unique_run_dir(output_dir, f"{timestamp}_{safe_name(measurement_name)}_{safe_name(suffix)}")
         self.run_dir.mkdir(parents=True, exist_ok=False)
-        self.csv_path = self.run_dir / "lockin_smoke.csv"
+        self.csv_path = self.run_dir / csv_name
         self.metadata_path = self.run_dir / "metadata.json"
         self.recipe_snapshot_path = self.run_dir / "recipe_snapshot.yaml"
         self.safety_snapshot_path = self.run_dir / "safety_snapshot.yaml"
         self._csv_file = self.csv_path.open("w", newline="", encoding="utf-8")
-        self._writer = csv.DictWriter(self._csv_file, fieldnames=DUAL_GATE_LOCKIN_SMOKE_COLUMNS)
+        self._writer = csv.DictWriter(self._csv_file, fieldnames=columns or DUAL_GATE_LOCKIN_SMOKE_COLUMNS)
         self._writer.writeheader()
         self._csv_file.flush()
 
@@ -94,6 +137,67 @@ def format_dual_gate_lockin_smoke_plan(
             *format_topology_settings(recipe.topology.model_dump(mode="json")),
         ]
     )
+
+
+def format_dual_gate_lockin_active_smoke_plan(
+    recipe: DualGateLockInRecipe,
+    safety: SafetyPreset,
+    recipe_path: str | Path,
+    gate1_voltage_v: float,
+    gate2_voltage_v: float,
+    settle_s: float,
+    samples: int,
+    interval_s: float,
+) -> str:
+    return "\n".join(
+        [
+            f"Dual-Gate Lock-In Active-Gate Smoke: {recipe.measurement_name}",
+            f"Recipe: {Path(recipe_path)}",
+            f"Safety preset: {safety.name}",
+            "Gate outputs: enabled only during this smoke test",
+            f"Gate1 instrument: {recipe.gate1_instrument.id} at {recipe.gate1_instrument.address}",
+            f"Gate2 instrument: {recipe.gate2_instrument.id} at {recipe.gate2_instrument.address}",
+            f"Gate1 voltage: {gate1_voltage_v:.6g} V",
+            f"Gate2 voltage: {gate2_voltage_v:.6g} V",
+            f"Gate1 compliance: {recipe.gate1_sweep.current_compliance_a:.6g} A",
+            f"Gate2 compliance: {recipe.gate2_sweep.current_compliance_a:.6g} A",
+            f"Safety current limit: {safety.max_abs_current_a:.6g} A",
+            f"Safety voltage limit: {safety.max_abs_voltage_v:.6g} V",
+            f"Settle: {settle_s:.6g} s",
+            f"Samples: {samples}",
+            f"Interval: {interval_s:.6g} s",
+            f"Lock-in: {recipe.lockin.id} at {recipe.lockin.address}",
+            *format_topology_settings(recipe.topology.model_dump(mode="json")),
+        ]
+    )
+
+
+def validate_active_gate_smoke_request(
+    recipe: DualGateLockInRecipe,
+    safety: SafetyPreset,
+    gate1_voltage_v: float,
+    gate2_voltage_v: float,
+    samples: int,
+    interval_s: float,
+    settle_s: float,
+) -> None:
+    if samples < 1:
+        raise ValueError("samples must be >= 1")
+    if interval_s < 0:
+        raise ValueError("interval_s must be >= 0")
+    if settle_s < 0:
+        raise ValueError("settle_s must be >= 0")
+    validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
+    max_voltage = max(abs(gate1_voltage_v), abs(gate2_voltage_v))
+    if max_voltage > safety.max_abs_voltage_v:
+        raise SafetyLimitError(
+            f"Active-gate smoke voltage {max_voltage:g} V exceeds safety limit {safety.max_abs_voltage_v:g} V",
+            "active_gate_smoke_max_abs_voltage_v",
+        )
+    if recipe.gate1_instrument.voltage_range_v is not None and abs(gate1_voltage_v) > recipe.gate1_instrument.voltage_range_v:
+        raise SafetyLimitError("Gate1 smoke voltage exceeds gate1 instrument voltage_range_v", "gate1_voltage_range_v")
+    if recipe.gate2_instrument.voltage_range_v is not None and abs(gate2_voltage_v) > recipe.gate2_instrument.voltage_range_v:
+        raise SafetyLimitError("Gate2 smoke voltage exceeds gate2 instrument voltage_range_v", "gate2_voltage_range_v")
 
 
 def run_dual_gate_lockin_readout_smoke(
@@ -178,3 +282,164 @@ def run_dual_gate_lockin_readout_smoke(
             metadata["points_written"] = points_written
             writer.write_metadata(metadata)
             writer.close()
+
+
+def run_dual_gate_lockin_active_gate_smoke(
+    recipe: DualGateLockInRecipe,
+    safety: SafetyPreset,
+    gate1_smu: SourceMeasureUnit,
+    gate2_smu: SourceMeasureUnit,
+    lockin: LockInAmplifier,
+    gate1_voltage_v: float,
+    gate2_voltage_v: float,
+    samples: int,
+    interval_s: float,
+    settle_s: float,
+    recipe_path: str | Path | None = None,
+    preflight_report: str | None = None,
+    progress_callback: Callable[[DualGateLockInActiveSmokePoint, int], None] | None = None,
+) -> dict[str, Any]:
+    validate_active_gate_smoke_request(recipe, safety, gate1_voltage_v, gate2_voltage_v, samples, interval_s, settle_s)
+    writer = DualGateLockInSmokeWriter(
+        Path(recipe.output.directory),
+        recipe.measurement_name,
+        suffix="active_gate_smoke",
+        csv_name="active_gate_smoke.csv",
+        columns=DUAL_GATE_LOCKIN_ACTIVE_SMOKE_COLUMNS,
+    )
+    writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
+    writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
+    points_written = 0
+    outputs_were_enabled = False
+    metadata: dict[str, Any] = {
+        "measurement_name": recipe.measurement_name,
+        "measurement_type": "dual_gate_lockin_active_gate_smoke",
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "completed": False,
+        "interrupted": False,
+        "error_type": None,
+        "error_message": None,
+        "triggered_limit": None,
+        "points_written": 0,
+        "samples_requested": samples,
+        "interval_s": interval_s,
+        "settle_s": settle_s,
+        "gate1_voltage_v": gate1_voltage_v,
+        "gate2_voltage_v": gate2_voltage_v,
+        "gate_outputs_enabled": False,
+        "outputs_off_after_run": False,
+        "recipe": recipe.model_dump(mode="json"),
+        "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
+        "safety": safety.model_dump(mode="json"),
+        "topology": recipe.topology.model_dump(mode="json"),
+        "preflight_report": preflight_report,
+        "run_dir": str(writer.run_dir),
+        "gate1_instrument_probe": None,
+        "gate2_instrument_probe": None,
+        "lockin_probe": None,
+        "csv_path": str(writer.csv_path),
+        "metadata_path": str(writer.metadata_path),
+        "recipe_snapshot_path": str(writer.recipe_snapshot_path),
+        "safety_snapshot_path": str(writer.safety_snapshot_path),
+    }
+    try:
+        gate1_smu.connect()
+        gate2_smu.connect()
+        lockin.connect()
+        metadata["gate1_instrument_probe"] = gate1_smu.probe()
+        metadata["gate2_instrument_probe"] = gate2_smu.probe()
+        metadata["lockin_probe"] = lockin.probe()
+        gate1_smu.configure_voltage_source(
+            SMUVoltageSourceConfig(
+                current_compliance_a=recipe.gate1_sweep.current_compliance_a,
+                voltage_range_v=recipe.gate1_instrument.voltage_range_v,
+                current_range_a=recipe.gate1_instrument.current_range_a,
+                terminal=recipe.gate1_instrument.terminal,
+                nplc=recipe.gate1_instrument.nplc,
+            )
+        )
+        gate2_smu.configure_voltage_source(
+            SMUVoltageSourceConfig(
+                current_compliance_a=recipe.gate2_sweep.current_compliance_a,
+                voltage_range_v=recipe.gate2_instrument.voltage_range_v,
+                current_range_a=recipe.gate2_instrument.current_range_a,
+                terminal=recipe.gate2_instrument.terminal,
+                nplc=recipe.gate2_instrument.nplc,
+            )
+        )
+        gate1_smu.set_voltage(float(gate1_voltage_v))
+        gate2_smu.set_voltage(float(gate2_voltage_v))
+        gate1_smu.output_on()
+        gate2_smu.output_on()
+        outputs_were_enabled = True
+        metadata["gate_outputs_enabled"] = True
+        if settle_s:
+            time.sleep(settle_s)
+        start = time.monotonic()
+        for sample_index in range(samples):
+            if sample_index > 0 and interval_s:
+                time.sleep(interval_s)
+            gate1_current_a, gate1_compliance_hit = gate1_smu.measure_current()
+            gate2_current_a, gate2_compliance_hit = gate2_smu.measure_current()
+            if gate1_compliance_hit:
+                raise SafetyLimitError("Gate1 instrument compliance was reached", "gate1_instrument_compliance")
+            if gate2_compliance_hit:
+                raise SafetyLimitError("Gate2 instrument compliance was reached", "gate2_instrument_compliance")
+            validate_point_current(gate1_current_a, safety)
+            validate_point_current(gate2_current_a, safety)
+            reading = lockin.read_channels()
+            point = DualGateLockInActiveSmokePoint(
+                sample_index=sample_index,
+                elapsed_s=time.monotonic() - start,
+                gate1_voltage_v=float(gate1_voltage_v),
+                gate2_voltage_v=float(gate2_voltage_v),
+                gate1_current_a=float(gate1_current_a),
+                gate2_current_a=float(gate2_current_a),
+                gate1_compliance_hit=gate1_compliance_hit,
+                gate2_compliance_hit=gate2_compliance_hit,
+                lockin_x_v=reading.x_v,
+                lockin_y_v=reading.y_v,
+                lockin_r_v=reading.r_v,
+                lockin_theta_deg=reading.theta_deg,
+            )
+            writer.write_point(point)
+            points_written += 1
+            if progress_callback is not None:
+                progress_callback(point, samples)
+        metadata["completed"] = True
+        return metadata
+    except SafetyLimitError as exc:
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = str(exc)
+        metadata["triggered_limit"] = exc.triggered_limit
+        return metadata
+    except KeyboardInterrupt:
+        metadata["interrupted"] = True
+        metadata["error_type"] = "KeyboardInterrupt"
+        metadata["error_message"] = "Active-gate smoke interrupted by user"
+        return metadata
+    except Exception as exc:
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = str(exc)
+        return metadata
+    finally:
+        try:
+            if outputs_were_enabled:
+                try:
+                    gate1_smu.output_off()
+                finally:
+                    gate2_smu.output_off()
+            metadata["gate_outputs_enabled"] = False
+            metadata["outputs_off_after_run"] = True
+        finally:
+            try:
+                gate1_smu.close()
+            finally:
+                try:
+                    gate2_smu.close()
+                finally:
+                    lockin.close()
+                    metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+                    metadata["points_written"] = points_written
+                    writer.write_metadata(metadata)
+                    writer.close()

@@ -186,10 +186,14 @@ root.
   - add SR860 readout smoke command after three-instrument preflight
   - save lock-in X/Y/R/theta samples without enabling gate outputs
   - keep active dual-gate lock-in sweep disabled
-- [ ] Phase 25h: Dual-gate lock-in active-gate smoke
+- [x] Phase 25h: Dual-gate lock-in active-gate smoke
   - use the required topology block for SR860 excitation path and Hall-bar source-drain wiring
   - verify gate leakage and lock-in readout on a safe test device
-  - keep active gate sweep disabled until the smoke test passes
+  - apply one static gate-voltage pair, record leakage/readout, and always turn outputs off
+- [ ] Phase 25i: Dual-gate lock-in limited active sweep
+  - require successful active-gate smoke first
+  - enable a tiny bounded gate1 x gate2 scan with strict current limits
+  - add interruption/resume policy before broad scans
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
