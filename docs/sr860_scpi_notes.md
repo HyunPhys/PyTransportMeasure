@@ -57,6 +57,9 @@ still do not write SR860 configuration commands.
 `ptm sr860-configure` can apply those settings as a separate guarded SR860-only
 operation. It requires `--allow-write`, a hardware approval note, and a
 confirmation prompt, and it saves a write/readback transcript.
+`ptm sr860-configure-check` verifies the saved transcript against the current
+recipe without touching hardware, so stale configure evidence is caught before
+preflight or active SMU output.
 
 ## Smoke-Test Commands
 

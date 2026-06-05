@@ -244,11 +244,15 @@ from .scheme_review import (
     write_scheme_stats_csv,
 )
 from .sr860_config import (
+    check_sr860_configure_evidence,
     format_sr860_config_command_review,
+    format_sr860_configure_evidence_check,
     format_sr860_configure_result,
+    load_sr860_configure_json,
     review_sr860_config_commands,
     run_sr860_configure,
     write_sr860_config_command_review_json,
+    write_sr860_configure_evidence_check_json,
     write_sr860_configure_json,
 )
 from .summary import format_summary, summarize_run
@@ -1129,6 +1133,15 @@ def build_parser() -> argparse.ArgumentParser:
     sr860_configure.add_argument("--hardware-approval-note")
     sr860_configure.add_argument("--json-output", type=Path)
     sr860_configure.add_argument("--yes", action="store_true")
+
+    sr860_configure_check = subparsers.add_parser(
+        "sr860-configure-check",
+        help="Verify a saved SR860 configure JSON transcript against the current recipe.",
+    )
+    sr860_configure_check.add_argument("measurement_type", choices=known_measurement_types())
+    sr860_configure_check.add_argument("recipe", type=Path)
+    sr860_configure_check.add_argument("configure_json", type=Path)
+    sr860_configure_check.add_argument("--json-output", type=Path)
 
     scheme_plan = subparsers.add_parser("scheme-plan", help="Show a measurement scheme plan without touching hardware.")
     scheme_plan.add_argument("scheme", type=Path)
@@ -3530,6 +3543,27 @@ def command_sr860_configure(args: argparse.Namespace) -> int:
     return 0 if payload.get("completed") else 2
 
 
+def command_sr860_configure_check(args: argparse.Namespace) -> int:
+    try:
+        method = handler_for_measurement_type(args.measurement_type)
+        recipe = method.load_recipe(args.recipe)
+        configure_payload = load_sr860_configure_json(args.configure_json)
+        payload = {
+            "measurement_type": method.measurement_type,
+            "recipe": str(args.recipe),
+            "configure_json": str(args.configure_json),
+            **check_sr860_configure_evidence(recipe, configure_payload),
+        }
+    except Exception as exc:
+        print(f"SR860 configure evidence check failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_sr860_configure_evidence_check_json(payload, args.json_output)
+        print(f"SR860 configure evidence check JSON: {output_path}")
+    print(format_sr860_configure_evidence_check(payload))
+    return 0 if payload["ok"] else 2
+
+
 def command_scheme_plan(args: argparse.Namespace) -> int:
     scheme = load_scheme(args.scheme)
     print(format_scheme_plan(scheme, args.scheme, args.safety_dir, args.preview_points))
@@ -4417,6 +4451,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_sr860_command_review(args)
     if args.command == "sr860-configure":
         return command_sr860_configure(args)
+    if args.command == "sr860-configure-check":
+        return command_sr860_configure_check(args)
     if args.command == "scheme-plan":
         return command_scheme_plan(args)
     if args.command == "scheme":

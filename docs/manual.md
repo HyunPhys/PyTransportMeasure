@@ -1701,6 +1701,17 @@ queries each setting immediately, and saves the write/readback transcript. It is
 blocked without `--allow-write` and a non-empty approval note because `SLVL`
 changes the SR860 sine output amplitude.
 
+Before using the saved configure transcript as lab evidence, verify it against
+the current recipe:
+
+```powershell
+ptm sr860-configure-check dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml docs\sr860_configure.json --json-output docs\sr860_configure_check.json
+```
+
+This is hardware-free. It fails if the recipe's SR860 settings changed after the
+configure run, if the saved transcript was incomplete, or if any write/readback
+step did not match.
+
 To audit a whole recipe folder before a lab-laptop handoff, use:
 
 ```powershell

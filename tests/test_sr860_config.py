@@ -3,7 +3,12 @@ from pathlib import Path
 
 from pytransport import cli
 from pytransport.recipes import DualGateLockInRecipe
-from pytransport.sr860_config import build_sr860_config_commands, review_sr860_config_commands, run_sr860_configure
+from pytransport.sr860_config import (
+    build_sr860_config_commands,
+    check_sr860_configure_evidence,
+    review_sr860_config_commands,
+    run_sr860_configure,
+)
 
 
 def dual_gate_lockin_recipe(tmp_path: Path, *, complete_lockin: bool = True) -> DualGateLockInRecipe:
@@ -237,6 +242,63 @@ def test_run_sr860_configure_records_transcript_and_closes(tmp_path: Path):
     assert lockin.closed is True
 
 
+def test_sr860_configure_evidence_check_passes_for_current_recipe(tmp_path: Path):
+    recipe = dual_gate_lockin_recipe(tmp_path)
+    lockin = FakeConfigurableSR860()
+    configure_payload = run_sr860_configure(
+        recipe,
+        lockin,
+        recipe_path="recipe.yaml",
+        hardware_approval_note="lab reviewed SR860 output wiring",
+    )
+
+    payload = check_sr860_configure_evidence(recipe, configure_payload)
+
+    assert payload["ok"] is True
+    assert payload["expected_command_count"] == 12
+    assert payload["transcript_command_count"] == 12
+    assert all(check["passed"] for check in payload["checks"])
+
+
+def test_sr860_configure_evidence_check_fails_when_recipe_changes(tmp_path: Path):
+    recipe = dual_gate_lockin_recipe(tmp_path)
+    configure_payload = run_sr860_configure(
+        recipe,
+        FakeConfigurableSR860(),
+        recipe_path="recipe.yaml",
+        hardware_approval_note="lab reviewed SR860 output wiring",
+    )
+    changed = recipe.model_copy(
+        update={
+            "lockin": recipe.lockin.model_copy(update={"sensitivity_index": 19}),
+        }
+    )
+
+    payload = check_sr860_configure_evidence(changed, configure_payload)
+    checks = {check["name"]: check for check in payload["checks"]}
+
+    assert payload["ok"] is False
+    assert checks["review_commands_match_recipe"]["passed"] is False
+    assert checks["apply_steps_match_recipe"]["passed"] is False
+
+
+def test_sr860_configure_evidence_check_fails_when_step_readback_was_bad(tmp_path: Path):
+    recipe = dual_gate_lockin_recipe(tmp_path)
+    configure_payload = run_sr860_configure(
+        recipe,
+        FakeConfigurableSR860(),
+        recipe_path="recipe.yaml",
+        hardware_approval_note="lab reviewed SR860 output wiring",
+    )
+    configure_payload["apply"]["steps"][1]["actual_readback"] = "18.001"
+
+    payload = check_sr860_configure_evidence(recipe, configure_payload)
+    checks = {check["name"]: check for check in payload["checks"]}
+
+    assert payload["ok"] is False
+    assert checks["apply_steps_match_recipe"]["passed"] is False
+
+
 def test_cli_sr860_configure_requires_allow_write(tmp_path: Path):
     recipe = tmp_path / "dual_gate_lockin.yaml"
     recipe.write_text(
@@ -382,3 +444,38 @@ output:
     assert payload["completed"] is True
     assert payload["apply"]["steps"][0]["command"] == "RSRC 0"
     assert fake.writes[-1] == "SYNC 0"
+
+
+def test_cli_sr860_configure_check_writes_json(tmp_path: Path):
+    recipe_model = dual_gate_lockin_recipe(tmp_path)
+    recipe = tmp_path / "dual_gate_lockin.yaml"
+    recipe.write_text(recipe_model.model_dump_json(indent=2), encoding="utf-8")
+    configure = tmp_path / "configure.json"
+    configure.write_text(
+        json.dumps(
+            run_sr860_configure(
+                recipe_model,
+                FakeConfigurableSR860(),
+                recipe_path=recipe,
+                hardware_approval_note="lab reviewed SR860 output wiring",
+            )
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "configure_check.json"
+
+    code = cli.main(
+        [
+            "sr860-configure-check",
+            "dual_gate_lockin_sweep",
+            str(recipe),
+            str(configure),
+            "--json-output",
+            str(output),
+        ]
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == 0
+    assert payload["ok"] is True
+    assert payload["checks"][0]["name"] == "schema"

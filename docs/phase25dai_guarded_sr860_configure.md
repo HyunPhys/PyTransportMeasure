@@ -44,4 +44,6 @@ The JSON output records:
 - [ ] Run `ptm sr860-configure ... --allow-write --hardware-approval-note ...`.
 - [ ] Confirm the saved JSON reports `completed: true` and every transcript row
   has `matched: true`.
+- [ ] Run `ptm sr860-configure-check ... docs\sr860_configure.json` before using
+  the transcript as evidence for the current recipe.
 - [ ] Run lock-in preflight after configuration before any SMU output.

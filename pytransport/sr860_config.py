@@ -243,6 +243,74 @@ def format_sr860_configure_result(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def check_sr860_configure_evidence(recipe: Any, payload: dict[str, Any]) -> dict[str, Any]:
+    expected_commands = [command.to_dict() for command in build_sr860_config_commands(getattr(recipe, "lockin"))]
+    review = payload.get("review") if isinstance(payload.get("review"), dict) else {}
+    apply_payload = payload.get("apply") if isinstance(payload.get("apply"), dict) else {}
+    steps = apply_payload.get("steps") if isinstance(apply_payload.get("steps"), list) else []
+    checks = [
+        _evidence_check("schema", payload.get("schema") == "pytransport.sr860_configure.v1", "payload schema is SR860 configure v1"),
+        _evidence_check("completed", payload.get("completed") is True, "configure run completed successfully"),
+        _evidence_check("review_ok", review.get("ok_for_hardware") is True, "embedded command review was hardware-ready"),
+        _evidence_check(
+            "review_commands_match_recipe",
+            _command_lists_match(review.get("commands"), expected_commands),
+            "embedded command review matches the current recipe",
+        ),
+        _evidence_check("apply_matched", apply_payload.get("matched") is True, "overall apply readback matched"),
+        _evidence_check(
+            "apply_step_count",
+            len(steps) == len(expected_commands),
+            "apply transcript has one step per expected command",
+        ),
+        _evidence_check(
+            "apply_steps_match_recipe",
+            _apply_steps_match_expected(steps, expected_commands),
+            "apply transcript commands and expected readbacks match the current recipe",
+        ),
+        _evidence_check(
+            "all_steps_matched",
+            bool(steps) and all(isinstance(step, dict) and step.get("matched") is True for step in steps),
+            "every SR860 write/readback step matched",
+        ),
+    ]
+    return {
+        "schema": "pytransport.sr860_configure_evidence_check.v1",
+        "ok": all(check["passed"] for check in checks),
+        "expected_command_count": len(expected_commands),
+        "transcript_command_count": len(steps),
+        "checks": checks,
+    }
+
+
+def format_sr860_configure_evidence_check(payload: dict[str, Any]) -> str:
+    lines = [
+        "SR860 configure evidence check",
+        f"OK: {payload.get('ok')}",
+        f"Expected commands: {payload.get('expected_command_count')}",
+        f"Transcript commands: {payload.get('transcript_command_count')}",
+        "",
+    ]
+    for check in payload.get("checks", []):
+        mark = "PASS" if check.get("passed") else "FAIL"
+        lines.append(f"- {check.get('name')}: {mark} ({check.get('message')})")
+    return "\n".join(lines)
+
+
+def load_sr860_configure_json(path: str | Path) -> dict[str, Any]:
+    data = json.loads(Path(path).read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"SR860 configure JSON must contain an object: {path}")
+    return data
+
+
+def write_sr860_configure_evidence_check_json(payload: dict[str, Any], output_path: str | Path) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
 def write_sr860_config_command_review_json(payload: dict[str, Any], output_path: str | Path) -> Path:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -279,3 +347,34 @@ def _to_mapping(lockin: Any) -> dict[str, Any]:
 
 def _normalize_sr860_token(value: str) -> str:
     return value.strip().strip('"').lower().replace("_", "").replace("-", "")
+
+
+def _evidence_check(name: str, passed: bool, message: str) -> dict[str, Any]:
+    return {"name": name, "passed": bool(passed), "message": message}
+
+
+def _command_lists_match(actual: Any, expected: list[dict[str, Any]]) -> bool:
+    if not isinstance(actual, list) or len(actual) != len(expected):
+        return False
+    keys = ("index", "field", "command", "query", "expected_readback")
+    return all(
+        isinstance(actual_item, dict)
+        and all(actual_item.get(key) == expected_item.get(key) for key in keys)
+        for actual_item, expected_item in zip(actual, expected)
+    )
+
+
+def _apply_steps_match_expected(steps: Any, expected: list[dict[str, Any]]) -> bool:
+    if not isinstance(steps, list) or len(steps) != len(expected):
+        return False
+    keys = ("index", "field", "command", "query", "expected_readback")
+    return all(
+        isinstance(step, dict)
+        and all(step.get(key) == expected_item.get(key) for key in keys)
+        and sr860_readback_matches(
+            str(expected_item.get("field")),
+            str(expected_item.get("expected_readback")),
+            None if step.get("actual_readback") is None else str(step.get("actual_readback")),
+        )
+        for step, expected_item in zip(steps, expected)
+    )

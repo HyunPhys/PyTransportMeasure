@@ -857,6 +857,11 @@ root.
   - show voltage/current range, NPLC, source delay, and compliance together in
     GUI hardware confirmation
   - keep measurement-parameter audits as the hardware gate for missing settings
+- [x] Phase 25dak: SR860 configure evidence check
+  - add `ptm sr860-configure-check` to verify saved configure JSON against the
+    current recipe
+  - fail stale transcripts when recipe SR860 settings or readback evidence drift
+  - keep the check hardware-free so it can run before lab preflight
 
 ## Next GUI
 
