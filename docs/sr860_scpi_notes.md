@@ -48,8 +48,9 @@ SR860 yet.
 - `OFSL(?)`: output filter slope, 6/12/18/24 dB/oct.
 - `SYNC(?)`: synchronous filter off/on.
 
-These expected settings are saved in recipe snapshots and metadata so a run can
-be interpreted later even before active SR860 configuration is enabled.
+These expected settings are saved in recipe snapshots and metadata. AC and
+dual-gate lock-in preflight now query these SR860 settings read-only and compare
+them against declared recipe expectations before hardware output is enabled.
 
 ## Smoke-Test Commands
 
@@ -66,10 +67,23 @@ Expected probe fields:
 - `idn`
 - `error_status`
 - `lia_status`
+- `setting_reference_source`
+- `setting_reference_frequency_hz`
+- `setting_sine_output_amplitude_v`
+- `setting_input_mode`
+- `setting_voltage_input`
+- `setting_input_coupling`
+- `setting_input_grounding`
+- `setting_voltage_input_range_v`
+- `setting_sensitivity_index`
+- `setting_time_constant_index`
+- `setting_filter_slope_index`
+- `setting_synchronous_filter`
 
-## Next Measurement Step
+## Current Measurement Gate
 
-The next measurement phase should add an AC hardware preflight for
-`ac_lockin_sweep` that checks both the Keithley source and SR860 before any
-source output is enabled. The full `ptm ac-lockin` hardware runner should remain
-blocked until that two-instrument preflight passes on the lab laptop.
+`ptm ac-lockin-preflight` and `ptm dual-gate-lockin-preflight` now report a
+`Lock-in setting check`. If a recipe declares an expected SR860 setting, the
+preflight requires the actual SR860 readback to match before hardware output can
+be enabled. PyTransportMeasure still does not write SR860 configuration
+commands in measurement runners.

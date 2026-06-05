@@ -490,10 +490,17 @@ lockin:
   synchronous_filter: false
 ```
 
-These values are recorded in recipe snapshots, plan output, and metadata.
-Current hardware code reads SR860 channels but does not reset or reconfigure the
-SR860. Confirm the front-panel settings before a hardware run until an explicit
-SR860 configuration phase is implemented.
+These values are recorded in recipe snapshots, plan output, and metadata. AC
+and dual-gate lock-in preflight also query the current SR860 settings with
+read-only commands and compare them against these recipe values. A mismatch in
+declared reference frequency, sine amplitude, input mode, input range,
+sensitivity, time constant, filter slope, or synchronous filter blocks the
+preflight before any Keithley output is enabled.
+
+Current hardware code reads SR860 channels and setting readback but does not
+reset or reconfigure the SR860. Adjust the SR860 front panel manually until the
+preflight `Lock-in setting check` reports all expected settings match. Automatic
+SR860 configuration remains a later smoke-tested phase.
 
 ## Pulse Measurement
 

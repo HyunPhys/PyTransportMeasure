@@ -1,14 +1,30 @@
 """SRS SR860 lock-in amplifier driver.
 
 The command subset here is intentionally small and based on the local
-``SR860m.pdf`` manual: ``*IDN?``, ``ERRS?``, ``LIAS?``, ``SNAP?``, and
-``OUTP?``. Measurement runners should grow around this driver only after the
+``SR860m.pdf`` manual: identify/status, readout, and read-only setting
+queries. Measurement runners should grow around this driver only after the
 hardware smoke tests pass.
 """
 
 from __future__ import annotations
 
 from .base import LockInReading
+
+
+SR860_SETTING_QUERIES = {
+    "reference_source": "RSRC?",
+    "reference_frequency_hz": "FREQ?",
+    "sine_output_amplitude_v": "SLVL?",
+    "input_mode": "IVMD?",
+    "voltage_input": "ISRC?",
+    "input_coupling": "ICPL?",
+    "input_grounding": "IGND?",
+    "voltage_input_range_v": "IRNG?",
+    "sensitivity_index": "SCAL?",
+    "time_constant_index": "OFLT?",
+    "filter_slope_index": "OFSL?",
+    "synchronous_filter": "SYNC?",
+}
 
 
 class SRS_SR860:
@@ -43,11 +59,20 @@ class SRS_SR860:
         return str(self.inst.query("LIAS?")).strip()
 
     def probe(self) -> dict[str, str]:
-        return {
+        probe = {
             "address": self.address,
             "idn": self.identify(),
             "error_status": self.error_status(),
             "lia_status": self.lia_status(),
+        }
+        for key, value in self.read_settings().items():
+            probe[f"setting_{key}"] = value
+        return probe
+
+    def read_settings(self) -> dict[str, str]:
+        return {
+            key: str(self.inst.query(command)).strip()
+            for key, command in SR860_SETTING_QUERIES.items()
         }
 
     def read_channels(self) -> LockInReading:

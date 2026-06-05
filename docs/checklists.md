@@ -20,6 +20,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   completion, interruption, exception, and safety-stop review.
 - [x] Keithley/SR860 AC lock-in preflight checks both resources before hardware
   output is enabled.
+- [x] AC and dual-gate lock-in preflight compare declared SR860 expected
+  settings against read-only SR860 setting readback.
 - [x] Pulse measurement is dry-run verified; hardware output is intentionally
   blocked.
 - [x] PySide6 GUI foundation supports plan preview and dry-run artifacts.
@@ -335,6 +337,11 @@ preflight is available.
   lock-in probe identifies SR860, and `Dual-gate lock-in preflight OK: True`.
 - [ ] Confirm the preflight `Topology` section matches the actual device wiring
   before connecting a real graphene Hall bar.
+- [ ] Confirm the preflight `Lock-in setting check` shows every declared SR860
+  expected setting and ends with `all expected settings match: True`.
+- [ ] If `Dual-gate lock-in preflight OK: False` is caused by a lock-in setting
+  mismatch, fix the SR860 front-panel setting or recipe expectation before
+  enabling any gate output.
 - [ ] Run the readout smoke after preflight. This reads SR860 only and does not
   enable gate outputs.
   ```powershell
@@ -449,14 +456,18 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   `filter_slope_db_per_oct`, and `synchronous_filter`.
 - [ ] Confirm the plan output prints the expected SR860 settings before any
   hardware run.
-- [ ] Confirm the physical SR860 front-panel settings match the recipe; current
-  hardware code records expected settings but does not configure the SR860.
+- [ ] Confirm `ptm probe --instrument srs_sr860` reports `setting_*` fields for
+  SR860 reference, excitation, input, range, sensitivity, filter, and sync
+  settings.
+- [ ] Confirm the physical SR860 front-panel settings match the recipe. Current
+  hardware code reads and verifies settings but does not configure the SR860.
 - [ ] Run the two-instrument AC preflight.
   ```powershell
   ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml
   ```
 - [ ] Confirm `Source/lock-in addresses distinct: True`, both addresses are
-  found, and `AC lock-in preflight OK: True`.
+  found, `all expected settings match: True`, and
+  `AC lock-in preflight OK: True`.
 - [ ] Dry-run with `FakeLockIn`.
   ```powershell
   ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0

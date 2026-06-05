@@ -61,6 +61,30 @@ class FakeSR860VisaInstrument:
             return "0"
         if command == "LIAS?":
             return "0"
+        if command == "RSRC?":
+            return "0"
+        if command == "FREQ?":
+            return "17.777"
+        if command == "SLVL?":
+            return "0.01"
+        if command == "IVMD?":
+            return "0"
+        if command == "ISRC?":
+            return "0"
+        if command == "ICPL?":
+            return "0"
+        if command == "IGND?":
+            return "0"
+        if command == "IRNG?":
+            return "4"
+        if command == "SCAL?":
+            return "18"
+        if command == "OFLT?":
+            return "10"
+        if command == "OFSL?":
+            return "3"
+        if command == "SYNC?":
+            return "0"
         if command == "SNAP? X,Y,R":
             return "1.0e-6,2.0e-6,2.2360679e-6"
         if command == "OUTP? THeta":
@@ -82,7 +106,25 @@ def test_srs_sr860_probe_reads_identity_and_status():
     assert result["idn"].startswith("Stanford_Research_Systems,SR860")
     assert result["error_status"] == "0"
     assert result["lia_status"] == "0"
-    assert fake.queries == ["*IDN?", "ERRS?", "LIAS?"]
+    assert result["setting_reference_frequency_hz"] == "17.777"
+    assert result["setting_filter_slope_index"] == "3"
+    assert fake.queries == [
+        "*IDN?",
+        "ERRS?",
+        "LIAS?",
+        "RSRC?",
+        "FREQ?",
+        "SLVL?",
+        "IVMD?",
+        "ISRC?",
+        "ICPL?",
+        "IGND?",
+        "IRNG?",
+        "SCAL?",
+        "OFLT?",
+        "OFSL?",
+        "SYNC?",
+    ]
 
 
 def test_srs_sr860_read_channels_uses_snap_for_xyr_and_outp_for_theta():

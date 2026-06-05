@@ -10,6 +10,22 @@ from pytransport.preflight import (
 )
 
 
+LOCKIN_SETTING_PROBE = {
+    "setting_reference_source": "0",
+    "setting_reference_frequency_hz": "17.777",
+    "setting_sine_output_amplitude_v": "0.01",
+    "setting_input_mode": "0",
+    "setting_voltage_input": "0",
+    "setting_input_coupling": "0",
+    "setting_input_grounding": "0",
+    "setting_voltage_input_range_v": "4",
+    "setting_sensitivity_index": "18",
+    "setting_time_constant_index": "10",
+    "setting_filter_slope_index": "3",
+    "setting_synchronous_filter": "0",
+}
+
+
 def test_run_preflight_ok():
     report = run_preflight(
         "configs/recipes/drain_iv_1k_resistor.yaml",
@@ -114,6 +130,7 @@ def test_run_ac_lockin_preflight_ok():
             "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
             "error_status": "0",
             "lia_status": "0",
+            **LOCKIN_SETTING_PROBE,
         }
 
     report = run_ac_lockin_preflight(
@@ -128,10 +145,42 @@ def test_run_ac_lockin_preflight_ok():
     assert report.ok is True
     assert report.source.ok is True
     assert report.lockin.ok is True
+    assert all(check.ok for check in report.lockin_settings)
     assert source_probed == [("GPIB0::2::INSTR", 10000)]
     assert lockin_probed == [("GPIB0::4::INSTR", 10000)]
     assert "Source/lock-in addresses distinct: True" in text
+    assert "Lock-in setting check:" in text
+    assert "all expected settings match: True" in text
     assert "AC lock-in preflight OK: True" in text
+
+
+def test_run_ac_lockin_preflight_fails_when_expected_lockin_setting_mismatches():
+    bad_settings = {**LOCKIN_SETTING_PROBE, "setting_reference_frequency_hz": "1000"}
+
+    report = run_ac_lockin_preflight(
+        "configs/recipes/ac_lockin_dry_run.yaml",
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::4::INSTR"),
+        source_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        lockin_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
+            "error_status": "0",
+            "lia_status": "0",
+            **bad_settings,
+        },
+    )
+
+    text = format_ac_lockin_preflight_report(report)
+
+    assert report.ok is False
+    assert any(check.field == "reference_frequency_hz" and not check.ok for check in report.lockin_settings)
+    assert "reference_frequency_hz: expected 17.777, actual 1000, ok: False" in text
+    assert "AC lock-in preflight OK: False" in text
 
 
 def test_run_ac_lockin_preflight_fails_when_lockin_address_missing():
@@ -177,6 +226,7 @@ def test_run_dual_gate_lockin_preflight_ok():
             "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
             "error_status": "0",
             "lia_status": "0",
+            **LOCKIN_SETTING_PROBE,
         }
 
     report = run_dual_gate_lockin_preflight(
@@ -192,11 +242,13 @@ def test_run_dual_gate_lockin_preflight_ok():
     assert report.gate1.ok is True
     assert report.gate2.ok is True
     assert report.lockin.ok is True
+    assert all(check.ok for check in report.lockin_settings)
     assert gate_probed == [("GPIB0::2::INSTR", 10000), ("GPIB0::3::INSTR", 10000)]
     assert lockin_probed == [("GPIB0::4::INSTR", 10000)]
     assert "Topology:" in text
     assert "- Source/drain: S -> D" in text
     assert "Gate1/gate2/lock-in addresses distinct: True" in text
+    assert "all expected settings match: True" in text
     assert "Dual-gate lock-in preflight OK: True" in text
 
 

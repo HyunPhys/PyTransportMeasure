@@ -157,6 +157,13 @@ root.
   - print expected reference/input/filter settings in AC and dual-gate lock-in plans
   - save expected settings in recipe snapshots and metadata without writing to SR860
   - keep hardware configuration as a separate future smoke-tested phase
+- [x] Phase 25f: SR860 settings readback gate
+  - query SR860 reference, excitation, input, range, sensitivity, time constant,
+    filter slope, and sync filter settings in read-only probe/preflight paths
+  - compare AC and dual-gate lock-in recipe expected settings against actual
+    SR860 readback before hardware output is enabled
+  - keep SR860 configuration write commands deferred to a later smoke-tested
+    phase
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -200,6 +207,7 @@ root.
   - keep broad scans blocked until this policy exists
 - [ ] Phase 25k: Dual-gate lock-in broader scan gate
   - decide the first non-smoke grid size after lab feedback
+  - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory
   - consider manual restart tooling only after repeated interruption data exists
 - [x] Phase 24: GUI recipe builder foundation
