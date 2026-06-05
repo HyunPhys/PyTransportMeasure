@@ -632,6 +632,12 @@ root.
   - ingest the first guarded active runner metadata from the lab laptop
   - audit remote-sense readback, output cleanup, NPLC/range/compliance, and
     fitted resistance before broadening the method
+- [x] Phase 25csa: Four-terminal DC contact-evidence intake hardening
+  - record normalized force/sense contact topology in dry-run and guarded
+    active metadata
+  - require lab smoke intake to see separated force/sense contacts and terminal
+    plane evidence before accepting a four-terminal DC run
+  - keep fixture/contact evidence visible beside NPLC/range/compliance checks
 - [ ] Phase 25ct: Four-terminal DC lab feedback hardening
   - use the first real lab-laptop intake report to tighten Keithley 2450
     remote-sense cleanup/readback assumptions

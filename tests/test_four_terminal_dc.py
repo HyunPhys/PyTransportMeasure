@@ -293,6 +293,10 @@ def test_four_terminal_dc_dry_run_writes_metadata_without_active_output(tmp_path
     assert rows[0]["voltage_v"] == "-0.01"
     assert saved_metadata["measurement_type"] == "four_terminal_dc"
     assert saved_metadata["contact_map"]["sense_hi_contact"] == "V+"
+    assert saved_metadata["contact_topology"]["force_contacts"] == ["S", "D"]
+    assert saved_metadata["contact_topology"]["sense_contacts"] == ["V+", "V-"]
+    assert saved_metadata["contact_topology"]["contacts_are_distinct"] is True
+    assert saved_metadata["contact_topology"]["force_and_sense_contacts_separated"] is True
 
 
 def test_four_terminal_dc_dry_run_saves_partial_metadata_on_limit(tmp_path):
@@ -357,6 +361,8 @@ def test_four_terminal_dc_command_review_accepts_preflight_and_dry_run_evidence(
     assert report.evidence_passed is True
     assert report.active_hardware_run_allowed is False
     assert all(check.ok for check in report.evidence_checks)
+    checks = {check.name: check for check in report.evidence_checks}
+    assert checks["dry_run_contact_topology"].ok is True
 
 
 def write_passing_command_review_json(tmp_path, recipe_path):
@@ -404,6 +410,8 @@ def test_four_terminal_dc_active_runner_uses_remote_sense_and_cleanup(tmp_path):
     assert smu.remote_sense_history == [True, False]
     assert metadata["output_state"]["instrument"]["off_after_run"] is True
     assert saved["hardware_guard"]["command_review_evidence_passed"] is True
+    assert saved["contact_topology"]["force_contacts"] == ["S", "D"]
+    assert saved["contact_topology"]["sense_contacts"] == ["V+", "V-"]
 
 
 def test_four_terminal_dc_lab_smoke_intake_accepts_clean_active_run(tmp_path):
@@ -434,6 +442,11 @@ def test_four_terminal_dc_lab_smoke_intake_accepts_clean_active_run(tmp_path):
     assert intake.points_written == 3
     assert intake.nplc == pytest.approx(1.0)
     assert intake.output_zero_before_off_ok is True
+    assert intake.contact_map_present is True
+    assert intake.contact_topology_ok is True
+    assert intake.terminal_plane == "FRONT"
+    assert intake.force_contacts == ("S", "D")
+    assert intake.sense_contacts == ("V+", "V-")
     assert intake.remote_sense_enabled_readback_ok is True
     assert intake.remote_sense_disabled_after_run_ok is True
     assert intake.smu_readback_available is True
@@ -442,6 +455,8 @@ def test_four_terminal_dc_lab_smoke_intake_accepts_clean_active_run(tmp_path):
     assert intake.fitted_resistance_ohm == pytest.approx(1_000_000)
     assert "Four-terminal DC lab smoke intake: PASS" in text
     assert "NPLC: 1" in text
+    assert "Contact topology OK: True" in text
+    assert "Force contacts: S->D" in text
 
 
 def test_four_terminal_dc_lab_smoke_intake_rejects_cleanup_or_nplc_metadata_drift(tmp_path):
@@ -470,6 +485,36 @@ def test_four_terminal_dc_lab_smoke_intake_rejects_cleanup_or_nplc_metadata_drif
     assert intake.accepted is False
     assert "remote_sense_disabled" in issue_checks
     assert "nplc" in issue_checks
+
+
+def test_four_terminal_dc_lab_smoke_intake_rejects_missing_contact_topology(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    review_path = write_passing_command_review_json(tmp_path, recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_four_terminal_dc_active(
+        recipe,
+        safety,
+        FourTerminalActiveFakeSMU(),
+        recipe_path=recipe_path,
+        command_review_json=review_path,
+        hardware_approval_note="lab fixture reviewed; fake active test",
+    )
+    metadata_path = Path(metadata["metadata_path"])
+    saved = json.loads(metadata_path.read_text(encoding="utf-8"))
+    saved.pop("contact_map")
+    saved.pop("contact_topology")
+    metadata_path.write_text(json.dumps(saved, indent=2, sort_keys=True), encoding="utf-8")
+
+    intake = intake_four_terminal_dc_lab_smoke(metadata["run_dir"])
+    issue_checks = {issue.check for issue in intake.issues}
+
+    assert intake.accepted is False
+    assert intake.contact_map_present is False
+    assert intake.contact_topology_ok is False
+    assert "contact_topology_present" in issue_checks
+    assert "contact_topology" in issue_checks
 
 
 def test_four_terminal_dc_active_runner_rejects_nonpassing_command_review(tmp_path):

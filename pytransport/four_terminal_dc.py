@@ -166,6 +166,11 @@ class FourTerminalDCLabSmokeIntake:
     voltage_range_v: float | None
     current_range_a: float | None
     current_compliance_a: float | None
+    contact_map_present: bool
+    contact_topology_ok: bool
+    terminal_plane: str | None
+    force_contacts: tuple[str, str] | None
+    sense_contacts: tuple[str, str] | None
     remote_sense_enabled_readback_ok: bool
     remote_sense_disabled_after_run_ok: bool
     output_off_after_run_ok: bool
@@ -569,6 +574,7 @@ def run_four_terminal_dc_dry_run(
         "plot_path": None,
         "report_path": None,
         "contact_map": recipe.contacts.model_dump(mode="json"),
+        "contact_topology": _four_terminal_dc_contact_topology_snapshot(recipe),
         "dc_sense_mode": recipe.dc_sense_mode,
         "remote_sense": {
             "scpi_enable_command": ":SENS:CURR:RSEN ON",
@@ -691,6 +697,7 @@ def run_four_terminal_dc_active(
         "plot_path": None,
         "report_path": None,
         "contact_map": recipe.contacts.model_dump(mode="json"),
+        "contact_topology": _four_terminal_dc_contact_topology_snapshot(recipe),
         "dc_sense_mode": recipe.dc_sense_mode,
         "instrument_idn": None,
         "instrument_probe": None,
@@ -798,6 +805,73 @@ def validate_four_terminal_dc_command_review_for_active_run(command_review_json:
     return payload
 
 
+def _four_terminal_dc_contact_topology_snapshot(recipe: FourTerminalDCRecipe) -> dict[str, Any]:
+    force_contacts = [recipe.contacts.source_contact, recipe.contacts.drain_contact]
+    sense_contacts = [recipe.contacts.sense_hi_contact, recipe.contacts.sense_lo_contact]
+    all_contacts = [*force_contacts, *sense_contacts]
+    separated_force_and_sense = not (set(force_contacts) & set(sense_contacts))
+    return {
+        "method": recipe.measurement_geometry.method,
+        "terminal_count": recipe.measurement_geometry.terminal_count,
+        "dc_sense_mode": recipe.dc_sense_mode,
+        "terminal_plane": recipe.contacts.terminal_plane,
+        "instrument_terminal": recipe.instrument.terminal,
+        "force_contacts": force_contacts,
+        "sense_contacts": sense_contacts,
+        "source_contact": recipe.contacts.source_contact,
+        "drain_contact": recipe.contacts.drain_contact,
+        "sense_hi_contact": recipe.contacts.sense_hi_contact,
+        "sense_lo_contact": recipe.contacts.sense_lo_contact,
+        "contacts_are_distinct": len(set(all_contacts)) == 4,
+        "force_and_sense_contacts_separated": separated_force_and_sense,
+        "terminal_plane_matches_instrument": recipe.instrument.terminal is None
+        or recipe.instrument.terminal == recipe.contacts.terminal_plane,
+    }
+
+
+def _four_terminal_dc_contact_topology_from_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
+    topology = metadata.get("contact_topology")
+    if isinstance(topology, dict):
+        return topology
+    contact_map = metadata.get("contact_map") if isinstance(metadata.get("contact_map"), dict) else {}
+    force_contacts = [contact_map.get("source_contact"), contact_map.get("drain_contact")]
+    sense_contacts = [contact_map.get("sense_hi_contact"), contact_map.get("sense_lo_contact")]
+    all_contacts = [contact for contact in [*force_contacts, *sense_contacts] if contact]
+    return {
+        "terminal_plane": contact_map.get("terminal_plane"),
+        "force_contacts": force_contacts if all(force_contacts) else None,
+        "sense_contacts": sense_contacts if all(sense_contacts) else None,
+        "source_contact": contact_map.get("source_contact"),
+        "drain_contact": contact_map.get("drain_contact"),
+        "sense_hi_contact": contact_map.get("sense_hi_contact"),
+        "sense_lo_contact": contact_map.get("sense_lo_contact"),
+        "contacts_are_distinct": len(all_contacts) == 4 and len(set(all_contacts)) == 4,
+        "force_and_sense_contacts_separated": bool(
+            all(force_contacts)
+            and all(sense_contacts)
+            and not (set(force_contacts) & set(sense_contacts))
+        ),
+        "terminal_plane_matches_instrument": True,
+    }
+
+
+def _four_terminal_dc_contact_topology_ok(topology: dict[str, Any]) -> bool:
+    force_contacts = topology.get("force_contacts")
+    sense_contacts = topology.get("sense_contacts")
+    return (
+        topology.get("contacts_are_distinct") is True
+        and topology.get("force_and_sense_contacts_separated") is True
+        and topology.get("terminal_plane_matches_instrument") is True
+        and isinstance(force_contacts, list)
+        and len(force_contacts) == 2
+        and all(bool(str(contact).strip()) for contact in force_contacts)
+        and isinstance(sense_contacts, list)
+        and len(sense_contacts) == 2
+        and all(bool(str(contact).strip()) for contact in sense_contacts)
+        and bool(str(topology.get("terminal_plane") or "").strip())
+    )
+
+
 def intake_four_terminal_dc_lab_smoke(
     run_dir: str | Path,
     *,
@@ -827,6 +901,7 @@ def intake_four_terminal_dc_lab_smoke(
     output_state = metadata.get("output_state") if isinstance(metadata.get("output_state"), dict) else {}
     instrument_output = output_state.get("instrument") if isinstance(output_state.get("instrument"), dict) else {}
     hardware_guard = metadata.get("hardware_guard") if isinstance(metadata.get("hardware_guard"), dict) else {}
+    contact_topology = _four_terminal_dc_contact_topology_from_metadata(metadata)
     readback_check = metadata.get("configured_smu_readback_check")
     smu_readback_matched = None
     if isinstance(readback_check, dict):
@@ -905,6 +980,22 @@ def intake_four_terminal_dc_lab_smoke(
         f"command_review_evidence_passed={hardware_guard.get('command_review_evidence_passed')}",
     )
     add_if_failed(bool(approval_note), "hardware_approval_note", "hardware approval note missing")
+    add_if_failed(
+        isinstance(metadata.get("contact_map"), dict) or isinstance(metadata.get("contact_topology"), dict),
+        "contact_topology_present",
+        "contact_map/contact_topology missing from metadata",
+    )
+    add_if_failed(
+        _four_terminal_dc_contact_topology_ok(contact_topology),
+        "contact_topology",
+        (
+            f"force={contact_topology.get('force_contacts')}, "
+            f"sense={contact_topology.get('sense_contacts')}, "
+            f"terminal_plane={contact_topology.get('terminal_plane')}, "
+            f"distinct={contact_topology.get('contacts_are_distinct')}, "
+            f"separated={contact_topology.get('force_and_sense_contacts_separated')}"
+        ),
+    )
     add_if_failed(configured_smu.get("nplc") is not None, "nplc", "configured_smu.nplc missing")
     add_if_failed(configured_smu.get("voltage_range_v") is not None, "voltage_range", "configured_smu.voltage_range_v missing")
     add_if_failed(configured_smu.get("current_range_a") is not None, "current_range", "configured_smu.current_range_a missing")
@@ -929,6 +1020,11 @@ def intake_four_terminal_dc_lab_smoke(
         voltage_range_v=configured_smu.get("voltage_range_v"),
         current_range_a=configured_smu.get("current_range_a"),
         current_compliance_a=configured_smu.get("current_compliance_a"),
+        contact_map_present=isinstance(metadata.get("contact_map"), dict) or isinstance(metadata.get("contact_topology"), dict),
+        contact_topology_ok=_four_terminal_dc_contact_topology_ok(contact_topology),
+        terminal_plane=contact_topology.get("terminal_plane"),
+        force_contacts=_contact_pair_from_topology(contact_topology.get("force_contacts")),
+        sense_contacts=_contact_pair_from_topology(contact_topology.get("sense_contacts")),
         remote_sense_enabled_readback_ok=remote_sense.get("enabled_readback_ok") is True,
         remote_sense_disabled_after_run_ok=remote_sense.get("disabled_after_run_attempted") is True
         and remote_sense.get("disabled_after_run_error") in {None, ""}
@@ -964,6 +1060,11 @@ def format_four_terminal_dc_lab_smoke_intake(intake: FourTerminalDCLabSmokeIntak
         f"Voltage range: {fmt(intake.voltage_range_v, ' V')}",
         f"Current range: {fmt(intake.current_range_a, ' A')}",
         f"Compliance: {fmt(intake.current_compliance_a, ' A')}",
+        f"Contact map present: {intake.contact_map_present}",
+        f"Contact topology OK: {intake.contact_topology_ok}",
+        f"Terminal plane: {intake.terminal_plane or 'n/a'}",
+        f"Force contacts: {_format_contact_pair(intake.force_contacts)}",
+        f"Sense contacts: {_format_contact_pair(intake.sense_contacts)}",
         f"Remote sense ON readback OK: {intake.remote_sense_enabled_readback_ok}",
         f"Remote sense OFF cleanup OK: {intake.remote_sense_disabled_after_run_ok}",
         f"Output off after run OK: {intake.output_off_after_run_ok}",
@@ -978,6 +1079,22 @@ def format_four_terminal_dc_lab_smoke_intake(intake: FourTerminalDCLabSmokeIntak
         for issue in intake.issues:
             lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
     return "\n".join(lines)
+
+
+def _format_contact_pair(value: tuple[str, str] | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value[0]}->{value[1]}"
+
+
+def _contact_pair_from_topology(value: Any) -> tuple[str, str] | None:
+    if not isinstance(value, list) or len(value) != 2:
+        return None
+    first = str(value[0]).strip()
+    second = str(value[1]).strip()
+    if not first or not second:
+        return None
+    return (first, second)
 
 
 def write_four_terminal_dc_lab_smoke_intake_json(
@@ -1342,6 +1459,7 @@ def _dry_run_metadata_evidence_checks(
     payload = _load_json_object(Path(dry_run_metadata))
     configured = payload.get("configured_smu", {}) if isinstance(payload.get("configured_smu"), dict) else {}
     remote_sense = payload.get("remote_sense", {}) if isinstance(payload.get("remote_sense"), dict) else {}
+    contact_topology = _four_terminal_dc_contact_topology_from_metadata(payload)
     nplc_matches = configured.get("nplc") == recipe.instrument.nplc
     return [
         FourTerminalDCPreflightCheck(
@@ -1367,6 +1485,16 @@ def _dry_run_metadata_evidence_checks(
             ok=remote_sense.get("configured_in_dry_run") is False,
             actual=str(remote_sense.get("configured_in_dry_run")),
             message="Dry-run did not configure Keithley remote sense.",
+        ),
+        FourTerminalDCPreflightCheck(
+            name="dry_run_contact_topology",
+            ok=_four_terminal_dc_contact_topology_ok(contact_topology),
+            actual=(
+                f"force={contact_topology.get('force_contacts')}, "
+                f"sense={contact_topology.get('sense_contacts')}, "
+                f"terminal_plane={contact_topology.get('terminal_plane')}"
+            ),
+            message="Dry-run metadata preserves declared four-terminal force/sense contacts.",
         ),
     ]
 

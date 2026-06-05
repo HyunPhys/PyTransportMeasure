@@ -28,6 +28,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Four-terminal DC lab smoke intake audits saved hardware run metadata for
   remote sense, output cleanup, SMU readback, NPLC/ranges/compliance, and fitted
   resistance.
+- [x] Four-terminal DC dry-run/active metadata and lab smoke intake preserve
+  normalized force/sense contact topology evidence.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.
@@ -1258,6 +1260,8 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm `points.csv`, `metadata.json`, `recipe_snapshot.yaml`, and
   `safety_snapshot.yaml` exist.
 - [ ] Confirm `metadata.json` has `measurement_type: four_terminal_dc`.
+- [ ] Confirm `metadata.json` has `contact_topology.force_contacts`,
+  `contact_topology.sense_contacts`, and `contact_topology.terminal_plane`.
 - [ ] Confirm `dry_run: true`.
 - [ ] Confirm `configured_smu.nplc`, `voltage_range_v`, `current_range_a`, and
   `current_compliance_a` match the recipe.
@@ -1276,6 +1280,7 @@ Use this checklist before pulse hardware work begins.
   ptm four-terminal-dc-command-review configs\recipes\four_terminal_dc_schema_draft.yaml --preflight-json docs\four_terminal_dc_preflight.json --dry-run-metadata data\raw\<run>\metadata.json --json-output docs\four_terminal_dc_command_review.json
   ```
 - [ ] Confirm evidence checks are PASS.
+- [ ] Confirm the evidence checks include `dry_run_contact_topology: PASS`.
 - [ ] Confirm `:SENS:CURR:RSEN ON` appears before `:OUTP ON`.
 - [ ] Confirm `:SENS:CURR:RSEN OFF` appears in cleanup.
 - [ ] Confirm NPLC/ranges/compliance/source delay are listed as blocking
@@ -1297,6 +1302,8 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the command refuses to run if `--command-review-json` is omitted.
 - [ ] Confirm the command refuses to run if `--hardware-approval-note` is empty.
 - [ ] After a run, confirm `remote_sense.enabled_readback_ok: true`.
+- [ ] Confirm `metadata.json` records the expected
+  `contact_topology.force_contacts` and `contact_topology.sense_contacts`.
 - [ ] Confirm `remote_sense.disabled_after_run_readback` is `0` or `OFF`.
 - [ ] Confirm `output_state.instrument.off_after_run: true`.
 
@@ -1311,6 +1318,9 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the command prints `Four-terminal DC lab smoke intake: PASS`.
 - [ ] Confirm `NPLC`, voltage range, current range, and compliance match the
   recipe and lab notebook.
+- [ ] Confirm `Contact topology OK: True`.
+- [ ] Confirm `Force contacts` and `Sense contacts` match the real fixture and
+  lab notebook.
 - [ ] Confirm `SMU readback available: True` and `SMU readback matched: True`.
 - [ ] Confirm `Remote sense ON readback OK: True`.
 - [ ] Confirm `Remote sense OFF cleanup OK: True`.

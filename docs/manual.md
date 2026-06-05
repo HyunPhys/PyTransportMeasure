@@ -1691,8 +1691,10 @@ ptm four-terminal-dc configs\recipes\four_terminal_dc_schema_draft.yaml --dry-ru
 
 This writes `points.csv`, `metadata.json`, `recipe_snapshot.yaml`, and
 `safety_snapshot.yaml` using the four-terminal recipe schema. The metadata
-records the contact map, `dc_sense_mode`, NPLC/ranges/compliance, and planned
-remote-sense SCPI commands. Running the same command without `--dry-run` is
+records the contact map, normalized contact topology, `dc_sense_mode`,
+NPLC/ranges/compliance, and planned remote-sense SCPI commands. The normalized
+topology records force contacts, sense contacts, terminal plane, distinctness,
+and force/sense separation. Running the same command without `--dry-run` is
 blocked unless the guarded active-run flags are supplied.
 
 Before any guarded active run, review the exact remote-sense SCPI sequence:
@@ -1705,7 +1707,9 @@ ptm four-terminal-dc-command-review configs\recipes\four_terminal_dc_schema_draf
 The command review is still non-executing. It lists the intended setup,
 blocking readbacks, `:SENS:CURR:RSEN ON`, `:OUTP ON`, acquisition, zero-before
 off, output-off, and `:SENS:CURR:RSEN OFF` cleanup order while keeping
-`Active hardware run allowed: False`.
+`Active hardware run allowed: False`. When dry-run metadata is attached, the
+evidence checks also verify that the dry-run preserved the declared
+four-terminal force/sense contact topology.
 
 The guarded active draft is available only behind explicit evidence and approval
 flags:
@@ -1730,10 +1734,12 @@ The intake requires `measurement_type: four_terminal_dc`, `dry_run: false`, a
 completed run, matching `points_written`, fitted resistance inside the optional
 window, remote-sense ON readback, remote-sense OFF cleanup, output-off cleanup,
 zero-before-output-off cleanup, command-review evidence, and a hardware approval
-note. It also requires the normalized Keithley measurement conditions to be
-present in metadata: NPLC, voltage range, current range, and compliance. When a
-Keithley readback check exists, it must report `matched: true`, so an accidental
-NPLC/range/compliance drift is caught before the method is expanded.
+note. It also requires contact-topology evidence showing separated force and
+sense contacts on a declared terminal plane. Finally, it requires the normalized
+Keithley measurement conditions to be present in metadata: NPLC, voltage range,
+current range, and compliance. When a Keithley readback check exists, it must
+report `matched: true`, so an accidental NPLC/range/compliance drift is caught
+before the method is expanded.
 
 Keithley source blocks may also set an instrument voltage-source delay:
 
