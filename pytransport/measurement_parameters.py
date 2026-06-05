@@ -13,6 +13,13 @@ class MeasurementParameterIssue:
     message: str
 
 
+@dataclass(frozen=True)
+class KeithleyHardwareParameterSpec:
+    parameter: str
+    label: str
+    reason: str
+
+
 def smu_instrument_roles(recipe: Any) -> tuple[tuple[str, Any], ...]:
     roles = [
         ("instrument", "instrument"),
@@ -30,11 +37,23 @@ def smu_instrument_roles(recipe: Any) -> tuple[tuple[str, Any], ...]:
     return tuple(found)
 
 
-REQUIRED_KEITHLEY_HARDWARE_PARAMETERS = {
-    "nplc": "NPLC",
-    "voltage_range_v": "voltage range",
-    "current_range_a": "current range",
-}
+REQUIRED_KEITHLEY_HARDWARE_PARAMETERS = (
+    KeithleyHardwareParameterSpec(
+        parameter="nplc",
+        label="NPLC",
+        reason="sets Keithley current integration time in power-line cycles",
+    ),
+    KeithleyHardwareParameterSpec(
+        parameter="voltage_range_v",
+        label="voltage range",
+        reason="keeps the voltage source range explicit and auditable",
+    ),
+    KeithleyHardwareParameterSpec(
+        parameter="current_range_a",
+        label="current range",
+        reason="avoids accidental current autorange during hardware scans",
+    ),
+)
 
 
 def missing_explicit_nplc(recipe: Any, roles: tuple[str, ...] | None = None) -> tuple[MeasurementParameterIssue, ...]:
@@ -56,13 +75,13 @@ def missing_required_smu_hardware_parameters(
             continue
         if getattr(instrument, "id", None) != "keithley_2450":
             continue
-        for parameter, label in REQUIRED_KEITHLEY_HARDWARE_PARAMETERS.items():
-            if getattr(instrument, parameter, None) is None:
+        for spec in REQUIRED_KEITHLEY_HARDWARE_PARAMETERS:
+            if getattr(instrument, spec.parameter, None) is None:
                 issues.append(
                     MeasurementParameterIssue(
                         role=role,
-                        parameter=parameter,
-                        message=f"{role} Keithley 2450 hardware runs require explicit {label}",
+                        parameter=spec.parameter,
+                        message=f"{role} Keithley 2450 hardware runs require explicit {spec.label}; {spec.reason}",
                     )
                 )
     return tuple(issues)
@@ -73,6 +92,9 @@ def format_measurement_parameter_issues(issues: tuple[MeasurementParameterIssue,
     for issue in issues:
         lines.append(f"- {issue.role}.{issue.parameter}: {issue.message}")
     lines.append("Set the missing value in the recipe before enabling hardware output.")
+    lines.append("Keithley 2450 hardware parameter policy:")
+    for spec in REQUIRED_KEITHLEY_HARDWARE_PARAMETERS:
+        lines.append(f"- {spec.parameter}: {spec.label}; {spec.reason}.")
     return "\n".join(lines)
 
 

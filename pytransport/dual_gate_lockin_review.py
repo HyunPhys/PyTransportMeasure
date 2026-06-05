@@ -98,6 +98,10 @@ class DualGateLockInSummary:
     lockin_sheet_resistance_max_ohm_per_sq: float | None
     lockin_sheet_conductivity_min_s_per_sq: float | None
     lockin_sheet_conductivity_max_s_per_sq: float | None
+    lockin_hall_resistance_min_ohm: float | None
+    lockin_hall_resistance_max_ohm: float | None
+    lockin_hall_carrier_density_min_per_m2: float | None
+    lockin_hall_carrier_density_max_per_m2: float | None
     lockin_theta_min_deg: float | None
     lockin_theta_max_deg: float | None
     error_type: str | None
@@ -169,6 +173,10 @@ def read_dual_gate_lockin_points(run_dir: str | Path) -> list[dict[str, float | 
                     ),
                     "lockin_sheet_conductivity_s_per_sq": parse_optional_float(
                         row.get("lockin_sheet_conductivity_s_per_sq", "")
+                    ),
+                    "lockin_hall_resistance_ohm": parse_optional_float(row.get("lockin_hall_resistance_ohm", "")),
+                    "lockin_hall_carrier_density_per_m2": parse_optional_float(
+                        row.get("lockin_hall_carrier_density_per_m2", "")
                     ),
                 }
             )
@@ -787,6 +795,14 @@ def summarize_dual_gate_lockin_run(run_dir: str | Path) -> DualGateLockInSummary
         for point in points
         if point.get("lockin_sheet_conductivity_s_per_sq") is not None
     ]
+    hall_resistance = [
+        point["lockin_hall_resistance_ohm"] for point in points if point.get("lockin_hall_resistance_ohm") is not None
+    ]
+    hall_density = [
+        point["lockin_hall_carrier_density_per_m2"]
+        for point in points
+        if point.get("lockin_hall_carrier_density_per_m2") is not None
+    ]
     lockin_theta = [point["lockin_theta_deg"] for point in points if point["lockin_theta_deg"] is not None]
     return DualGateLockInSummary(
         run_dir=path,
@@ -815,6 +831,10 @@ def summarize_dual_gate_lockin_run(run_dir: str | Path) -> DualGateLockInSummary
         lockin_sheet_resistance_max_ohm_per_sq=max(sheet_resistance) if sheet_resistance else None,
         lockin_sheet_conductivity_min_s_per_sq=min(sheet_conductivity) if sheet_conductivity else None,
         lockin_sheet_conductivity_max_s_per_sq=max(sheet_conductivity) if sheet_conductivity else None,
+        lockin_hall_resistance_min_ohm=min(hall_resistance) if hall_resistance else None,
+        lockin_hall_resistance_max_ohm=max(hall_resistance) if hall_resistance else None,
+        lockin_hall_carrier_density_min_per_m2=min(hall_density) if hall_density else None,
+        lockin_hall_carrier_density_max_per_m2=max(hall_density) if hall_density else None,
         lockin_theta_min_deg=min(lockin_theta) if lockin_theta else None,
         lockin_theta_max_deg=max(lockin_theta) if lockin_theta else None,
         error_type=metadata.get("error_type"),
@@ -843,6 +863,8 @@ def format_dual_gate_lockin_summary(summary: DualGateLockInSummary) -> str:
         f"Lock-in conductance range: {fmt(summary.lockin_conductance_min_s, ' S')} to {fmt(summary.lockin_conductance_max_s, ' S')}",
         f"Sheet resistance range: {fmt(summary.lockin_sheet_resistance_min_ohm_per_sq, ' ohm/sq')} to {fmt(summary.lockin_sheet_resistance_max_ohm_per_sq, ' ohm/sq')}",
         f"Sheet conductivity range: {fmt(summary.lockin_sheet_conductivity_min_s_per_sq, ' S/sq')} to {fmt(summary.lockin_sheet_conductivity_max_s_per_sq, ' S/sq')}",
+        f"Hall resistance range: {fmt(summary.lockin_hall_resistance_min_ohm, ' ohm')} to {fmt(summary.lockin_hall_resistance_max_ohm, ' ohm')}",
+        f"Hall carrier density range: {fmt(summary.lockin_hall_carrier_density_min_per_m2, ' m^-2')} to {fmt(summary.lockin_hall_carrier_density_max_per_m2, ' m^-2')}",
         f"Lock-in theta range: {fmt(summary.lockin_theta_min_deg, ' deg')} to {fmt(summary.lockin_theta_max_deg, ' deg')}",
     ]
     if summary.error_type:
@@ -877,6 +899,16 @@ def dual_gate_lockin_stats_rows(run_dir: str | Path) -> list[dict[str, Any]]:
             for point in group
             if point.get("lockin_sheet_conductivity_s_per_sq") is not None
         ]
+        hall_resistance = [
+            float(point["lockin_hall_resistance_ohm"])
+            for point in group
+            if point.get("lockin_hall_resistance_ohm") is not None
+        ]
+        hall_density = [
+            float(point["lockin_hall_carrier_density_per_m2"])
+            for point in group
+            if point.get("lockin_hall_carrier_density_per_m2") is not None
+        ]
         gate1_currents = [float(point["gate1_current_a"]) for point in group]
         gate2_currents = [float(point["gate2_current_a"]) for point in group]
         rows.append(
@@ -900,6 +932,12 @@ def dual_gate_lockin_stats_rows(run_dir: str | Path) -> list[dict[str, Any]]:
                 "lockin_sheet_conductivity_mean_s_per_sq": mean(sheet_conductivity),
                 "lockin_sheet_conductivity_min_s_per_sq": min(sheet_conductivity) if sheet_conductivity else None,
                 "lockin_sheet_conductivity_max_s_per_sq": max(sheet_conductivity) if sheet_conductivity else None,
+                "lockin_hall_resistance_mean_ohm": mean(hall_resistance),
+                "lockin_hall_resistance_min_ohm": min(hall_resistance) if hall_resistance else None,
+                "lockin_hall_resistance_max_ohm": max(hall_resistance) if hall_resistance else None,
+                "lockin_hall_carrier_density_mean_per_m2": mean(hall_density),
+                "lockin_hall_carrier_density_min_per_m2": min(hall_density) if hall_density else None,
+                "lockin_hall_carrier_density_max_per_m2": max(hall_density) if hall_density else None,
                 "gate1_current_abs_max_a": max((abs(value) for value in gate1_currents), default=None),
                 "gate2_current_abs_max_a": max((abs(value) for value in gate2_currents), default=None),
             }
@@ -930,6 +968,12 @@ def write_dual_gate_lockin_stats_csv(run_dir: str | Path, output_path: str | Pat
         "lockin_sheet_conductivity_mean_s_per_sq",
         "lockin_sheet_conductivity_min_s_per_sq",
         "lockin_sheet_conductivity_max_s_per_sq",
+        "lockin_hall_resistance_mean_ohm",
+        "lockin_hall_resistance_min_ohm",
+        "lockin_hall_resistance_max_ohm",
+        "lockin_hall_carrier_density_mean_per_m2",
+        "lockin_hall_carrier_density_min_per_m2",
+        "lockin_hall_carrier_density_max_per_m2",
         "gate1_current_abs_max_a",
         "gate2_current_abs_max_a",
     ]
@@ -1030,6 +1074,8 @@ def format_dual_gate_lockin_report(run_dir: str | Path) -> str:
         f"- Lock-in conductance range: {fmt(summary.lockin_conductance_min_s, ' S')} to {fmt(summary.lockin_conductance_max_s, ' S')}",
         f"- Sheet resistance range: {fmt(summary.lockin_sheet_resistance_min_ohm_per_sq, ' ohm/sq')} to {fmt(summary.lockin_sheet_resistance_max_ohm_per_sq, ' ohm/sq')}",
         f"- Sheet conductivity range: {fmt(summary.lockin_sheet_conductivity_min_s_per_sq, ' S/sq')} to {fmt(summary.lockin_sheet_conductivity_max_s_per_sq, ' S/sq')}",
+        f"- Hall resistance range: {fmt(summary.lockin_hall_resistance_min_ohm, ' ohm')} to {fmt(summary.lockin_hall_resistance_max_ohm, ' ohm')}",
+        f"- Hall carrier density range: {fmt(summary.lockin_hall_carrier_density_min_per_m2, ' m^-2')} to {fmt(summary.lockin_hall_carrier_density_max_per_m2, ' m^-2')}",
         f"- Max abs gate1 leakage: {fmt(summary.gate1_leakage_abs_max_a, ' A')}",
         f"- Max abs gate2 leakage: {fmt(summary.gate2_leakage_abs_max_a, ' A')}",
         "",
@@ -1053,8 +1099,8 @@ def format_dual_gate_lockin_report(run_dir: str | Path) -> str:
         "",
         "## Gate-Pair Statistics",
         "",
-        "| Gate1 V | Gate2 V | Points | Mean Lock-in R | Mean Resistance | Mean Sheet R | Mean Conductance | Gate1 I Abs Max | Gate2 I Abs Max |",
-        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
+        "| Gate1 V | Gate2 V | Points | Mean Lock-in R | Mean Resistance | Mean Sheet R | Mean Hall R | Mean Hall Density | Mean Conductance | Gate1 I Abs Max | Gate2 I Abs Max |",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|",
     ]
     for row in stats_rows:
         lines.append(
@@ -1062,6 +1108,8 @@ def format_dual_gate_lockin_report(run_dir: str | Path) -> str:
                 f"| {fmt(row['gate1_voltage_v'], ' V')} | {fmt(row['gate2_voltage_v'], ' V')} | {row['points']} | "
                 f"{fmt(row['lockin_r_mean_v'], ' V')} | {fmt(row['lockin_resistance_mean_ohm'], ' ohm')} | "
                 f"{fmt(row['lockin_sheet_resistance_mean_ohm_per_sq'], ' ohm/sq')} | "
+                f"{fmt(row['lockin_hall_resistance_mean_ohm'], ' ohm')} | "
+                f"{fmt(row['lockin_hall_carrier_density_mean_per_m2'], ' m^-2')} | "
                 f"{fmt(row['lockin_conductance_mean_s'], ' S')} | {fmt(row['gate1_current_abs_max_a'], ' A')} | "
                 f"{fmt(row['gate2_current_abs_max_a'], ' A')} |"
             )

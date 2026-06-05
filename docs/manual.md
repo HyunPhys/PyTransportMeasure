@@ -384,6 +384,10 @@ columns:
 - `lockin_sheet_resistance_ohm_per_sq`: longitudinal Hall-bar sheet resistance,
   when channel length/width are declared.
 - `lockin_sheet_conductivity_s_per_sq`: inverse sheet resistance.
+- `lockin_hall_resistance_ohm`: Hall-probe resistance for
+  `voltage_probe_role: hall`.
+- `lockin_hall_carrier_density_per_m2`: single-field 2D carrier density
+  estimate, `B / (e * Rxy)`, when `magnetic_field_t` is declared.
 
 Review artifacts include:
 
@@ -430,8 +434,10 @@ probe spacing and channel width. The runner then writes:
 - `lockin_sheet_conductivity_s_per_sq = 1 / lockin_sheet_resistance_ohm_per_sq`
 
 For Hall voltage probes, use `voltage_probe_role: hall` and omit channel
-length/width; Hall coefficient and carrier density extraction remain a later
-phase.
+length/width. If `magnetic_field_t` is declared, the runner estimates
+`lockin_hall_carrier_density_per_m2 = B / (e * lockin_hall_resistance_ohm)`.
+This is a first-pass fixed-field estimate; antisymmetrized Hall extraction,
+zero-field offset subtraction, and mobility extraction remain later phases.
 
 The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
 samples to `lockin_smoke.csv`. It does not configure Keithley source mode and

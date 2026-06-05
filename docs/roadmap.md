@@ -335,7 +335,15 @@ root.
     lock-in topology
   - derive sheet resistance/conductivity for longitudinal Vxx measurements
   - save sheet transport columns in points CSV, stats CSV, summary, and report
-- [ ] Phase 25aj: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25aj: Hall-voltage transport derivation
+  - add optional magnetic field to dual-gate lock-in topology
+  - derive Hall resistance for Vxy probes
+  - estimate fixed-field 2D carrier density when `magnetic_field_t` is declared
+- [x] Phase 25ak: Keithley measurement parameter audit
+  - keep Keithley `nplc` explicit in the shared SMU config path
+  - document NPLC as current integration time in power-line cycles
+  - centralize required Keithley hardware parameter labels and reasons
+- [ ] Phase 25al: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

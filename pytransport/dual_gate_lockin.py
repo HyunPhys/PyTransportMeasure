@@ -44,6 +44,9 @@ from .smu_config import (
 from .ac_lockin import format_lockin_settings
 
 
+ELEMENTARY_CHARGE_C = 1.602176634e-19
+
+
 DUAL_GATE_LOCKIN_COLUMNS = [
     "index",
     "gate1_index",
@@ -65,6 +68,8 @@ DUAL_GATE_LOCKIN_COLUMNS = [
     "lockin_conductance_s",
     "lockin_sheet_resistance_ohm_per_sq",
     "lockin_sheet_conductivity_s_per_sq",
+    "lockin_hall_resistance_ohm",
+    "lockin_hall_carrier_density_per_m2",
 ]
 
 
@@ -90,6 +95,8 @@ class DualGateLockInPoint:
     lockin_conductance_s: float | None = None
     lockin_sheet_resistance_ohm_per_sq: float | None = None
     lockin_sheet_conductivity_s_per_sq: float | None = None
+    lockin_hall_resistance_ohm: float | None = None
+    lockin_hall_carrier_density_per_m2: float | None = None
 
     def to_dict(self) -> dict[str, float | int | bool | None]:
         return asdict(self)
@@ -266,6 +273,9 @@ def format_topology_settings(topology: dict[str, Any]) -> list[str]:
     channel_width = topology.get("channel_width_m")
     if channel_length is not None and channel_width is not None:
         lines.append(f"Channel geometry: L={channel_length} m, W={channel_width} m")
+    magnetic_field = topology.get("magnetic_field_t")
+    if magnetic_field is not None:
+        lines.append(f"Magnetic field: {magnetic_field} T")
     excitation_contacts = topology.get("excitation_contacts") or []
     if excitation_contacts:
         lines.append(f"Excitation contacts: {', '.join(excitation_contacts)}")
@@ -304,6 +314,8 @@ def derive_lockin_transport_values(
     conductance_s = None
     sheet_resistance_ohm_per_sq = None
     sheet_conductivity_s_per_sq = None
+    hall_resistance_ohm = None
+    hall_carrier_density_per_m2 = None
     if lockin_r_v is not None and nominal_current_a not in {None, 0.0}:
         resistance_ohm = float(lockin_r_v) / float(nominal_current_a)
         if resistance_ohm != 0:
@@ -315,6 +327,13 @@ def derive_lockin_transport_values(
                 sheet_resistance_ohm_per_sq = resistance_ohm * float(channel_width) / float(channel_length)
                 if sheet_resistance_ohm_per_sq != 0:
                     sheet_conductivity_s_per_sq = 1.0 / sheet_resistance_ohm_per_sq
+        if topology.get("voltage_probe_role") == "hall":
+            hall_resistance_ohm = resistance_ohm
+            magnetic_field_t = topology.get("magnetic_field_t")
+            if magnetic_field_t is not None and hall_resistance_ohm != 0:
+                hall_carrier_density_per_m2 = float(magnetic_field_t) / (
+                    ELEMENTARY_CHARGE_C * float(hall_resistance_ohm)
+                )
     return {
         "source_drain_excitation_v": None if excitation_v is None else float(excitation_v),
         "source_drain_nominal_current_a": nominal_current_a,
@@ -322,6 +341,8 @@ def derive_lockin_transport_values(
         "lockin_conductance_s": conductance_s,
         "lockin_sheet_resistance_ohm_per_sq": sheet_resistance_ohm_per_sq,
         "lockin_sheet_conductivity_s_per_sq": sheet_conductivity_s_per_sq,
+        "lockin_hall_resistance_ohm": hall_resistance_ohm,
+        "lockin_hall_carrier_density_per_m2": hall_carrier_density_per_m2,
     }
 
 
@@ -380,6 +401,7 @@ def run_dual_gate_lockin_sweep(
         "voltage_probe_role": recipe.topology.voltage_probe_role,
         "channel_length_m": recipe.topology.channel_length_m,
         "channel_width_m": recipe.topology.channel_width_m,
+        "magnetic_field_t": recipe.topology.magnetic_field_t,
         "recipe": recipe.model_dump(mode="json"),
         "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
         "safety": safety.model_dump(mode="json"),
@@ -472,6 +494,8 @@ def run_dual_gate_lockin_sweep(
                     lockin_conductance_s=transport["lockin_conductance_s"],
                     lockin_sheet_resistance_ohm_per_sq=transport["lockin_sheet_resistance_ohm_per_sq"],
                     lockin_sheet_conductivity_s_per_sq=transport["lockin_sheet_conductivity_s_per_sq"],
+                    lockin_hall_resistance_ohm=transport["lockin_hall_resistance_ohm"],
+                    lockin_hall_carrier_density_per_m2=transport["lockin_hall_carrier_density_per_m2"],
                 )
                 writer.write_point(point)
                 points_written += 1

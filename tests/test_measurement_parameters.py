@@ -30,7 +30,10 @@ def test_missing_explicit_nplc_reports_keithley_roles(tmp_path: Path):
     assert len(issues) == 1
     assert issues[0].role == "instrument"
     assert issues[0].parameter == "nplc"
-    assert "instrument.nplc" in format_measurement_parameter_issues(issues)
+    text = format_measurement_parameter_issues(issues)
+    assert "instrument.nplc" in text
+    assert "sets Keithley current integration time" in text
+    assert "Keithley 2450 hardware parameter policy" in text
 
 
 def test_missing_required_smu_hardware_parameters_reports_ranges_and_nplc(tmp_path: Path):

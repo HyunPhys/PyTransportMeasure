@@ -182,6 +182,7 @@ class HallBarLockInTopology(BaseModel):
     voltage_probe_role: Literal["longitudinal", "hall", "generic"] = "generic"
     channel_length_m: float | None = Field(default=None, gt=0)
     channel_width_m: float | None = Field(default=None, gt=0)
+    magnetic_field_t: float | None = None
     excitation_source: Literal["sr860_sine_out", "external", "none"] = "sr860_sine_out"
     excitation_contacts: list[str] = Field(default_factory=list, max_length=2)
     excitation_amplitude_v: float | None = Field(default=None, gt=0, le=2.0)

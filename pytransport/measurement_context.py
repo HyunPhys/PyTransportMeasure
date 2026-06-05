@@ -39,6 +39,8 @@ def format_lockin_contact_context(
     )
     if topology.get("channel_length_m") is not None and topology.get("channel_width_m") is not None:
         lines.append(f"Channel geometry: L={topology.get('channel_length_m')} m, W={topology.get('channel_width_m')} m")
+    if topology.get("magnetic_field_t") is not None:
+        lines.append(f"Magnetic field: {topology.get('magnetic_field_t')} T")
     return lines
 
 

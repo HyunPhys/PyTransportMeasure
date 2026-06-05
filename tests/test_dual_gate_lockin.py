@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from pytransport.dual_gate_lockin import (
+    ELEMENTARY_CHARGE_C,
     dual_gate_lockin_grid_signature,
     dual_gate_lockin_point_count,
     format_dual_gate_lockin_plan,
@@ -180,6 +181,22 @@ def test_dual_gate_lockin_four_terminal_recipe_sample_and_plan():
     assert "Lock-in input: voltage on Vxx+, Vxx-" in plan
 
 
+def test_dual_gate_lockin_hall_recipe_sample_and_plan():
+    recipe = load_dual_gate_lockin_recipe("configs/recipes/dual_gate_lockin_hall_dry_run.yaml")
+    safety = load_named_safety_preset(recipe.safety_preset)
+    plan = format_dual_gate_lockin_plan(recipe, safety, "configs/recipes/dual_gate_lockin_hall_dry_run.yaml")
+
+    assert recipe.measurement_geometry.method == "four_terminal"
+    assert recipe.topology.voltage_probe_role == "hall"
+    assert recipe.topology.lockin_input_contacts == ["Vxy+", "Vxy-"]
+    assert recipe.topology.magnetic_field_t == pytest.approx(1.0)
+    assert recipe.topology.channel_length_m is None
+    assert recipe.topology.channel_width_m is None
+    assert "Voltage probe role: hall" in plan
+    assert "Magnetic field: 1.0 T" in plan
+    assert "Lock-in input: voltage on Vxy+, Vxy-" in plan
+
+
 def test_dual_gate_lockin_recipe_rejects_incomplete_active_excitation(tmp_path):
     data = dual_gate_lockin_recipe_data(tmp_path)
     data["topology"]["excitation_contacts"] = ["S"]
@@ -205,6 +222,54 @@ def test_dual_gate_lockin_recipe_rejects_channel_geometry_for_hall_probe(tmp_pat
 
     with pytest.raises(Exception, match="only used for longitudinal voltage probes"):
         DualGateLockInRecipe.model_validate(data)
+
+
+def test_dual_gate_lockin_hall_probe_derives_hall_density(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["measurement_geometry"] = {"method": "four_terminal", "terminal_count": 4}
+    data["lockin"]["voltage_input"] = "a-b"
+    data["topology"]["lockin_input_contacts"] = ["Vxy+", "Vxy-"]
+    data["topology"]["voltage_probe_role"] = "hall"
+    data["topology"]["magnetic_field_t"] = 1.0
+    recipe = DualGateLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+
+    metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_hall.yaml",
+    )
+
+    assert metadata["completed"] is True
+    assert metadata["voltage_probe_role"] == "hall"
+    assert metadata["magnetic_field_t"] == pytest.approx(1.0)
+    run_dir = Path(metadata["run_dir"])
+    rows = list(csv.DictReader((run_dir / "points.csv").open(newline="", encoding="utf-8")))
+    first_hall_resistance = float(rows[0]["lockin_hall_resistance_ohm"])
+    assert first_hall_resistance == pytest.approx(float(rows[0]["lockin_resistance_ohm"]))
+    assert float(rows[0]["lockin_hall_carrier_density_per_m2"]) == pytest.approx(
+        1.0 / (ELEMENTARY_CHARGE_C * first_hall_resistance)
+    )
+    assert rows[0]["lockin_sheet_resistance_ohm_per_sq"] == ""
+
+    stats_path = write_dual_gate_lockin_stats_csv(run_dir)
+    stats_rows = list(csv.DictReader(stats_path.open(newline="", encoding="utf-8")))
+    assert float(stats_rows[0]["lockin_hall_resistance_mean_ohm"]) > 0
+    assert float(stats_rows[0]["lockin_hall_carrier_density_mean_per_m2"]) > 0
+
+    summary = summarize_dual_gate_lockin_run(run_dir)
+    assert summary.lockin_hall_resistance_max_ohm is not None
+    assert summary.lockin_hall_carrier_density_max_per_m2 is not None
+    report_path = write_dual_gate_lockin_report(run_dir)
+    report = report_path.read_text(encoding="utf-8")
+    assert "- Voltage probe role: hall" in report
+    assert "- Magnetic field: 1.0 T" in report
+    assert "Hall resistance range:" in report
+    assert "Hall carrier density range:" in report
 
 
 def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
@@ -245,6 +310,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert float(rows[0]["lockin_conductance_s"]) == pytest.approx(1 / float(rows[0]["lockin_resistance_ohm"]))
     assert rows[0]["lockin_sheet_resistance_ohm_per_sq"] == ""
     assert rows[0]["lockin_sheet_conductivity_s_per_sq"] == ""
+    assert rows[0]["lockin_hall_resistance_ohm"] == ""
+    assert rows[0]["lockin_hall_carrier_density_per_m2"] == ""
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
     assert saved_metadata["planned_points"] == 9
     assert saved_metadata["planned_gate_grid"] == planned_dual_gate_lockin_grid(recipe)
@@ -314,6 +381,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert "lockin_conductance_mean_s" in stats_rows[0]
     assert "lockin_sheet_resistance_mean_ohm_per_sq" in stats_rows[0]
     assert stats_rows[0]["lockin_sheet_resistance_mean_ohm_per_sq"] == ""
+    assert "lockin_hall_resistance_mean_ohm" in stats_rows[0]
+    assert stats_rows[0]["lockin_hall_resistance_mean_ohm"] == ""
     assert write_dual_gate_lockin_heatmap_svg(run_dir).name == "dual_gate_lockin_heatmap.svg"
     assert write_dual_gate_lockin_report(run_dir).name == "dual_gate_lockin_report.md"
     report = (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")

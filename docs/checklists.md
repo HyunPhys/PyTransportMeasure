@@ -128,6 +128,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.
+- [ ] Treat `nplc` as a measurement condition, not a UI/default detail: larger
+  values average current longer and slow the sweep.
 - [ ] If using Keithley source delay, set `instrument.source_delay_s` and
   remember it is in addition to Python-side sweep delay.
 - [ ] Choose a conservative safety preset.
@@ -469,12 +471,16 @@ remain point-guarded.
   `lockin_r_v`, `lockin_theta_deg`, `source_drain_nominal_current_a`,
   `lockin_resistance_ohm`, `lockin_conductance_s`,
   `lockin_sheet_resistance_ohm_per_sq`, and
-  `lockin_sheet_conductivity_s_per_sq`.
+  `lockin_sheet_conductivity_s_per_sq`. For Vxy recipes, also confirm
+  `lockin_hall_resistance_ohm` and `lockin_hall_carrier_density_per_m2`.
 - [ ] Confirm `dual_gate_lockin_heatmap.svg`,
   `dual_gate_lockin_stats.csv`, and `dual_gate_lockin_report.md` are written.
 - [ ] Confirm `dual_gate_lockin_stats.csv` includes
   `lockin_resistance_mean_ohm`, `lockin_conductance_mean_s`, and, for
   longitudinal Vxx recipes with L/W, `lockin_sheet_resistance_mean_ohm_per_sq`.
+- [ ] For Vxy recipes with `magnetic_field_t`, confirm
+  `lockin_hall_carrier_density_mean_per_m2` is present and has the expected
+  sign convention.
 - [ ] Confirm `dual_gate_lockin_report.md` lists nominal source-drain current,
   resistance range, conductance range, measurement geometry, lock-in voltage
   contacts, excitation contacts, and sheet resistance range when channel
