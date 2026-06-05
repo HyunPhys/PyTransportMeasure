@@ -439,6 +439,17 @@ length/width. If `magnetic_field_t` is declared, the runner estimates
 This is a first-pass fixed-field estimate; antisymmetrized Hall extraction,
 zero-field offset subtraction, and mobility extraction remain later phases.
 
+When matched `+B` and `-B` Hall runs are available, use:
+
+```powershell
+ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run> --output-dir data\analysis\<hall_antisym_folder>
+```
+
+This writes `hall_antisym.csv`, `hall_antisym_report.md`, and
+`hall_antisym_metadata.json`. By default it uses signed `lockin_x_v`, computes
+`Rxy_odd = (R(+B) - R(-B)) / 2`, and estimates
+`n_2d = |B| / (e * Rxy_odd)`.
+
 The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
 samples to `lockin_smoke.csv`. It does not configure Keithley source mode and
 does not enable gate output. Use it to confirm that the SR860 signal path and

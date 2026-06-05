@@ -74,6 +74,7 @@ from .dual_gate_lockin_review import (
     write_dual_gate_lockin_stats_csv,
 )
 from .feedback_bundle import create_feedback_bundle
+from .hall_analysis import write_dual_gate_lockin_hall_antisym
 from .inspect import inspect_run
 from .instruments.fake import (
     CoupledFakeDeviceState,
@@ -385,6 +386,20 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_scale_up_template.add_argument("--review-path", type=Path)
     dual_gate_lockin_scale_up_template.add_argument("--no-review", action="store_true")
     dual_gate_lockin_scale_up_template.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_antisym = subparsers.add_parser(
+        "dual-gate-lockin-hall-antisym",
+        help="Combine +B and -B dual-gate lock-in Hall runs into antisymmetrized Hall artifacts.",
+    )
+    dual_gate_lockin_hall_antisym.add_argument("positive_run_dir", type=Path)
+    dual_gate_lockin_hall_antisym.add_argument("negative_run_dir", type=Path)
+    dual_gate_lockin_hall_antisym.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_antisym.add_argument(
+        "--value-column",
+        choices=["lockin_x_v", "lockin_y_v", "lockin_r_v", "lockin_hall_resistance_ohm"],
+        default="lockin_x_v",
+    )
+    dual_gate_lockin_hall_antisym.add_argument("--overwrite", action="store_true")
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
@@ -1324,6 +1339,23 @@ def command_dual_gate_lockin_scale_up_template(args: argparse.Namespace) -> int:
         candidate_recipe=output_path,
     )
     return command_dual_gate_lockin_scale_up_check(check_args)
+
+
+def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
+    result = write_dual_gate_lockin_hall_antisym(
+        args.positive_run_dir,
+        args.negative_run_dir,
+        output_dir=args.output_dir,
+        value_column=args.value_column,
+        overwrite=args.overwrite,
+    )
+    print(f"Hall antisym CSV: {result.output_csv}")
+    print(f"Hall antisym report: {result.report_path}")
+    print(f"Hall antisym metadata: {result.metadata_path}")
+    print(f"Points: {result.points}")
+    print(f"Value column: {result.value_column}")
+    print(f"|B|: {result.magnetic_field_abs_t if result.magnetic_field_abs_t is not None else 'n/a'} T")
+    return 0
 
 
 def command_ac_lockin_plan(args: argparse.Namespace) -> int:
@@ -2544,6 +2576,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_check(args)
     if args.command == "dual-gate-lockin-scale-up-template":
         return command_dual_gate_lockin_scale_up_template(args)
+    if args.command == "dual-gate-lockin-hall-antisym":
+        return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
     if args.command == "ac-lockin-preflight":

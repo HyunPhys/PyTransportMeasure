@@ -490,6 +490,10 @@ remain point-guarded.
 - [ ] For Vxy recipes with `magnetic_field_t`, confirm
   `lockin_hall_carrier_density_mean_per_m2` is present and has the expected
   sign convention.
+- [ ] When matched `+B` and `-B` Hall runs are available, run
+  `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
+  --output-dir data\analysis\<hall_antisym_folder>` and confirm
+  `hall_antisym.csv` and `hall_antisym_report.md` are written.
 - [ ] Confirm `dual_gate_lockin_report.md` lists nominal source-drain current,
   resistance range, conductance range, measurement geometry, lock-in voltage
   contacts, excitation contacts, and sheet resistance range when channel
