@@ -363,7 +363,11 @@ root.
   - add `ptm dual-gate-lockin-hall-mobility`
   - combine antisymmetrized Hall density with longitudinal sheet conductivity
   - write signed and magnitude mobility in SI and cm^2/V/s lab units
-- [ ] Phase 25aq: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25aq: Hall zero-field offset correction analysis
+  - add `ptm dual-gate-lockin-hall-zero-correct`
+  - subtract matched `B=0` Hall resistance from finite-field Hall resistance
+  - write corrected Hall resistance and carrier density artifacts
+- [ ] Phase 25ar: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

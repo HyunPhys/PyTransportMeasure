@@ -43,6 +43,18 @@ HALL_MOBILITY_COLUMNS = [
 ]
 
 
+HALL_ZERO_CORRECTED_COLUMNS = [
+    "gate1_voltage_v",
+    "gate2_voltage_v",
+    "field_value",
+    "zero_field_value",
+    "field_resistance_ohm",
+    "zero_field_resistance_ohm",
+    "hall_zero_corrected_resistance_ohm",
+    "hall_carrier_density_per_m2",
+]
+
+
 @dataclass(frozen=True)
 class HallAntisymResult:
     output_csv: Path
@@ -61,6 +73,16 @@ class HallMobilityResult:
     points: int
     hall_antisym_source: Path
     longitudinal_run_dir: Path
+
+
+@dataclass(frozen=True)
+class HallZeroCorrectedResult:
+    output_csv: Path
+    report_path: Path
+    metadata_path: Path
+    points: int
+    magnetic_field_t: float
+    value_column: HallValueColumn
 
 
 def write_dual_gate_lockin_hall_antisym(
@@ -253,6 +275,97 @@ def write_dual_gate_lockin_hall_mobility(
     return HallMobilityResult(output_csv, report_path, metadata_path, len(rows), hall_csv, longitudinal_path)
 
 
+def write_dual_gate_lockin_hall_zero_corrected(
+    field_run_dir: str | Path,
+    zero_field_run_dir: str | Path,
+    output_dir: str | Path | None = None,
+    value_column: HallValueColumn = "lockin_x_v",
+    overwrite: bool = False,
+) -> HallZeroCorrectedResult:
+    field_path = Path(field_run_dir)
+    zero_path = Path(zero_field_run_dir)
+    output_path = Path(output_dir) if output_dir is not None else field_path.with_name(
+        f"{field_path.name}_hall_zero_corrected"
+    )
+    if output_path.exists() and any(output_path.iterdir()) and not overwrite:
+        raise FileExistsError(f"Output directory already exists and is not empty: {output_path}")
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    field_metadata = read_dual_gate_lockin_metadata(field_path)
+    zero_metadata = read_dual_gate_lockin_metadata(zero_path)
+    field_b = _validate_hall_zero_pair_metadata(field_metadata, zero_metadata)
+    field_points = read_dual_gate_lockin_points(field_path)
+    zero_points = read_dual_gate_lockin_points(zero_path)
+    field_by_gate = _points_by_gate(field_points)
+    zero_by_gate = _points_by_gate(zero_points)
+    if set(field_by_gate) != set(zero_by_gate):
+        missing_from_zero = sorted(set(field_by_gate) - set(zero_by_gate))
+        missing_from_field = sorted(set(zero_by_gate) - set(field_by_gate))
+        raise ValueError(
+            "field and zero-field runs have different gate grids; "
+            f"missing_from_zero={missing_from_zero[:3]}, missing_from_field={missing_from_field[:3]}"
+        )
+
+    rows = []
+    for key in sorted(field_by_gate):
+        field_point = field_by_gate[key]
+        zero_point = zero_by_gate[key]
+        field_value = _point_value_as_resistance_input(field_point, value_column)
+        zero_value = _point_value_as_resistance_input(zero_point, value_column)
+        field_resistance = _value_to_resistance(field_value, field_point, value_column)
+        zero_resistance = _value_to_resistance(zero_value, zero_point, value_column)
+        corrected = None
+        density = None
+        if field_resistance is not None and zero_resistance is not None:
+            corrected = field_resistance - zero_resistance
+            if corrected != 0:
+                density = field_b / (ELEMENTARY_CHARGE_C * corrected)
+        rows.append(
+            {
+                "gate1_voltage_v": key[0],
+                "gate2_voltage_v": key[1],
+                "field_value": field_value,
+                "zero_field_value": zero_value,
+                "field_resistance_ohm": field_resistance,
+                "zero_field_resistance_ohm": zero_resistance,
+                "hall_zero_corrected_resistance_ohm": corrected,
+                "hall_carrier_density_per_m2": density,
+            }
+        )
+
+    output_csv = output_path / "hall_zero_corrected.csv"
+    with output_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=HALL_ZERO_CORRECTED_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    report_path = output_path / "hall_zero_corrected_report.md"
+    report_path.write_text(
+        format_hall_zero_corrected_report(field_path, zero_path, rows, value_column, field_b),
+        encoding="utf-8",
+    )
+    metadata_path = output_path / "hall_zero_corrected_metadata.json"
+    with metadata_path.open("w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "field_run_dir": str(field_path),
+                "zero_field_run_dir": str(zero_path),
+                "value_column": value_column,
+                "points": len(rows),
+                "magnetic_field_t": field_b,
+                "output_csv": str(output_csv),
+                "report_path": str(report_path),
+                "model": "Rxy_corrected = Rxy(B) - Rxy(0); n_2d = B / (e * Rxy_corrected)",
+            },
+            handle,
+            indent=2,
+            sort_keys=True,
+            default=str,
+        )
+    return HallZeroCorrectedResult(output_csv, report_path, metadata_path, len(rows), field_b, value_column)
+
+
 def format_hall_antisym_report(
     positive_run_dir: str | Path,
     negative_run_dir: str | Path,
@@ -283,6 +396,43 @@ def format_hall_antisym_report(
             "`n_2d = |B| / (e * Rxy_odd)`",
             "",
             "The sign of `n_2d` follows the sign of `Rxy_odd`.",
+            "",
+        ]
+    )
+
+
+def format_hall_zero_corrected_report(
+    field_run_dir: str | Path,
+    zero_field_run_dir: str | Path,
+    rows: list[dict[str, Any]],
+    value_column: HallValueColumn,
+    magnetic_field_t: float,
+) -> str:
+    corrected_values = [
+        float(row["hall_zero_corrected_resistance_ohm"])
+        for row in rows
+        if row["hall_zero_corrected_resistance_ohm"] is not None
+    ]
+    density_values = [float(row["hall_carrier_density_per_m2"]) for row in rows if row["hall_carrier_density_per_m2"] is not None]
+    return "\n".join(
+        [
+            "# Hall Zero-Field Correction Report",
+            "",
+            f"- Field run: `{field_run_dir}`",
+            f"- Zero-field run: `{zero_field_run_dir}`",
+            f"- Value column: `{value_column}`",
+            f"- Matched gate points: {len(rows)}",
+            f"- B: {_fmt(magnetic_field_t, ' T')}",
+            f"- Corrected Hall resistance range: {_fmt(min(corrected_values) if corrected_values else None, ' ohm')} to {_fmt(max(corrected_values) if corrected_values else None, ' ohm')}",
+            f"- Hall carrier density range: {_fmt(min(density_values) if density_values else None, ' m^-2')} to {_fmt(max(density_values) if density_values else None, ' m^-2')}",
+            "",
+            "## Model",
+            "",
+            "`Rxy_corrected = Rxy(B) - Rxy(0)`",
+            "",
+            "`n_2d = B / (e * Rxy_corrected)`",
+            "",
+            "Use antisymmetrization when matched `+B` and `-B` runs are available; use zero-field correction when the saved measurement set contains a reliable `B=0` Hall offset run.",
             "",
         ]
     )
@@ -345,6 +495,25 @@ def _validate_hall_pair_metadata(positive_metadata: dict[str, Any], negative_met
             raise ValueError(f"{label} run voltage_probe_role must be hall")
 
 
+def _validate_hall_zero_pair_metadata(field_metadata: dict[str, Any], zero_metadata: dict[str, Any]) -> float:
+    for label, metadata in [("field", field_metadata), ("zero-field", zero_metadata)]:
+        if metadata.get("measurement_type") != "dual_gate_lockin_sweep":
+            raise ValueError(f"{label} run is not a dual_gate_lockin_sweep")
+        if metadata.get("completed") is not True:
+            raise ValueError(f"{label} run is not completed")
+        if metadata.get("voltage_probe_role") != "hall":
+            raise ValueError(f"{label} run voltage_probe_role must be hall")
+    field_b = _optional_float(field_metadata.get("magnetic_field_t"))
+    zero_b = _optional_float(zero_metadata.get("magnetic_field_t"))
+    if field_b is None or _close(field_b, 0.0):
+        raise ValueError("field run must include nonzero magnetic_field_t")
+    if zero_b is None:
+        raise ValueError("zero-field run must include magnetic_field_t")
+    if not _close(zero_b, 0.0):
+        raise ValueError("zero-field run magnetic_field_t must be 0")
+    return field_b
+
+
 def _validate_longitudinal_metadata(metadata: dict[str, Any]) -> None:
     if metadata.get("measurement_type") != "dual_gate_lockin_sweep":
         raise ValueError("longitudinal run is not a dual_gate_lockin_sweep")
@@ -393,7 +562,7 @@ def _points_by_gate(points: list[dict[str, Any]]) -> dict[tuple[float, float], d
 
 def _point_value_as_resistance_input(point: dict[str, Any], value_column: HallValueColumn) -> float | None:
     value = point.get(value_column)
-    return None if value is None else float(value)
+    return None if value in {None, ""} else float(value)
 
 
 def _value_to_resistance(value: float | None, point: dict[str, Any], value_column: HallValueColumn) -> float | None:

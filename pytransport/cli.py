@@ -74,7 +74,11 @@ from .dual_gate_lockin_review import (
     write_dual_gate_lockin_stats_csv,
 )
 from .feedback_bundle import create_feedback_bundle
-from .hall_analysis import write_dual_gate_lockin_hall_antisym, write_dual_gate_lockin_hall_mobility
+from .hall_analysis import (
+    write_dual_gate_lockin_hall_antisym,
+    write_dual_gate_lockin_hall_mobility,
+    write_dual_gate_lockin_hall_zero_corrected,
+)
 from .inspect import inspect_run
 from .instruments.fake import (
     CoupledFakeDeviceState,
@@ -400,6 +404,20 @@ def build_parser() -> argparse.ArgumentParser:
         default="lockin_x_v",
     )
     dual_gate_lockin_hall_antisym.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_zero_correct = subparsers.add_parser(
+        "dual-gate-lockin-hall-zero-correct",
+        help="Subtract a B=0 Hall run from a finite-field Hall run and estimate density.",
+    )
+    dual_gate_lockin_hall_zero_correct.add_argument("field_run_dir", type=Path)
+    dual_gate_lockin_hall_zero_correct.add_argument("zero_field_run_dir", type=Path)
+    dual_gate_lockin_hall_zero_correct.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_zero_correct.add_argument(
+        "--value-column",
+        choices=["lockin_x_v", "lockin_y_v", "lockin_r_v", "lockin_hall_resistance_ohm"],
+        default="lockin_x_v",
+    )
+    dual_gate_lockin_hall_zero_correct.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_mobility = subparsers.add_parser(
         "dual-gate-lockin-hall-mobility",
@@ -1364,6 +1382,23 @@ def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     print(f"Points: {result.points}")
     print(f"Value column: {result.value_column}")
     print(f"|B|: {result.magnetic_field_abs_t if result.magnetic_field_abs_t is not None else 'n/a'} T")
+    return 0
+
+
+def command_dual_gate_lockin_hall_zero_correct(args: argparse.Namespace) -> int:
+    result = write_dual_gate_lockin_hall_zero_corrected(
+        args.field_run_dir,
+        args.zero_field_run_dir,
+        output_dir=args.output_dir,
+        value_column=args.value_column,
+        overwrite=args.overwrite,
+    )
+    print(f"Hall zero-corrected CSV: {result.output_csv}")
+    print(f"Hall zero-corrected report: {result.report_path}")
+    print(f"Hall zero-corrected metadata: {result.metadata_path}")
+    print(f"Points: {result.points}")
+    print(f"Value column: {result.value_column}")
+    print(f"B: {result.magnetic_field_t} T")
     return 0
 
 
@@ -2601,6 +2636,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_template(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
+    if args.command == "dual-gate-lockin-hall-zero-correct":
+        return command_dual_gate_lockin_hall_zero_correct(args)
     if args.command == "dual-gate-lockin-hall-mobility":
         return command_dual_gate_lockin_hall_mobility(args)
     if args.command == "ac-lockin-plan":

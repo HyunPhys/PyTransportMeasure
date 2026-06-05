@@ -437,8 +437,9 @@ For Hall voltage probes, use `voltage_probe_role: hall` and omit channel
 length/width. If `magnetic_field_t` is declared, the runner estimates
 `lockin_hall_carrier_density_per_m2 = B / (e * lockin_hall_resistance_ohm)`.
 This is a first-pass fixed-field estimate; antisymmetrized Hall extraction and
-mobility extraction are available as saved-run analysis commands. Zero-field
-offset subtraction remains a later phase.
+zero-field offset subtraction are available as saved-run analysis commands.
+Mobility extraction can then combine Hall density with longitudinal sheet
+conductivity.
 
 When matched `+B` and `-B` Hall runs are available, use:
 
@@ -450,6 +451,19 @@ This writes `hall_antisym.csv`, `hall_antisym_report.md`, and
 `hall_antisym_metadata.json`. By default it uses signed `lockin_x_v`, computes
 `Rxy_odd = (R(+B) - R(-B)) / 2`, and estimates
 `n_2d = |B| / (e * Rxy_odd)`.
+
+When a finite-field Hall run and a matching `B=0` Hall run are available, use:
+
+```powershell
+ptm dual-gate-lockin-hall-zero-correct data\raw\<field_B_run> data\raw\<zero_B_run> --output-dir data\analysis\<hall_zero_corrected_folder>
+```
+
+This writes `hall_zero_corrected.csv`, `hall_zero_corrected_report.md`, and
+`hall_zero_corrected_metadata.json`. It computes
+`Rxy_corrected = Rxy(B) - Rxy(0)` and
+`n_2d = B / (e * Rxy_corrected)`. Prefer the `+B/-B`
+antisymmetrization command when both polarities are available; use zero-field
+correction when the measurement set contains a reliable `B=0` Hall offset run.
 
 After a matching longitudinal Vxx dual-gate lock-in run is available, combine
 its sheet conductivity with the Hall density:

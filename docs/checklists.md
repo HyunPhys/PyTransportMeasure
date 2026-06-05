@@ -494,6 +494,15 @@ remain point-guarded.
   `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
   --output-dir data\analysis\<hall_antisym_folder>` and confirm
   `hall_antisym.csv` and `hall_antisym_report.md` are written.
+- [ ] When a finite-field Hall run and a matching `B=0` Hall run are available,
+  run `ptm dual-gate-lockin-hall-zero-correct data\raw\<field_B_run>
+  data\raw\<zero_B_run> --output-dir data\analysis\<hall_zero_corrected_folder>`
+  and confirm `hall_zero_corrected.csv`,
+  `hall_zero_corrected_report.md`, and
+  `hall_zero_corrected_metadata.json` are written.
+- [ ] Confirm `hall_zero_corrected.csv` contains
+  `hall_zero_corrected_resistance_ohm` and
+  `hall_carrier_density_per_m2`.
 - [ ] After a matching longitudinal Vxx run is available, run
   `ptm dual-gate-lockin-hall-mobility data\analysis\<hall_antisym_folder>
   data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>`

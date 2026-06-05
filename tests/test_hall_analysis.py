@@ -6,7 +6,11 @@ import pytest
 
 from pytransport.cli import main
 from pytransport.dual_gate_lockin import ELEMENTARY_CHARGE_C
-from pytransport.hall_analysis import write_dual_gate_lockin_hall_antisym, write_dual_gate_lockin_hall_mobility
+from pytransport.hall_analysis import (
+    write_dual_gate_lockin_hall_antisym,
+    write_dual_gate_lockin_hall_mobility,
+    write_dual_gate_lockin_hall_zero_corrected,
+)
 
 
 def write_hall_run(run_dir: Path, field_t: float, x_values: list[float]) -> Path:
@@ -165,6 +169,45 @@ def test_cli_dual_gate_lockin_hall_antisym(tmp_path):
     assert (output / "hall_antisym.csv").exists()
     assert (output / "hall_antisym_report.md").exists()
     assert (output / "hall_antisym_metadata.json").exists()
+
+
+def test_hall_zero_corrected_writes_csv_report_and_metadata(tmp_path):
+    field = write_hall_run(tmp_path / "field_b", 1.0, [2e-6, 3e-6, 4e-6])
+    zero = write_hall_run(tmp_path / "zero_b", 0.0, [0.5e-6, 0.5e-6, 0.5e-6])
+
+    result = write_dual_gate_lockin_hall_zero_corrected(field, zero, tmp_path / "zero_corrected")
+
+    assert result.points == 3
+    assert result.magnetic_field_t == pytest.approx(1.0)
+    rows = list(csv.DictReader(result.output_csv.open(newline="", encoding="utf-8")))
+    corrected = float(rows[0]["hall_zero_corrected_resistance_ohm"])
+    assert corrected == pytest.approx((2e-6 / 1e-8) - (0.5e-6 / 1e-8))
+    assert float(rows[0]["hall_carrier_density_per_m2"]) == pytest.approx(1.0 / (ELEMENTARY_CHARGE_C * corrected))
+    assert "Hall Zero-Field Correction Report" in result.report_path.read_text(encoding="utf-8")
+    metadata = json.loads(result.metadata_path.read_text(encoding="utf-8"))
+    assert metadata["value_column"] == "lockin_x_v"
+    assert metadata["magnetic_field_t"] == pytest.approx(1.0)
+
+
+def test_hall_zero_corrected_rejects_nonzero_zero_field_run(tmp_path):
+    field = write_hall_run(tmp_path / "field_b", 1.0, [2e-6, 3e-6, 4e-6])
+    not_zero = write_hall_run(tmp_path / "not_zero_b", 0.5, [0.5e-6, 0.5e-6, 0.5e-6])
+
+    with pytest.raises(ValueError, match="zero-field"):
+        write_dual_gate_lockin_hall_zero_corrected(field, not_zero, tmp_path / "zero_corrected")
+
+
+def test_cli_dual_gate_lockin_hall_zero_correct(tmp_path):
+    field = write_hall_run(tmp_path / "field_b", 1.0, [2e-6, 3e-6, 4e-6])
+    zero = write_hall_run(tmp_path / "zero_b", 0.0, [0.5e-6, 0.5e-6, 0.5e-6])
+    output = tmp_path / "cli_zero_corrected"
+
+    code = main(["dual-gate-lockin-hall-zero-correct", str(field), str(zero), "--output-dir", str(output)])
+
+    assert code == 0
+    assert (output / "hall_zero_corrected.csv").exists()
+    assert (output / "hall_zero_corrected_report.md").exists()
+    assert (output / "hall_zero_corrected_metadata.json").exists()
 
 
 def test_hall_mobility_combines_antisym_and_longitudinal_run(tmp_path):
