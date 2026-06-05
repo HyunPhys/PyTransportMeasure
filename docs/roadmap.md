@@ -501,11 +501,16 @@ root.
   - add direct CLI regression coverage for Drain I-V hardware parameter gates
   - verify missing NPLC/ranges block `ptm run` before preflight or output setup
   - keep dry-run usable for recipe and artifact validation without hardware
-- [ ] Phase 25br: Hall workflow module tests
+- [x] Phase 25br: Hall workflow module tests
   - add direct unit tests for the reusable Hall workflow module APIs
   - keep CLI tests focused on argument wiring and exit codes
   - verify status and rehearsal helpers without relying only on CLI end-to-end
     coverage
+- [ ] Phase 25bs: Measurement parameter audit expansion
+  - add reusable audit output for all active Keithley source blocks
+  - surface NPLC/range/compliance/terminal/source-delay consistency in one
+    machine-readable artifact
+  - prepare the audit for two-SMU gate plus SR860 Hall-bar workflows
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
