@@ -530,6 +530,12 @@ remain point-guarded.
   ```
 - [ ] Confirm it prints `Dual-gate lock-in checkpoint acceptance: PASS` and
   shows acceptable gate leakage/compliance margins.
+- [ ] After one or more chunks, summarize chunk feedback.
+  ```powershell
+  ptm dual-gate-lockin-chunk-feedback data\raw\<chunk_01_run> data\raw\<chunk_02_run> --output docs\<sample>_chunk_feedback.md
+  ```
+- [ ] Confirm it prints `Dual-gate lock-in chunk feedback: PASS` before keeping
+  the same chunk size, NPLC, settle time, and SR860 sensitivity.
 - [ ] Before chunked hardware work, print the chunk runbook.
   ```powershell
   ptm dual-gate-lockin-chunk-plan configs\recipes\<dual_gate_lockin_recipe>.yaml --chunk-size <N> --max-hardware-points <N>
@@ -543,7 +549,8 @@ remain point-guarded.
   Keithley voltage range, current range, NPLC, source delay, gate sweep, and
   compliance values for both gate SMUs.
 - [ ] Confirm the packet includes `scale-up-check`, `preflight`, `chunk-plan`,
-  chunk acquisition, chunk audit, stitch, and strict audit commands.
+  chunk acquisition, chunk audit, chunk feedback, stitch, and strict audit
+  commands.
 - [ ] After all chunks are measured, stitch them into one analysis-ready run.
   ```powershell
   ptm dual-gate-lockin-stitch-chunks data\raw\<chunk_01_run> data\raw\<chunk_02_run> data\raw\<chunk_03_run> --measurement-name <stitched_name> --gate-stats --plot --report

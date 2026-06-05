@@ -82,10 +82,12 @@ from .dual_gate_lockin_review import (
     audit_dual_gate_lockin_run,
     format_dual_gate_lockin_acceptance,
     format_dual_gate_lockin_checkpoint_acceptance,
+    format_dual_gate_lockin_chunk_feedback,
     format_dual_gate_lockin_scale_up_audit,
     format_dual_gate_lockin_summary,
     format_scale_up_blocking_acceptance_issues,
     scale_up_blocking_acceptance_issues,
+    summarize_dual_gate_lockin_chunk_feedback,
     summarize_dual_gate_lockin_run,
     write_dual_gate_lockin_acceptance_report,
     write_dual_gate_lockin_heatmap_svg,
@@ -440,6 +442,19 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Do not fail when saved metadata lacks SR860 setting readback fields.",
     )
+
+    dual_gate_lockin_chunk_feedback = subparsers.add_parser(
+        "dual-gate-lockin-chunk-feedback",
+        help="Summarize checkpoint chunk audits and recommend whether to continue acquisition.",
+    )
+    dual_gate_lockin_chunk_feedback.add_argument("run_dirs", type=Path, nargs="+")
+    dual_gate_lockin_chunk_feedback.add_argument(
+        "--allow-missing-lockin-settings",
+        action="store_true",
+        help="Do not fail when saved metadata lacks SR860 setting readback fields.",
+    )
+    dual_gate_lockin_chunk_feedback.add_argument("--output", type=Path)
+    dual_gate_lockin_chunk_feedback.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_scale_up_check = subparsers.add_parser(
         "dual-gate-lockin-scale-up-check",
@@ -1538,6 +1553,28 @@ def command_dual_gate_lockin_chunk_audit(args: argparse.Namespace) -> int:
     )
     print(format_dual_gate_lockin_checkpoint_acceptance(audit))
     return 0 if audit.accepted else 2
+
+
+def command_dual_gate_lockin_chunk_feedback(args: argparse.Namespace) -> int:
+    try:
+        feedback = summarize_dual_gate_lockin_chunk_feedback(
+            args.run_dirs,
+            require_lockin_settings=not args.allow_missing_lockin_settings,
+        )
+    except ValueError as exc:
+        print(f"Dual-gate lock-in chunk feedback failed: {exc}", file=sys.stderr)
+        return 2
+    text = format_dual_gate_lockin_chunk_feedback(feedback)
+    if args.output is not None:
+        if args.output.exists() and not args.overwrite:
+            print(f"Dual-gate lock-in chunk feedback failed: output exists: {args.output}", file=sys.stderr)
+            return 2
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(text, encoding="utf-8")
+        print(f"Dual-gate lock-in chunk feedback: {args.output}")
+    else:
+        print(text)
+    return 0 if feedback.ready_to_continue else 2
 
 
 def command_dual_gate_lockin_scale_up_check(args: argparse.Namespace) -> int:
@@ -3004,6 +3041,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_audit(args)
     if args.command == "dual-gate-lockin-chunk-audit":
         return command_dual_gate_lockin_chunk_audit(args)
+    if args.command == "dual-gate-lockin-chunk-feedback":
+        return command_dual_gate_lockin_chunk_feedback(args)
     if args.command == "dual-gate-lockin-scale-up-check":
         return command_dual_gate_lockin_scale_up_check(args)
     if args.command == "dual-gate-lockin-scale-up-template":

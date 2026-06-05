@@ -71,6 +71,18 @@ class DualGateLockInScaleUpAudit:
 
 
 @dataclass(frozen=True)
+class DualGateLockInChunkFeedback:
+    run_dirs: tuple[Path, ...]
+    chunk_audits: tuple[DualGateLockInAcceptance, ...]
+    ready_to_continue: bool
+    min_gate1_margin: float | None
+    min_gate2_margin: float | None
+    max_gate1_leakage_a: float | None
+    max_gate2_leakage_a: float | None
+    recommendations: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class DualGateLockInSummary:
     run_dir: Path
     measurement_name: str
@@ -389,6 +401,70 @@ def format_dual_gate_lockin_checkpoint_acceptance(audit: DualGateLockInAcceptanc
     return text.replace("Dual-gate lock-in acceptance:", "Dual-gate lock-in checkpoint acceptance:", 1)
 
 
+def summarize_dual_gate_lockin_chunk_feedback(
+    run_dirs: list[str | Path],
+    require_lockin_settings: bool = True,
+) -> DualGateLockInChunkFeedback:
+    if not run_dirs:
+        raise ValueError("At least one chunk run directory is required")
+    paths = tuple(Path(run_dir) for run_dir in run_dirs)
+    audits = tuple(
+        audit_dual_gate_lockin_checkpoint_run(path, require_lockin_settings=require_lockin_settings)
+        for path in paths
+    )
+    gate1_margins = _present_floats(audit.gate1_leakage_compliance_margin for audit in audits)
+    gate2_margins = _present_floats(audit.gate2_leakage_compliance_margin for audit in audits)
+    gate1_leakages = _present_floats(audit.gate1_leakage_abs_max_a for audit in audits)
+    gate2_leakages = _present_floats(audit.gate2_leakage_abs_max_a for audit in audits)
+    min_gate1_margin = min(gate1_margins, default=None)
+    min_gate2_margin = min(gate2_margins, default=None)
+    recommendations = _chunk_feedback_recommendations(audits, min_gate1_margin, min_gate2_margin)
+    ready_to_continue = all(audit.accepted for audit in audits) and not any(
+        recommendation.startswith("STOP") for recommendation in recommendations
+    )
+    return DualGateLockInChunkFeedback(
+        run_dirs=paths,
+        chunk_audits=audits,
+        ready_to_continue=ready_to_continue,
+        min_gate1_margin=min_gate1_margin,
+        min_gate2_margin=min_gate2_margin,
+        max_gate1_leakage_a=max(gate1_leakages, default=None),
+        max_gate2_leakage_a=max(gate2_leakages, default=None),
+        recommendations=tuple(recommendations),
+    )
+
+
+def format_dual_gate_lockin_chunk_feedback(feedback: DualGateLockInChunkFeedback) -> str:
+    status = "PASS" if feedback.ready_to_continue else "REVIEW"
+    lines = [
+        f"Dual-gate lock-in chunk feedback: {status}",
+        f"Chunks reviewed: {len(feedback.chunk_audits)}",
+        f"Ready to continue: {feedback.ready_to_continue}",
+        f"Gate1 max leakage: {fmt(feedback.max_gate1_leakage_a, ' A')}",
+        f"Gate2 max leakage: {fmt(feedback.max_gate2_leakage_a, ' A')}",
+        f"Gate1 minimum leakage/compliance margin: {fmt(feedback.min_gate1_margin, 'x')}",
+        f"Gate2 minimum leakage/compliance margin: {fmt(feedback.min_gate2_margin, 'x')}",
+        "",
+        "Chunk Results:",
+    ]
+    for audit in feedback.chunk_audits:
+        lines.append(
+            (
+                f"- {'PASS' if audit.accepted else 'FAIL'}: {audit.run_dir} "
+                f"points={audit.points_written if audit.points_written is not None else 'n/a'} "
+                f"remaining={audit.remaining_points if audit.remaining_points is not None else 'n/a'} "
+                f"gate1_margin={fmt(audit.gate1_leakage_compliance_margin, 'x')} "
+                f"gate2_margin={fmt(audit.gate2_leakage_compliance_margin, 'x')}"
+            )
+        )
+        for issue in audit.issues:
+            lines.append(f"  - [{issue.severity}] {issue.check}: {issue.message}")
+    lines.extend(["", "Recommendations:"])
+    for recommendation in feedback.recommendations:
+        lines.append(f"- {recommendation}")
+    return "\n".join(lines)
+
+
 def scale_up_blocking_acceptance_issues(
     audit: DualGateLockInAcceptance,
 ) -> tuple[DualGateLockInAcceptanceIssue, ...]:
@@ -409,6 +485,43 @@ def format_scale_up_blocking_acceptance_issues(
         lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
     lines.append("Repeat a limited run or fix the gate leakage margin before increasing the scan size.")
     return "\n".join(lines)
+
+
+def _chunk_feedback_recommendations(
+    audits: tuple[DualGateLockInAcceptance, ...],
+    min_gate1_margin: float | None,
+    min_gate2_margin: float | None,
+) -> list[str]:
+    recommendations: list[str] = []
+    failed = [audit for audit in audits if not audit.accepted]
+    if failed:
+        recommendations.append(
+            "STOP: at least one chunk failed checkpoint acceptance; do not resume until issues are fixed."
+        )
+    low_margins = [
+        margin
+        for margin in (min_gate1_margin, min_gate2_margin)
+        if margin is not None and margin < 10
+    ]
+    if low_margins:
+        recommendations.append(
+            "STOP: leakage/compliance margin is below 10x; reduce gate span, lower compliance risk, or inspect wiring."
+        )
+    missing_margins = min_gate1_margin is None or min_gate2_margin is None
+    if missing_margins:
+        recommendations.append(
+            "REVIEW: leakage margin is unavailable; confirm current readback and compliance metadata before continuing."
+        )
+    if not recommendations:
+        recommendations.append("CONTINUE: chunk audits passed with acceptable leakage margins.")
+        recommendations.append(
+            "Keep chunk size, NPLC, settle time, and SR860 sensitivity unchanged unless the signal/noise trend requires adjustment."
+        )
+    return recommendations
+
+
+def _present_floats(values) -> list[float]:
+    return [float(value) for value in values if value is not None]
 
 
 def write_dual_gate_lockin_acceptance_report(

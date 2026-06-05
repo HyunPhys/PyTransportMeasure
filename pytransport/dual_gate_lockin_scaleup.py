@@ -306,6 +306,7 @@ def format_dual_gate_lockin_broader_scan_packet(
                 for chunk in chunks
                 for line in _chunk_command_block(candidate_recipe_path, accepted_run_dir, chunk, max_hardware_points)
             ],
+            _chunk_feedback_command(recipe.measurement_name, len(chunks)),
             "```",
             "",
             "## After Acquisition",
@@ -405,6 +406,14 @@ def _stitch_command(measurement_name: str, chunk_count: int) -> str:
         f"ptm dual-gate-lockin-stitch-chunks {placeholders} "
         f"--measurement-name {measurement_name}_stitched --gate-stats --plot --report"
     )
+
+
+def _chunk_feedback_command(measurement_name: str, chunk_count: int) -> str:
+    placeholders = " ".join(
+        f"data\\raw\\<{measurement_name}_chunk_{index:02d}>"
+        for index in range(1, chunk_count + 1)
+    )
+    return f"ptm dual-gate-lockin-chunk-feedback {placeholders} --output docs\\<{measurement_name}_chunk_feedback.md>"
 
 
 def _fmt_optional(value) -> str:

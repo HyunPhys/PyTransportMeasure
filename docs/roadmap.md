@@ -427,11 +427,16 @@ root.
   - accept clean checkpoint runs without requiring full-run completion
   - still require measured-prefix grid consistency, SMU readback, output
     cleanup, leakage margin, and SR860 setting readback before resuming
-- [ ] Phase 25bd: First Hall-suite chunk acquisition feedback
-  - use lab feedback from the broader packet, chunk audit, and first measured
-    chunks
-  - decide whether chunk size, settle time, NPLC, or SR860 sensitivity needs
-    adjustment before full Vxx/+B/-B/0B acquisition
+- [x] Phase 25bd: Dual-gate lock-in chunk feedback summary
+  - add `ptm dual-gate-lockin-chunk-feedback`
+  - summarize several checkpoint chunk audits into one continue/review report
+  - report worst leakage and minimum leakage/compliance margins before deciding
+    whether to keep chunk size, NPLC, settle time, and SR860 sensitivity
+- [ ] Phase 25be: First lab-feedback recipe adjustment
+  - use lab feedback from the broader packet, chunk audit, chunk feedback, and
+    first measured chunks
+  - adjust chunk size, settle time, NPLC, or SR860 sensitivity before full
+    Vxx/+B/-B/0B acquisition if the data demands it
   - keep point-count guard, previous-run acceptance, and preflight mandatory
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor

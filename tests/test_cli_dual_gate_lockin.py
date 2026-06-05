@@ -144,6 +144,39 @@ def force_gate1_leakage_margin_warning(run_dir: Path) -> None:
     assert any(issue.check == "gate1_leakage_margin" and issue.severity == "warning" for issue in audit.issues)
 
 
+def convert_run_to_checkpoint(run_dir: Path, points_written: int = 2) -> None:
+    points_path = run_dir / "points.csv"
+    with points_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    with points_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows[:points_written])
+    metadata_path = run_dir / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    planned_points = int(metadata["planned_points"])
+    last = rows[points_written - 1]
+    metadata.update(
+        {
+            "completed": False,
+            "abort_class": "checkpoint",
+            "checkpoint_reached": True,
+            "points_written": points_written,
+            "points_measured_this_run": points_written,
+            "remaining_points": planned_points - points_written,
+            "last_completed_index": int(last["index"]),
+            "last_completed_gate1_index": int(last["gate1_index"]),
+            "last_completed_gate2_index": int(last["gate2_index"]),
+            "last_completed_gate1_voltage_v": float(last["gate1_voltage_v"]),
+            "last_completed_gate2_voltage_v": float(last["gate2_voltage_v"]),
+            "next_point_index": points_written,
+        }
+    )
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+
 def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 
@@ -489,6 +522,34 @@ def test_cli_dual_gate_lockin_chunk_audit_fails_for_completed_run(tmp_path):
     assert code == 2
 
 
+def test_cli_dual_gate_lockin_chunk_feedback_accepts_clean_chunks(tmp_path):
+    root_a = tmp_path / "chunk_a"
+    root_b = tmp_path / "chunk_b"
+    root_a.mkdir()
+    root_b.mkdir()
+    chunk_a = make_strictly_accepted_previous_run(root_a)
+    chunk_b = make_strictly_accepted_previous_run(root_b)
+    convert_run_to_checkpoint(chunk_a, points_written=2)
+    convert_run_to_checkpoint(chunk_b, points_written=3)
+    feedback_path = tmp_path / "chunk_feedback.md"
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-chunk-feedback",
+            str(chunk_a),
+            str(chunk_b),
+            "--output",
+            str(feedback_path),
+        ]
+    )
+
+    assert code == 0
+    text = feedback_path.read_text(encoding="utf-8")
+    assert "Dual-gate lock-in chunk feedback: PASS" in text
+    assert "Ready to continue: True" in text
+    assert "CONTINUE: chunk audits passed" in text
+
+
 def test_cli_dual_gate_lockin_blocks_raised_point_guard_without_previous_acceptance(tmp_path):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 
@@ -743,6 +804,7 @@ def test_cli_dual_gate_lockin_broader_scan_packet_writes_lab_runbook(tmp_path):
     assert "ptm dual-gate-lockin-preflight" in text
     assert "ptm dual-gate-lockin-chunk-plan" in text
     assert "ptm dual-gate-lockin-chunk-audit" in text
+    assert "ptm dual-gate-lockin-chunk-feedback" in text
     assert "--stop-after-new-points 4 --max-hardware-points 4" in text
     assert "ptm dual-gate-lockin-stitch-chunks" in text
     assert "broader_packet_candidate_chunk_03" in text

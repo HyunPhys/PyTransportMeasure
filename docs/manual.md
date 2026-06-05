@@ -511,6 +511,16 @@ The chunk audit is intentionally different from strict full-run audit: it
 expects `abort_class: checkpoint`, checks the measured prefix of the planned
 grid, and still requires leakage, SMU readback, output cleanup, and SR860
 setting readback to pass before the next chunk.
+After one or more chunks, summarize the acquisition feedback:
+
+```powershell
+ptm dual-gate-lockin-chunk-feedback data\raw\<chunk_01_run> data\raw\<chunk_02_run> --output docs\<sample>_chunk_feedback.md
+```
+
+The feedback command runs checkpoint audit on every listed chunk, reports the
+worst gate leakage and minimum leakage/compliance margins, and prints a
+continue/stop recommendation. Use this before deciding whether to keep the same
+chunk size, NPLC, settle time, and SR860 sensitivity for the next acquisition.
 
 After all chunks are measured, stitch them into one analysis-ready run:
 
@@ -648,7 +658,8 @@ current range, NPLC, source delay, gate sweep, and compliance rows before any
 output is enabled. NPLC is part of the measurement condition because it controls
 the Keithley current integration time in power-line cycles.
 The packet also inserts `dual-gate-lockin-chunk-audit` after each chunk command
-so a clean checkpoint is required before resuming the next chunk.
+so a clean checkpoint is required before resuming the next chunk. It also prints
+a `dual-gate-lockin-chunk-feedback` command for the measured chunk set.
 
 To reduce manual copy errors, generate a candidate broader recipe from the
 accepted run metadata and only change the gate grid:
