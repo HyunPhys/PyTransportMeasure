@@ -20,7 +20,7 @@ def test_build_measurement_plan_for_1k_recipe():
     assert plan.measurement_geometry["method"] == "two_terminal"
     assert "Measurement plan" in text
     assert "Measurement geometry: two_terminal, 2-terminal" in text
-    assert "- NPLC: 1" in text
+    assert "- NPLC: 1 power-line cycles" in text
     assert "- Source delay: auto" in text
     assert "Point preview" in text
     assert "... 11 points omitted ..." in text

@@ -361,7 +361,9 @@ def test_gui_recipe_overview_summarizes_drain_iv_recipe():
     assert "- method: two_terminal" in overview
     assert "Instrument" in overview
     assert "- address: GPIB0::2::INSTR" in overview
+    assert "- NPLC (power-line cycles): 1" in overview
     assert "Sweep" in overview
+    assert "- current compliance (A): 0.0002" in overview
     assert "- points: 21" in overview
 
 
@@ -938,6 +940,9 @@ def test_hardware_confirmation_text_summarizes_editor_recipe(tmp_path):
     assert "turn Keithley output ON" in message
     assert "gui_confirm_summary" in message
     assert "GPIB0::7::INSTR" in message
+    assert "Voltage range: 0.2 V" in message
+    assert "Current range: 0.0002 A" in message
+    assert "NPLC: 1.0 power-line cycles" in message
     assert "Compliance: 0.0002 A" in message
 
 

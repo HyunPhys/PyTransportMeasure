@@ -136,7 +136,7 @@ def format_measurement_plan(plan: MeasurementPlan) -> str:
         f"- Terminal: {plan.terminal or 'unchanged'}",
         f"- Voltage range: {fmt_optional(plan.voltage_range_v, 'V')}",
         f"- Current range: {fmt_optional(plan.current_range_a, 'A')}",
-        f"- NPLC: {fmt_optional(plan.nplc, '')}",
+        f"- NPLC: {fmt_optional(plan.nplc, '')} power-line cycles",
         f"- Source delay: {fmt_optional(plan.source_delay_s, 's')}",
         "",
         "Safety",

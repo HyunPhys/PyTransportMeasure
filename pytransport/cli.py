@@ -245,8 +245,11 @@ from .scheme_review import (
 )
 from .sr860_config import (
     format_sr860_config_command_review,
+    format_sr860_configure_result,
     review_sr860_config_commands,
+    run_sr860_configure,
     write_sr860_config_command_review_json,
+    write_sr860_configure_json,
 )
 from .summary import format_summary, summarize_run
 from .single_gate import run_single_gate_sweep
@@ -1115,6 +1118,17 @@ def build_parser() -> argparse.ArgumentParser:
     sr860_command_review.add_argument("measurement_type", choices=known_measurement_types())
     sr860_command_review.add_argument("recipe", type=Path)
     sr860_command_review.add_argument("--json-output", type=Path)
+
+    sr860_configure = subparsers.add_parser(
+        "sr860-configure",
+        help="Guarded SR860-only setting write/readback from an AC/lock-in recipe; does not touch SMUs.",
+    )
+    sr860_configure.add_argument("measurement_type", choices=known_measurement_types())
+    sr860_configure.add_argument("recipe", type=Path)
+    sr860_configure.add_argument("--allow-write", action="store_true")
+    sr860_configure.add_argument("--hardware-approval-note")
+    sr860_configure.add_argument("--json-output", type=Path)
+    sr860_configure.add_argument("--yes", action="store_true")
 
     scheme_plan = subparsers.add_parser("scheme-plan", help="Show a measurement scheme plan without touching hardware.")
     scheme_plan.add_argument("scheme", type=Path)
@@ -3470,6 +3484,52 @@ def command_sr860_command_review(args: argparse.Namespace) -> int:
     return 0 if payload["ok_for_hardware"] else 2
 
 
+def command_sr860_configure(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type(args.measurement_type)
+    try:
+        recipe = method.load_recipe(args.recipe)
+        review_payload = {
+            "measurement_type": method.measurement_type,
+            "recipe": str(args.recipe),
+            **review_sr860_config_commands(recipe),
+        }
+    except Exception as exc:
+        print(f"SR860 configure blocked during command review: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 2
+    print(format_sr860_config_command_review(review_payload))
+    print()
+    if not review_payload["ok_for_hardware"]:
+        print("SR860 configure blocked because measurement-parameter audit is not hardware-ready.", file=sys.stderr)
+        return 2
+    if not args.allow_write:
+        print("SR860 configure blocked: pass --allow-write after reviewing the command list.", file=sys.stderr)
+        return 2
+    approval_note = str(args.hardware_approval_note or "").strip()
+    if not approval_note:
+        print("SR860 configure blocked: --hardware-approval-note is required.", file=sys.stderr)
+        return 2
+    if should_confirm_hardware_run(False, args.yes) and not confirm_hardware_run(
+        lambda prompt: input(prompt.replace("hardware output and sweep", "SR860 setting writes"))
+    ):
+        print("SR860 configure cancelled before writing settings.")
+        return 130
+    lockin = SRS_SR860(recipe.lockin.address or "", recipe.lockin.timeout_ms)
+    payload = {
+        "measurement_type": method.measurement_type,
+        **run_sr860_configure(
+            recipe,
+            lockin,
+            recipe_path=args.recipe,
+            hardware_approval_note=approval_note,
+        ),
+    }
+    if args.json_output:
+        output_path = write_sr860_configure_json(payload, args.json_output)
+        print(f"SR860 configure JSON: {output_path}")
+    print(format_sr860_configure_result(payload))
+    return 0 if payload.get("completed") else 2
+
+
 def command_scheme_plan(args: argparse.Namespace) -> int:
     scheme = load_scheme(args.scheme)
     print(format_scheme_plan(scheme, args.scheme, args.safety_dir, args.preview_points))
@@ -4355,6 +4415,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_measurement_parameter_audit_dir(args)
     if args.command == "sr860-command-review":
         return command_sr860_command_review(args)
+    if args.command == "sr860-configure":
+        return command_sr860_configure(args)
     if args.command == "scheme-plan":
         return command_scheme_plan(args)
     if args.command == "scheme":

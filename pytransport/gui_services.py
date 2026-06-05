@@ -842,7 +842,21 @@ def _overview_title(name: str) -> str:
 
 
 def _overview_label(name: str) -> str:
-    return name.replace("_", " ")
+    labels = {
+        "voltage_range_v": "voltage range (V)",
+        "current_range_a": "current range (A)",
+        "current_compliance_a": "current compliance (A)",
+        "nplc": "NPLC (power-line cycles)",
+        "source_delay_s": "source delay (s)",
+        "delay_s": "delay (s)",
+        "start_v": "start voltage (V)",
+        "stop_v": "stop voltage (V)",
+        "reference_frequency_hz": "reference frequency (Hz)",
+        "sine_output_amplitude_v": "sine output amplitude (V)",
+        "voltage_input_range_v": "voltage input range (V)",
+        "read_settle_s": "read settle (s)",
+    }
+    return labels.get(name, name.replace("_", " "))
 
 
 def _overview_value(value: Any) -> str:
@@ -1041,7 +1055,10 @@ def format_hardware_confirmation_text(measurement_type: GuiMethod, text: str) ->
             f"Measurement: {recipe.measurement_name}",
             f"Address: {recipe.instrument.address}",
             f"Terminal: {recipe.instrument.terminal or 'unchanged'}",
-            f"NPLC: {recipe.instrument.nplc if recipe.instrument.nplc is not None else 'auto'}",
+            f"Voltage range: {recipe.instrument.voltage_range_v:g} V" if recipe.instrument.voltage_range_v is not None else "Voltage range: auto",
+            f"Current range: {recipe.instrument.current_range_a:g} A" if recipe.instrument.current_range_a is not None else "Current range: auto",
+            f"NPLC: {recipe.instrument.nplc if recipe.instrument.nplc is not None else 'auto'} power-line cycles",
+            f"Source delay: {recipe.instrument.source_delay_s:g} s" if recipe.instrument.source_delay_s is not None else "Source delay: auto",
             f"Sweep: {min(voltages):g} V to {max(voltages):g} V",
             f"Points: {len(voltages)}",
             f"Compliance: {recipe.sweep.current_compliance_a:g} A",

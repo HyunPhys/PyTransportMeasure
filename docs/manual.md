@@ -1689,6 +1689,18 @@ This command is hardware-free. It prints SCPI write/readback pairs such as
 `RSRC 0` / `RSRC?`, `SCAL 18` / `SCAL?`, and `OFLT 10` / `OFLT?`. Use it as the
 review contract before adding or using any active SR860 configure path.
 
+After reviewing the command list and confirming the SR860 output wiring is safe,
+you can apply the SR860 settings without touching Keithley SMUs:
+
+```powershell
+ptm sr860-configure dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml --allow-write --hardware-approval-note "<lab approval>" --json-output docs\sr860_configure.json --yes
+```
+
+This command still does not run a measurement. It writes SR860 settings only,
+queries each setting immediately, and saves the write/readback transcript. It is
+blocked without `--allow-write` and a non-empty approval note because `SLVL`
+changes the SR860 sine output amplitude.
+
 To audit a whole recipe folder before a lab-laptop handoff, use:
 
 ```powershell

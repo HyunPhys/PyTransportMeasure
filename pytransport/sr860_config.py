@@ -24,6 +24,20 @@ class SR860ConfigCommand:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class SR860ConfigApplyStep:
+    index: int
+    field: str
+    command: str
+    query: str
+    expected_readback: str
+    actual_readback: str | None
+    matched: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
 SR860_COMMAND_SPECS: dict[str, tuple[str, str, str]] = {
     "reference_source": ("RSRC", "RSRC?", "set reference source"),
     "reference_frequency_hz": ("FREQ", "FREQ?", "set internal reference frequency"),
@@ -81,6 +95,86 @@ def review_sr860_config_commands(recipe: Any) -> dict[str, Any]:
     }
 
 
+def run_sr860_configure(
+    recipe: Any,
+    lockin: Any,
+    *,
+    recipe_path: str | Path | None = None,
+    hardware_approval_note: str,
+) -> dict[str, Any]:
+    review = review_sr860_config_commands(recipe)
+    commands = build_sr860_config_commands(getattr(recipe, "lockin"))
+    payload: dict[str, Any] = {
+        "schema": "pytransport.sr860_configure.v1",
+        "recipe": None if recipe_path is None else str(Path(recipe_path)),
+        "hardware_approval_note": hardware_approval_note,
+        "review": review,
+        "connected": False,
+        "probe_before": None,
+        "probe_after": None,
+        "apply": None,
+        "completed": False,
+        "error_type": None,
+        "error_message": None,
+    }
+    try:
+        lockin.connect()
+        payload["connected"] = True
+        payload["probe_before"] = lockin.probe()
+        if hasattr(lockin, "apply_config_commands"):
+            payload["apply"] = lockin.apply_config_commands(commands)
+        else:
+            payload["apply"] = apply_sr860_config_commands(lockin, commands)
+        payload["probe_after"] = lockin.probe()
+        payload["completed"] = bool(payload["apply"]["matched"])
+        return payload
+    except Exception as exc:
+        payload["error_type"] = type(exc).__name__
+        payload["error_message"] = str(exc)
+        return payload
+    finally:
+        close = getattr(lockin, "close", None)
+        if close is not None:
+            close()
+
+
+def apply_sr860_config_commands(lockin: Any, commands: list[SR860ConfigCommand]) -> dict[str, Any]:
+    steps: list[SR860ConfigApplyStep] = []
+    for command in commands:
+        lockin.write(command.command)
+        actual = lockin.query(command.query)
+        matched = sr860_readback_matches(command.field, command.expected_readback, actual)
+        steps.append(
+            SR860ConfigApplyStep(
+                index=command.index,
+                field=command.field,
+                command=command.command,
+                query=command.query,
+                expected_readback=command.expected_readback,
+                actual_readback=actual,
+                matched=matched,
+            )
+        )
+        if not matched:
+            break
+    return {
+        "matched": bool(steps) and all(step.matched for step in steps),
+        "steps": [step.to_dict() for step in steps],
+    }
+
+
+def sr860_readback_matches(field: str, expected_readback: str, actual: str | None) -> bool:
+    if actual is None:
+        return False
+    actual_text = str(actual).strip()
+    if field in {"reference_frequency_hz", "sine_output_amplitude_v"}:
+        try:
+            return abs(float(actual_text) - float(expected_readback)) <= max(1e-12, abs(float(expected_readback)) * 1e-6)
+        except ValueError:
+            return False
+    return _normalize_sr860_token(actual_text) == _normalize_sr860_token(expected_readback)
+
+
 def format_sr860_config_command_review(payload: dict[str, Any]) -> str:
     lines = [
         "SR860 configuration command review",
@@ -111,7 +205,52 @@ def format_sr860_config_command_review(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def format_sr860_configure_result(payload: dict[str, Any]) -> str:
+    lines = [
+        "SR860 guarded configure result",
+        f"Completed: {payload.get('completed')}",
+        f"Connected: {payload.get('connected')}",
+        f"Approval note: {payload.get('hardware_approval_note')}",
+    ]
+    if payload.get("error_type"):
+        lines.append(f"Error: {payload['error_type']}: {payload['error_message']}")
+    apply_payload = payload.get("apply") if isinstance(payload.get("apply"), dict) else None
+    if apply_payload is not None:
+        lines.extend(
+            [
+                f"Readback matched: {apply_payload.get('matched')}",
+                "",
+                "| # | Field | Command | Query | Expected | Actual | Matched |",
+                "| ---: | --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        for step in apply_payload.get("steps", []):
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        str(step.get("index")),
+                        str(step.get("field")),
+                        f"`{step.get('command')}`",
+                        f"`{step.get('query')}`",
+                        str(step.get("expected_readback")),
+                        str(step.get("actual_readback")),
+                        str(step.get("matched")),
+                    ]
+                )
+                + " |"
+            )
+    return "\n".join(lines)
+
+
 def write_sr860_config_command_review_json(payload: dict[str, Any], output_path: str | Path) -> Path:
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def write_sr860_configure_json(payload: dict[str, Any], output_path: str | Path) -> Path:
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
@@ -136,3 +275,7 @@ def _to_mapping(lockin: Any) -> dict[str, Any]:
         field: getattr(lockin, field, None)
         for field in SR860_COMMAND_SPECS
     }
+
+
+def _normalize_sr860_token(value: str) -> str:
+    return value.strip().strip('"').lower().replace("_", "").replace("-", "")

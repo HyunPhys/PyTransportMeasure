@@ -848,6 +848,15 @@ root.
   - add `ptm sr860-command-review` for hardware-free SCPI write/readback review
   - map recipe SR860 settings to exact command codes before enabling writes
   - keep current measurement runners read-only for SR860 configuration
+- [x] Phase 25dai: Guarded SR860 configure
+  - add `ptm sr860-configure` as a separate SR860-only setting write path
+  - require explicit write approval, lab note, and readback transcript
+  - keep Keithley outputs and measurement runners separate from SR860 configure
+- [x] Phase 25daj: Keithley parameter visibility
+  - surface Keithley NPLC as current integration time in power-line cycles
+  - show voltage/current range, NPLC, source delay, and compliance together in
+    GUI hardware confirmation
+  - keep measurement-parameter audits as the hardware gate for missing settings
 
 ## Next GUI
 

@@ -1,14 +1,14 @@
 """SRS SR860 lock-in amplifier driver.
 
 The command subset here is intentionally small and based on the local
-``SR860m.pdf`` manual: identify/status, readout, and read-only setting
-queries. Measurement runners should grow around this driver only after the
-hardware smoke tests pass.
+``SR860m.pdf`` manual: identify/status, readout, read-only setting queries,
+and guarded setting writes used outside measurement runners.
 """
 
 from __future__ import annotations
 
 from .base import LockInReading
+from ..sr860_config import SR860ConfigCommand, apply_sr860_config_commands
 
 
 SR860_SETTING_QUERIES = {
@@ -74,6 +74,15 @@ class SRS_SR860:
             key: str(self.inst.query(command)).strip()
             for key, command in SR860_SETTING_QUERIES.items()
         }
+
+    def write(self, command: str) -> None:
+        self.inst.write(command)
+
+    def query(self, command: str) -> str:
+        return str(self.inst.query(command)).strip()
+
+    def apply_config_commands(self, commands: list[SR860ConfigCommand]) -> dict:
+        return apply_sr860_config_commands(self, commands)
 
     def read_channels(self) -> LockInReading:
         x_v, y_v, r_v = self._query_snap_xyr()

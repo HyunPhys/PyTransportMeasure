@@ -149,6 +149,13 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Confirm the SR860 command review matches the intended reference source,
   excitation amplitude, input wiring, input range, sensitivity, time constant,
   filter slope, and synchronous filter state.
+- [ ] If applying SR860 settings from software, run the guarded configure step
+  only after checking output wiring and amplitude.
+  ```powershell
+  ptm sr860-configure dual_gate_lockin_sweep configs\recipes\<lockin_recipe>.yaml --allow-write --hardware-approval-note "<lab approval>" --json-output docs\sr860_configure.json --yes
+  ```
+- [ ] Confirm `sr860_configure.json` reports `completed: true` and every
+  write/readback transcript row has `matched: true`.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.

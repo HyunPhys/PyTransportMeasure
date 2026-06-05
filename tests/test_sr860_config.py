@@ -3,7 +3,7 @@ from pathlib import Path
 
 from pytransport import cli
 from pytransport.recipes import DualGateLockInRecipe
-from pytransport.sr860_config import build_sr860_config_commands, review_sr860_config_commands
+from pytransport.sr860_config import build_sr860_config_commands, review_sr860_config_commands, run_sr860_configure
 
 
 def dual_gate_lockin_recipe(tmp_path: Path, *, complete_lockin: bool = True) -> DualGateLockInRecipe:
@@ -181,3 +181,204 @@ output:
     assert payload["ok_for_hardware"] is True
     assert payload["commands"][0]["command"] == "RSRC 0"
     assert payload["commands"][-1]["query"] == "SYNC?"
+
+
+class FakeConfigurableSR860:
+    def __init__(self):
+        self.connected = False
+        self.closed = False
+        self.writes = []
+        self.values = {
+            "RSRC?": "0",
+            "FREQ?": "17.777",
+            "SLVL?": "0.01",
+            "IVMD?": "0",
+            "ISRC?": "1",
+            "ICPL?": "0",
+            "IGND?": "0",
+            "IRNG?": "4",
+            "SCAL?": "18",
+            "OFLT?": "10",
+            "OFSL?": "3",
+            "SYNC?": "0",
+        }
+
+    def connect(self):
+        self.connected = True
+
+    def probe(self):
+        return {"idn": "Stanford_Research_Systems,SR860,000111,v1.23", "setting_sensitivity_index": self.values["SCAL?"]}
+
+    def write(self, command):
+        self.writes.append(command)
+
+    def query(self, command):
+        return self.values[command]
+
+    def close(self):
+        self.closed = True
+
+
+def test_run_sr860_configure_records_transcript_and_closes(tmp_path: Path):
+    recipe = dual_gate_lockin_recipe(tmp_path)
+    lockin = FakeConfigurableSR860()
+
+    payload = run_sr860_configure(
+        recipe,
+        lockin,
+        recipe_path="recipe.yaml",
+        hardware_approval_note="lab reviewed SR860 output wiring",
+    )
+
+    assert payload["completed"] is True
+    assert payload["apply"]["matched"] is True
+    assert payload["apply"]["steps"][0]["command"] == "RSRC 0"
+    assert payload["probe_before"]["idn"].startswith("Stanford_Research_Systems")
+    assert lockin.closed is True
+
+
+def test_cli_sr860_configure_requires_allow_write(tmp_path: Path):
+    recipe = tmp_path / "dual_gate_lockin.yaml"
+    recipe.write_text(
+        """
+measurement_name: sr860_cli_blocked
+gate1_instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+gate2_instrument:
+  id: keithley_2450
+  address: GPIB0::3::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+lockin:
+  enabled: true
+  id: srs_sr860
+  address: GPIB0::4::INSTR
+  channels: [x, y, r, theta]
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
+  input_mode: voltage
+  voltage_input: a-b
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  settle_time_constants: 3.0
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
+topology:
+  source_contact: S
+  drain_contact: D
+  lockin_input_contacts: [V1, V2]
+  excitation_contacts: [S, D]
+  excitation_amplitude_v: 0.01
+gate1_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 3
+  settle_s: 0
+  current_compliance_a: 1.0e-9
+gate2_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 3
+  settle_s: 0
+  current_compliance_a: 1.0e-9
+output:
+  directory: data/raw
+""".strip(),
+        encoding="utf-8",
+    )
+
+    code = cli.main(["sr860-configure", "dual_gate_lockin_sweep", str(recipe), "--yes"])
+
+    assert code == 2
+
+
+def test_cli_sr860_configure_writes_json_with_fake_lockin(tmp_path: Path, monkeypatch):
+    recipe = tmp_path / "dual_gate_lockin.yaml"
+    recipe.write_text(
+        """
+measurement_name: sr860_cli_apply
+gate1_instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+gate2_instrument:
+  id: keithley_2450
+  address: GPIB0::3::INSTR
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+lockin:
+  enabled: true
+  id: srs_sr860
+  address: GPIB0::4::INSTR
+  channels: [x, y, r, theta]
+  reference_source: internal
+  reference_frequency_hz: 17.777
+  sine_output_amplitude_v: 0.01
+  input_mode: voltage
+  voltage_input: a-b
+  input_coupling: ac
+  input_grounding: float
+  voltage_input_range_v: 0.01
+  sensitivity_index: 18
+  time_constant_index: 10
+  settle_time_constants: 3.0
+  filter_slope_db_per_oct: 24
+  synchronous_filter: false
+topology:
+  source_contact: S
+  drain_contact: D
+  lockin_input_contacts: [V1, V2]
+  excitation_contacts: [S, D]
+  excitation_amplitude_v: 0.01
+gate1_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 3
+  settle_s: 0
+  current_compliance_a: 1.0e-9
+gate2_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 3
+  settle_s: 0
+  current_compliance_a: 1.0e-9
+output:
+  directory: data/raw
+""".strip(),
+        encoding="utf-8",
+    )
+    output = tmp_path / "configure.json"
+    fake = FakeConfigurableSR860()
+    monkeypatch.setattr(cli, "SRS_SR860", lambda address, timeout_ms: fake)
+
+    code = cli.main(
+        [
+            "sr860-configure",
+            "dual_gate_lockin_sweep",
+            str(recipe),
+            "--allow-write",
+            "--hardware-approval-note",
+            "lab reviewed SR860 output wiring",
+            "--json-output",
+            str(output),
+            "--yes",
+        ]
+    )
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == 0
+    assert payload["completed"] is True
+    assert payload["apply"]["steps"][0]["command"] == "RSRC 0"
+    assert fake.writes[-1] == "SYNC 0"

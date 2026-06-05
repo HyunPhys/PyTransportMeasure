@@ -78,6 +78,7 @@ def test_lockin_read_settle_explicit_override_wins():
 class FakeSR860VisaInstrument:
     def __init__(self):
         self.queries = []
+        self.writes = []
         self.closed = False
 
     def query(self, command):
@@ -117,6 +118,9 @@ class FakeSR860VisaInstrument:
         if command == "OUTP? THeta":
             return "63.4349488"
         raise AssertionError(f"Unexpected query: {command}")
+
+    def write(self, command):
+        self.writes.append(command)
 
     def close(self):
         self.closed = True
@@ -181,3 +185,25 @@ def test_srs_sr860_rejects_bad_snap_response_shape():
 
     with pytest.raises(RuntimeError, match="SNAP"):
         lockin.read_channels()
+
+
+def test_srs_sr860_apply_config_commands_writes_and_queries():
+    from pytransport.sr860_config import build_sr860_config_commands
+
+    lockin = SRS_SR860("GPIB0::4::INSTR")
+    fake = FakeSR860VisaInstrument()
+    lockin._inst = fake
+    commands = build_sr860_config_commands(
+        {
+            "reference_source": "internal",
+            "reference_frequency_hz": 17.777,
+            "sine_output_amplitude_v": 0.01,
+            "sensitivity_index": 18,
+        }
+    )
+
+    result = lockin.apply_config_commands(commands)
+
+    assert result["matched"] is True
+    assert fake.writes == ["RSRC 0", "FREQ 17.777", "SLVL 0.01", "SCAL 18"]
+    assert fake.queries == ["RSRC?", "FREQ?", "SLVL?", "SCAL?"]

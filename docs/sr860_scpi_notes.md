@@ -54,6 +54,9 @@ them against declared recipe expectations before hardware output is enabled.
 `ptm sr860-command-review` converts the same recipe fields into hardware-free
 SCPI write/readback pairs. This is a review artifact only: measurement runners
 still do not write SR860 configuration commands.
+`ptm sr860-configure` can apply those settings as a separate guarded SR860-only
+operation. It requires `--allow-write`, a hardware approval note, and a
+confirmation prompt, and it saves a write/readback transcript.
 
 ## Smoke-Test Commands
 
