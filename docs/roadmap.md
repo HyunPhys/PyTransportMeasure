@@ -554,11 +554,18 @@ root.
     acquisition
   - record run folders, operator notes, package hash, and post-run intake status
   - keep the handoff and return records connected for later analysis
-- [ ] Phase 25cc: Hall package lifecycle status
+- [x] Phase 25cc: Hall package lifecycle status
   - combine handoff summary, lab-return manifest, intake, analysis, review, and
     next-scan proposal into a single lifecycle status report
   - expose which package stage is ready, missing, or requires review
   - prepare package lifecycle state for GUI package inspection
+- [ ] Phase 25cd: Hall package measurement-condition lifecycle gate
+  - surface Keithley NPLC/range/compliance and SR860 setting audit state in the
+    lifecycle report
+  - make lifecycle handoff/analysis states explicitly depend on preserved
+    measurement-condition artifacts
+  - keep Hall-bar package transitions focused on reproducible measurement
+    conditions, not only file existence
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

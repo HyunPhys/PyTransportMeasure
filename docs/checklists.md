@@ -573,6 +573,11 @@ remain point-guarded.
   ```
 - [ ] Confirm `handoff_summary/handoff_summary.md` prints
   `Ready for lab handoff: True`.
+- [ ] Print the lifecycle status before moving the package to the lab laptop.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package> --json-output data\hall_packages\<sample_lab_package>\lifecycle_status.json
+  ```
+- [ ] Confirm lifecycle state is `ready_for_lab_handoff`.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.
@@ -590,6 +595,11 @@ remain point-guarded.
   ```
 - [ ] Confirm `lab_return/lab_return_manifest.md` says
   `Ready for analysis: True` and lists the returned run folders.
+- [ ] Print lifecycle status again and confirm lifecycle state is
+  `ready_for_analysis`.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package>
+  ```
 - [ ] Confirm the report shows each run acceptance as PASS and no
   `recipe_match`, `grid_signature`, `voltage_probe_role`, or magnetic-field
   errors.
@@ -667,6 +677,11 @@ remain point-guarded.
   ```
 - [ ] Confirm package manifest, runbook, ZIP, copied recipes, approved
   provenance, and dry-run rehearsal show PASS or expected review status.
+- [ ] Print the lifecycle status after each handoff, return, analysis, review,
+  and next-scan proposal step so the lab notebook records the package state.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<approved_next_package>
+  ```
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

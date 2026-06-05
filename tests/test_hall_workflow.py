@@ -7,8 +7,10 @@ from pytransport.dual_gate_lockin_hall_suite import (
     write_dual_gate_lockin_hall_suite_template,
 )
 from pytransport.hall_workflow import (
+    format_dual_gate_lockin_hall_suite_lifecycle_status,
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
+    inspect_dual_gate_lockin_hall_suite_lifecycle_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
     review_dual_gate_lockin_hall_suite_hardware_commands,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
@@ -301,6 +303,43 @@ def test_hall_lab_return_manifest_records_accepted_intake(tmp_path):
     assert saved["package_manifest_sha256"]
     assert set(saved["runs"]) == {"longitudinal", "plus", "minus"}
     assert "Ready for analysis: True" in report
+
+
+def test_hall_lifecycle_status_tracks_handoff_and_return_progress(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+
+    initial = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    assert initial["state"] == "package_ready"
+    assert initial["ready_for_lab_handoff"] is False
+
+    write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
+    handoff = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    handoff_text = format_dual_gate_lockin_hall_suite_lifecycle_status(handoff)
+    assert handoff["state"] == "ready_for_lab_handoff"
+    assert handoff["ready_for_lab_handoff"] is True
+    assert "Lifecycle state: ready_for_lab_handoff" in handoff_text
+    assert "| Lab handoff summary | PASS |" in handoff_text
+
+    intake_path = package.package_dir / "result_intake.json"
+    intake_path.write_text(
+        json.dumps(
+            {
+                "package_manifest_path": str(package.manifest_path),
+                "accepted": True,
+                "issues": [],
+                "runs": {
+                    "longitudinal": {"run_dir": "data/raw/vxx", "accepted": True},
+                    "plus": {"run_dir": "data/raw/plus", "accepted": True},
+                    "minus": {"run_dir": "data/raw/minus", "accepted": True},
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_dual_gate_lockin_hall_suite_lab_return_manifest(package.package_dir)
+    returned = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package.package_dir)
+    assert returned["state"] == "ready_for_analysis"
+    assert returned["ready_for_analysis"] is True
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

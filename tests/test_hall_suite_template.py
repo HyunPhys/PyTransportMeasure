@@ -542,6 +542,19 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert (handoff_dir / "handoff_summary.md").exists()
     assert (handoff_dir / "package_validation.json").exists()
     assert (handoff_dir / "hardware_command_review.json").exists()
+    lifecycle_json = tmp_path / "lifecycle_status.json"
+    lifecycle_code = main(
+        [
+            "dual-gate-lockin-hall-suite-lifecycle-status",
+            str(package_dir),
+            "--json-output",
+            str(lifecycle_json),
+        ]
+    )
+    lifecycle = json.loads(lifecycle_json.read_text(encoding="utf-8"))
+    assert lifecycle_code == 0
+    assert lifecycle["state"] == "ready_for_lab_handoff"
+    assert lifecycle["ready_for_lab_handoff"] is True
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):
@@ -635,6 +648,19 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert return_manifest["ready_for_analysis"] is True
     assert return_manifest["operator_note"] == "returned from lab laptop"
     assert set(return_manifest["runs"]) == {"longitudinal", "plus", "minus", "zero"}
+    lifecycle_json = tmp_path / "returned_lifecycle_status.json"
+    lifecycle_code = main(
+        [
+            "dual-gate-lockin-hall-suite-lifecycle-status",
+            str(package_dir),
+            "--json-output",
+            str(lifecycle_json),
+        ]
+    )
+    lifecycle = json.loads(lifecycle_json.read_text(encoding="utf-8"))
+    assert lifecycle_code == 0
+    assert lifecycle["state"] == "ready_for_analysis"
+    assert lifecycle["ready_for_analysis"] is True
 
     code = main(
         [

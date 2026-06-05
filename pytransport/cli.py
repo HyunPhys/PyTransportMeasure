@@ -114,9 +114,11 @@ from .hall_workflow import (
     format_dual_gate_lockin_hall_suite_handoff_summary,
     format_dual_gate_lockin_hall_suite_hardware_command_review,
     format_dual_gate_lockin_hall_suite_lab_return_manifest,
+    format_dual_gate_lockin_hall_suite_lifecycle_status,
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
+    inspect_dual_gate_lockin_hall_suite_lifecycle_status,
     review_dual_gate_lockin_hall_suite_hardware_commands,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
@@ -801,6 +803,13 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_lab_return_manifest.add_argument("--output-dir", type=Path)
     dual_gate_lockin_hall_suite_lab_return_manifest.add_argument("--operator-note")
     dual_gate_lockin_hall_suite_lab_return_manifest.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_lifecycle_status = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-lifecycle-status",
+        help="Summarize package handoff, lab return, intake, analysis, review, and proposal lifecycle state.",
+    )
+    dual_gate_lockin_hall_suite_lifecycle_status.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_lifecycle_status.add_argument("--json-output", type=Path)
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2399,6 +2408,19 @@ def command_dual_gate_lockin_hall_suite_lab_return_manifest(args: argparse.Names
     return 0 if payload["ready_for_analysis"] else 1
 
 
+def command_dual_gate_lockin_hall_suite_lifecycle_status(args: argparse.Namespace) -> int:
+    try:
+        payload = inspect_dual_gate_lockin_hall_suite_lifecycle_status(args.package_manifest_or_dir)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite lifecycle status failed: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output is not None:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(format_dual_gate_lockin_hall_suite_lifecycle_status(payload))
+    return 0 if payload["state"] != "package_incomplete" else 1
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3735,6 +3757,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_handoff_summary(args)
     if args.command == "dual-gate-lockin-hall-suite-lab-return-manifest":
         return command_dual_gate_lockin_hall_suite_lab_return_manifest(args)
+    if args.command == "dual-gate-lockin-hall-suite-lifecycle-status":
+        return command_dual_gate_lockin_hall_suite_lifecycle_status(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

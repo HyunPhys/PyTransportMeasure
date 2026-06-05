@@ -605,6 +605,118 @@ def format_dual_gate_lockin_hall_suite_lab_return_manifest(payload: dict) -> str
     return "\n".join(lines)
 
 
+def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir: Path) -> dict:
+    workflow = inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir)
+    package_dir = Path(workflow["package_dir"])
+    stages: list[dict] = []
+
+    def add_stage(key: str, label: str, path: Path, *, ok: bool, details: str = "") -> None:
+        stages.append(
+            {
+                "key": key,
+                "label": label,
+                "path": str(path),
+                "exists": path.exists(),
+                "ok": bool(ok),
+                "details": details,
+            }
+        )
+
+    add_stage(
+        "package_ready",
+        "Package ready for lab review",
+        Path(workflow["package_manifest"]),
+        ok=bool(workflow.get("ready_for_lab_review")),
+        details="base package artifacts",
+    )
+    handoff_json = package_dir / "handoff_summary" / "handoff_summary.json"
+    handoff = _load_optional_json_object(handoff_json)
+    add_stage(
+        "handoff_summary",
+        "Lab handoff summary",
+        handoff_json,
+        ok=bool(handoff and handoff.get("pass") is True),
+        details="ready for lab handoff" if handoff else "not written",
+    )
+    intake_json = package_dir / "result_intake.json"
+    intake = _load_optional_json_object(intake_json)
+    add_stage(
+        "result_intake",
+        "Result intake",
+        intake_json,
+        ok=bool(intake and intake.get("accepted") is True),
+        details="accepted" if intake and intake.get("accepted") is True else "missing or not accepted",
+    )
+    return_json = package_dir / "lab_return" / "lab_return_manifest.json"
+    lab_return = _load_optional_json_object(return_json)
+    add_stage(
+        "lab_return",
+        "Lab return manifest",
+        return_json,
+        ok=bool(lab_return and lab_return.get("ready_for_analysis") is True),
+        details="ready for analysis" if lab_return else "not written",
+    )
+    analysis_json = package_dir / "hall_analysis" / "hall_suite_analysis_manifest.json"
+    analysis = _load_optional_json_object(analysis_json)
+    add_stage(
+        "analysis",
+        "Hall analysis",
+        analysis_json,
+        ok=analysis is not None,
+        details="analysis artifacts written" if analysis else "not written",
+    )
+    review_json = package_dir / "hall_analysis" / "hall_suite_analysis_review.json"
+    review = _load_optional_json_object(review_json)
+    add_stage(
+        "analysis_review",
+        "Analysis review",
+        review_json,
+        ok=bool(review and review.get("accepted_for_next_scan_decision") is True),
+        details="accepted for next-scan decision" if review else "not written",
+    )
+    proposal_json = package_dir / "hall_analysis" / "hall_suite_next_scan_proposal.json"
+    proposal = _load_optional_json_object(proposal_json)
+    add_stage(
+        "next_scan_proposal",
+        "Next-scan proposal",
+        proposal_json,
+        ok=proposal is not None,
+        details=str(proposal.get("strategy") or "proposal written") if proposal else "not written",
+    )
+    state = _hall_suite_lifecycle_state(stages)
+    return {
+        "package_dir": str(package_dir),
+        "package_manifest": workflow.get("package_manifest"),
+        "package_name": workflow.get("package_name"),
+        "state": state,
+        "ready_for_lab_handoff": _stage_ok(stages, "handoff_summary"),
+        "ready_for_analysis": _stage_ok(stages, "lab_return") and _stage_ok(stages, "result_intake"),
+        "ready_for_next_scan_decision": _stage_ok(stages, "analysis_review") and _stage_ok(stages, "next_scan_proposal"),
+        "stages": stages,
+    }
+
+
+def format_dual_gate_lockin_hall_suite_lifecycle_status(payload: dict) -> str:
+    lines = [
+        "Dual-gate lock-in Hall suite lifecycle status",
+        f"Package: {payload.get('package_name') or 'n/a'}",
+        f"Directory: {payload.get('package_dir')}",
+        f"Lifecycle state: {payload.get('state')}",
+        "",
+        "| Stage | Status | Path | Details |",
+        "| --- | --- | --- | --- |",
+    ]
+    for stage in payload.get("stages", []):
+        if stage.get("ok"):
+            status = "PASS"
+        elif stage.get("exists"):
+            status = "REVIEW"
+        else:
+            status = "MISSING"
+        lines.append(f"| {stage.get('label')} | {status} | `{stage.get('path')}` | {stage.get('details') or ''} |")
+    return "\n".join(lines)
+
+
 def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
     manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
     package_dir = manifest_path.parent
@@ -1302,6 +1414,37 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _load_optional_json_object(path: Path) -> dict | None:
+    if not path.exists():
+        return None
+    try:
+        return _load_json_object(path)
+    except ValueError:
+        return None
+
+
+def _stage_ok(stages: list[dict], key: str) -> bool:
+    return any(stage.get("key") == key and stage.get("ok") is True for stage in stages)
+
+
+def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
+    if _stage_ok(stages, "next_scan_proposal"):
+        return "next_scan_proposed"
+    if _stage_ok(stages, "analysis_review"):
+        return "analysis_reviewed"
+    if _stage_ok(stages, "analysis"):
+        return "analysis_written"
+    if _stage_ok(stages, "lab_return") and _stage_ok(stages, "result_intake"):
+        return "ready_for_analysis"
+    if _stage_ok(stages, "result_intake"):
+        return "intake_accepted"
+    if _stage_ok(stages, "handoff_summary"):
+        return "ready_for_lab_handoff"
+    if _stage_ok(stages, "package_ready"):
+        return "package_ready"
+    return "package_incomplete"
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: Path) -> Path:

@@ -590,6 +590,19 @@ This writes `lab_return/lab_return_manifest.md` and
 package ZIP hash when available, returned run folders, operator note, and intake
 acceptance status.
 
+At any point after packaging, print the package lifecycle status to see whether
+the package is only ready for lab handoff, ready for analysis, or ready for a
+next-scan decision:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\sampleA_cd1_lab1 --json-output data\hall_packages\sampleA_cd1_lab1\lifecycle_status.json
+```
+
+This command summarizes the package manifest, handoff summary, result intake,
+lab-return manifest, Hall analysis, analysis review, and next-scan proposal in
+one table. Use it as the quick lab-notebook status check before deciding what
+the next command should be.
+
 When intake passes, the full Hall analysis sequence can be run as one command:
 
 ```powershell
