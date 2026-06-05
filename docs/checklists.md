@@ -553,6 +553,16 @@ remain point-guarded.
   errors.
 - [ ] Continue to Hall antisymmetry, zero-field correction, and mobility
   analysis only after intake PASS.
+- [ ] Run suite-level Hall analysis after intake PASS.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-analyze data\hall_packages\<sample_lab_package>
+  ```
+- [ ] Confirm `hall_analysis/antisym/hall_antisym.csv` is written.
+- [ ] If a zero-field run was supplied, confirm
+  `hall_analysis/zero_corrected/hall_zero_corrected.csv` is written.
+- [ ] Confirm `hall_analysis/mobility/hall_mobility.csv` is written.
+- [ ] Confirm `hall_analysis/hall_suite_analysis_manifest.json` records the
+  intake JSON, run folders, value column, and chosen Hall density source.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

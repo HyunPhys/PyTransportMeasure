@@ -22,6 +22,12 @@ from .dual_gate_lockin_review import (
     read_dual_gate_lockin_metadata,
 )
 from .dual_gate_lockin_scaleup import build_dual_gate_lockin_adjusted_recipe_data
+from .hall_analysis import (
+    HallValueColumn,
+    write_dual_gate_lockin_hall_antisym,
+    write_dual_gate_lockin_hall_mobility,
+    write_dual_gate_lockin_hall_zero_corrected,
+)
 from .recipes import DualGateLockInRecipe, SafetyPreset, load_named_safety_preset, load_yaml
 
 
@@ -86,6 +92,16 @@ class HallSuiteResultIntake:
     report_path: Path | None
     json_path: Path | None
     issues: tuple[HallSuiteResultIntakeIssue, ...]
+
+
+@dataclass(frozen=True)
+class HallSuiteAnalysisResult:
+    output_dir: Path
+    antisym_dir: Path
+    zero_corrected_dir: Path | None
+    mobility_dir: Path
+    report_path: Path
+    manifest_path: Path
 
 
 def write_dual_gate_lockin_hall_suite_template(
@@ -459,6 +475,136 @@ def write_dual_gate_lockin_hall_suite_result_intake(
     }
     json_path.write_text(json.dumps(json_payload, indent=2, sort_keys=True), encoding="utf-8")
     return HallSuiteResultIntake(manifest_path, accepted, report_path, json_path, tuple(issues))
+
+
+def write_dual_gate_lockin_hall_suite_analysis(
+    result_intake_json_or_package_dir: str | Path,
+    *,
+    output_dir: str | Path | None = None,
+    value_column: HallValueColumn = "lockin_x_v",
+    prefer_zero_corrected: bool = True,
+    overwrite: bool = False,
+) -> HallSuiteAnalysisResult:
+    intake_json_path = _resolve_result_intake_json_path(result_intake_json_or_package_dir)
+    intake = _load_result_intake_json(intake_json_path)
+    if intake.get("accepted") is not True:
+        raise ValueError("Hall suite result intake is not accepted; run/fix dual-gate-lockin-hall-suite-intake first")
+    runs = intake.get("runs")
+    if not isinstance(runs, dict):
+        raise ValueError("result_intake.json is missing runs")
+    required = ["longitudinal", "plus", "minus"]
+    for key in required:
+        if key not in runs or not isinstance(runs[key], dict) or not runs[key].get("run_dir"):
+            raise ValueError(f"result_intake.json is missing run_dir for {key}")
+    longitudinal_run = Path(runs["longitudinal"]["run_dir"])
+    plus_run = Path(runs["plus"]["run_dir"])
+    minus_run = Path(runs["minus"]["run_dir"])
+    zero_run = Path(runs["zero"]["run_dir"]) if isinstance(runs.get("zero"), dict) and runs["zero"].get("run_dir") else None
+
+    package_dir = intake_json_path.parent
+    out = Path(output_dir) if output_dir is not None else package_dir / "hall_analysis"
+    if out.exists() and any(out.iterdir()) and not overwrite:
+        raise FileExistsError(f"Hall suite analysis output already exists and is not empty: {out}")
+    out.mkdir(parents=True, exist_ok=True)
+
+    antisym = write_dual_gate_lockin_hall_antisym(
+        plus_run,
+        minus_run,
+        output_dir=out / "antisym",
+        value_column=value_column,
+        overwrite=overwrite,
+    )
+    zero_corrected = None
+    hall_density_source = antisym.output_csv
+    if zero_run is not None:
+        zero_corrected = write_dual_gate_lockin_hall_zero_corrected(
+            plus_run,
+            zero_run,
+            output_dir=out / "zero_corrected",
+            value_column=value_column,
+            overwrite=overwrite,
+        )
+        if prefer_zero_corrected:
+            hall_density_source = zero_corrected.output_csv
+    mobility = write_dual_gate_lockin_hall_mobility(
+        hall_density_source,
+        longitudinal_run,
+        output_dir=out / "mobility",
+        overwrite=overwrite,
+    )
+    manifest_path = out / "hall_suite_analysis_manifest.json"
+    if manifest_path.exists() and not overwrite:
+        raise FileExistsError(f"Hall suite analysis manifest already exists: {manifest_path}")
+    manifest = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "result_intake_json": str(intake_json_path),
+        "value_column": value_column,
+        "prefer_zero_corrected": prefer_zero_corrected,
+        "hall_density_source": str(hall_density_source),
+        "runs": {
+            "longitudinal": str(longitudinal_run),
+            "plus": str(plus_run),
+            "minus": str(minus_run),
+            "zero": str(zero_run) if zero_run is not None else None,
+        },
+        "outputs": {
+            "antisym_csv": str(antisym.output_csv),
+            "antisym_report": str(antisym.report_path),
+            "zero_corrected_csv": str(zero_corrected.output_csv) if zero_corrected is not None else None,
+            "zero_corrected_report": str(zero_corrected.report_path) if zero_corrected is not None else None,
+            "mobility_csv": str(mobility.output_csv),
+            "mobility_report": str(mobility.report_path),
+        },
+    }
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    report_path = out / "hall_suite_analysis_report.md"
+    if report_path.exists() and not overwrite:
+        raise FileExistsError(f"Hall suite analysis report already exists: {report_path}")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_analysis_report(manifest), encoding="utf-8")
+    return HallSuiteAnalysisResult(
+        output_dir=out,
+        antisym_dir=antisym.output_csv.parent,
+        zero_corrected_dir=zero_corrected.output_csv.parent if zero_corrected is not None else None,
+        mobility_dir=mobility.output_csv.parent,
+        report_path=report_path,
+        manifest_path=manifest_path,
+    )
+
+
+def format_dual_gate_lockin_hall_suite_analysis_report(manifest: dict[str, Any]) -> str:
+    outputs = manifest.get("outputs") or {}
+    runs = manifest.get("runs") or {}
+    return "\n".join(
+        [
+            "# Dual-Gate Lock-In Hall Suite Analysis",
+            "",
+            f"- Result intake JSON: `{manifest.get('result_intake_json')}`",
+            f"- Value column: `{manifest.get('value_column')}`",
+            f"- Hall density source: `{manifest.get('hall_density_source')}`",
+            f"- Prefer zero-corrected density: {manifest.get('prefer_zero_corrected')}",
+            "",
+            "## Runs",
+            "",
+            f"- Longitudinal Vxx: `{runs.get('longitudinal')}`",
+            f"- +B Vxy: `{runs.get('plus')}`",
+            f"- -B Vxy: `{runs.get('minus')}`",
+            f"- 0B Vxy: `{runs.get('zero') or 'not supplied'}`",
+            "",
+            "## Outputs",
+            "",
+            f"- Antisym CSV: `{outputs.get('antisym_csv')}`",
+            f"- Antisym report: `{outputs.get('antisym_report')}`",
+            f"- Zero-corrected CSV: `{outputs.get('zero_corrected_csv') or 'not written'}`",
+            f"- Zero-corrected report: `{outputs.get('zero_corrected_report') or 'not written'}`",
+            f"- Mobility CSV: `{outputs.get('mobility_csv')}`",
+            f"- Mobility report: `{outputs.get('mobility_report')}`",
+            "",
+            "## Gate",
+            "",
+            "This analysis was allowed only because the supplied result intake JSON was accepted.",
+            "",
+        ]
+    )
 
 
 def format_dual_gate_lockin_hall_suite_result_intake(
@@ -1191,6 +1337,22 @@ def _resolve_package_manifest_path(package_manifest_or_dir: str | Path) -> Path:
     if not path.exists():
         raise FileNotFoundError(f"Package manifest does not exist: {path}")
     return path
+
+
+def _resolve_result_intake_json_path(result_intake_json_or_package_dir: str | Path) -> Path:
+    path = Path(result_intake_json_or_package_dir)
+    if path.is_dir():
+        path = path / "result_intake.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Result intake JSON does not exist: {path}")
+    return path
+
+
+def _load_result_intake_json(path: Path) -> dict[str, Any]:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
 
 
 def _load_package_manifest(path: Path) -> dict[str, Any]:

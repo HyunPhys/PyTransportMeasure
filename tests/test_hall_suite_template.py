@@ -540,6 +540,22 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert payload["accepted"] is True
     assert payload["runs"]["longitudinal"]["points_written"] == 4
 
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-analyze",
+            str(package_dir),
+        ]
+    )
+    assert code == 0
+    analysis_dir = package_dir / "hall_analysis"
+    manifest = json.loads((analysis_dir / "hall_suite_analysis_manifest.json").read_text(encoding="utf-8"))
+    assert (analysis_dir / "antisym" / "hall_antisym.csv").exists()
+    assert (analysis_dir / "zero_corrected" / "hall_zero_corrected.csv").exists()
+    assert (analysis_dir / "mobility" / "hall_mobility.csv").exists()
+    assert (analysis_dir / "hall_suite_analysis_report.md").exists()
+    assert manifest["outputs"]["zero_corrected_csv"].endswith("hall_zero_corrected.csv")
+    assert manifest["hall_density_source"].endswith("hall_zero_corrected.csv")
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(
@@ -589,3 +605,7 @@ def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path
     payload = json.loads((package_dir / "result_intake.json").read_text(encoding="utf-8"))
     assert payload["accepted"] is False
     assert any(issue["check"] == "minus.recipe_match" for issue in payload["issues"])
+
+    code = main(["dual-gate-lockin-hall-suite-analyze", str(package_dir)])
+    assert code == 2
+    assert not (package_dir / "hall_analysis").exists()

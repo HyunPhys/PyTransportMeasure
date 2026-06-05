@@ -72,6 +72,7 @@ from .dual_gate_lockin_hall_suite import (
     format_hall_suite_audit,
     write_dual_gate_lockin_hall_suite_acquisition_package,
     write_dual_gate_lockin_hall_suite_adjusted_recipes,
+    write_dual_gate_lockin_hall_suite_analysis,
     write_dual_gate_lockin_hall_suite_result_intake,
     write_dual_gate_lockin_hall_suite_template,
 )
@@ -644,6 +645,24 @@ def build_parser() -> argparse.ArgumentParser:
         help="Do not require SR860 setting readback in saved run metadata.",
     )
     dual_gate_lockin_hall_suite_intake.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_analyze = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-analyze",
+        help="Run Hall antisymmetry, optional zero-field correction, and mobility analysis after intake PASS.",
+    )
+    dual_gate_lockin_hall_suite_analyze.add_argument("result_intake_json_or_package_dir", type=Path)
+    dual_gate_lockin_hall_suite_analyze.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_suite_analyze.add_argument(
+        "--value-column",
+        choices=["lockin_x_v", "lockin_y_v", "lockin_r_v", "lockin_hall_resistance_ohm"],
+        default="lockin_x_v",
+    )
+    dual_gate_lockin_hall_suite_analyze.add_argument(
+        "--prefer-antisym-density",
+        action="store_true",
+        help="Use antisymmetrized Hall density for mobility even when a zero-field run is available.",
+    )
+    dual_gate_lockin_hall_suite_analyze.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2004,6 +2023,27 @@ def command_dual_gate_lockin_hall_suite_intake(args: argparse.Namespace) -> int:
     return 0 if result.accepted else 2
 
 
+def command_dual_gate_lockin_hall_suite_analyze(args: argparse.Namespace) -> int:
+    try:
+        result = write_dual_gate_lockin_hall_suite_analysis(
+            args.result_intake_json_or_package_dir,
+            output_dir=args.output_dir,
+            value_column=args.value_column,
+            prefer_zero_corrected=not args.prefer_antisym_density,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite analysis failed: {exc}", file=sys.stderr)
+        return 2
+    print(f"Hall suite analysis directory: {result.output_dir}")
+    print(f"Antisym: {result.antisym_dir}")
+    print(f"Zero-corrected: {result.zero_corrected_dir if result.zero_corrected_dir is not None else 'not written'}")
+    print(f"Mobility: {result.mobility_dir}")
+    print(f"Report: {result.report_path}")
+    print(f"Manifest: {result.manifest_path}")
+    return 0
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3299,6 +3339,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_package(args)
     if args.command == "dual-gate-lockin-hall-suite-intake":
         return command_dual_gate_lockin_hall_suite_intake(args)
+    if args.command == "dual-gate-lockin-hall-suite-analyze":
+        return command_dual_gate_lockin_hall_suite_analyze(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

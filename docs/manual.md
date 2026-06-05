@@ -522,6 +522,19 @@ setting readback was not available. For real hardware runs, leave the strict
 default in place. Continue to Hall antisymmetry, zero-field correction, and
 mobility analysis only after intake reports PASS.
 
+When intake passes, the full Hall analysis sequence can be run as one command:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-analyze data\hall_packages\sampleA_cd1_lab1
+```
+
+This command reads `result_intake.json`, refuses to run if intake did not PASS,
+writes `hall_analysis/antisym`, writes `hall_analysis/zero_corrected` when a
+0B run was supplied, writes `hall_analysis/mobility`, and records provenance in
+`hall_suite_analysis_manifest.json`. By default, mobility uses zero-corrected
+Hall density when a 0B run is present; add `--prefer-antisym-density` to force
+antisymmetrized Hall density instead.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

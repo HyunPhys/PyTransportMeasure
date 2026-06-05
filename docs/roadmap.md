@@ -454,11 +454,17 @@ root.
   - inspect a completed package session from the lab laptop
   - verify Vxx/+B/-B/0B run folders against the packaged recipes and manifest
   - produce a one-command post-run audit before Hall analysis
-- [ ] Phase 25bi: Hall-suite analysis orchestration
+- [x] Phase 25bi: Hall-suite analysis orchestration
+  - add `ptm dual-gate-lockin-hall-suite-analyze`
   - run accepted suite outputs through antisymmetry, optional zero-field
     correction, and mobility analysis from one command
   - require result intake PASS before writing derived Hall artifacts
   - keep analysis provenance tied to package manifest and run folders
+- [ ] Phase 25bj: Hall-suite analysis review
+  - summarize density, sheet conductivity, and mobility maps from the
+    orchestrated analysis folder
+  - flag sign changes, missing gate points, and suspicious zero-field offsets
+  - write one review report for deciding the next graphene gate scan
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
