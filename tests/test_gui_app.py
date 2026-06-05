@@ -107,6 +107,32 @@ def test_gui_workflow_guide_tracks_steps_and_recipe_resets(app):
     window.close()
 
 
+def test_gui_stop_run_button_requests_active_worker_stop(app):
+    class FakeWorker:
+        def __init__(self):
+            self.stop_requested = False
+
+        def isRunning(self):
+            return True
+
+        def request_stop(self):
+            self.stop_requested = True
+
+    window = MainWindow()
+    worker = FakeWorker()
+    window.worker = worker
+    window.set_running(True)
+
+    assert window.stop_run_button.isEnabled()
+
+    window.request_stop_run()
+
+    assert worker.stop_requested is True
+    assert not window.stop_run_button.isEnabled()
+    assert "Stop requested" in window.progress_text.toPlainText()
+    window.close()
+
+
 def test_qt_plot_widget_stores_saved_and_live_points(app):
     window = MainWindow()
 

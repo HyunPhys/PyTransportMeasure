@@ -340,6 +340,33 @@ def test_gui_dry_run_text_emits_progress_lines(tmp_path):
     assert "I=" in progress[0]
 
 
+def test_gui_dry_run_text_stop_request_saves_partial(tmp_path):
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["measurement_name"] = "gui_stop_dry_run"
+    values["points"] = "6"
+    values["min_points"] = ""
+    values["require_completed"] = "false"
+    values["output_directory"] = str(tmp_path).replace("\\", "/")
+    text = drain_iv_text_from_form(values)
+    progress = []
+
+    result = run_gui_dry_run_text(
+        "drain_iv",
+        text,
+        fake=GuiFakeSettings(resistance_ohm=1000, noise_std_a=0),
+        index_path=tmp_path / "index.jsonl",
+        draft_dir=tmp_path / "drafts",
+        progress_callback=lambda point, total: progress.append(format_gui_progress(point, total)),
+        stop_requested=lambda: len(progress) >= 2,
+    )
+
+    assert result.metadata["completed"] is False
+    assert result.metadata["interrupted"] is True
+    assert result.metadata["points_written"] == 2
+    assert result.metadata["error_type"] == "KeyboardInterrupt"
+    assert Path(result.metadata["metadata_path"]).exists()
+
+
 def test_gui_preflight_text_uses_unsaved_editor_yaml(tmp_path):
     values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
     values["measurement_name"] = "unsaved_gui_preflight"

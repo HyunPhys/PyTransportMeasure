@@ -102,6 +102,7 @@ class DryRunWorker(QThread):
         self.measurement_type = measurement_type
         self.recipe_text = recipe_text
         self.fake = fake
+        self._stop_requested = False
 
     def run(self) -> None:
         try:
@@ -111,6 +112,7 @@ class DryRunWorker(QThread):
                     self.recipe_text,
                     fake=self.fake,
                     progress_callback=self.emit_progress,
+                    stop_requested=self.is_stop_requested,
                 )
             )
         except Exception as exc:
@@ -119,6 +121,12 @@ class DryRunWorker(QThread):
     def emit_progress(self, point: Any, total: int) -> None:
         self.progress.emit(format_gui_progress(point, total))
         self.point_progress.emit(point, total)
+
+    def request_stop(self) -> None:
+        self._stop_requested = True
+
+    def is_stop_requested(self) -> bool:
+        return self._stop_requested
 
 
 class PreflightWorker(QThread):
@@ -191,6 +199,7 @@ class HardwareRunWorker(QThread):
         super().__init__()
         self.measurement_type = measurement_type
         self.recipe_text = recipe_text
+        self._stop_requested = False
 
     def run(self) -> None:
         try:
@@ -199,6 +208,7 @@ class HardwareRunWorker(QThread):
                     self.measurement_type,
                     self.recipe_text,
                     progress_callback=self.emit_progress,
+                    stop_requested=self.is_stop_requested,
                 )
             )
         except Exception as exc:
@@ -207,6 +217,12 @@ class HardwareRunWorker(QThread):
     def emit_progress(self, point: Any, total: int) -> None:
         self.progress.emit(format_gui_progress(point, total))
         self.point_progress.emit(point, total)
+
+    def request_stop(self) -> None:
+        self._stop_requested = True
+
+    def is_stop_requested(self) -> bool:
+        return self._stop_requested
 
 
 class IvPlotCanvas(QWidget):
@@ -363,6 +379,9 @@ class MainWindow(QMainWindow):
         self.plan_button.clicked.connect(self.show_plan)
         self.run_button = QPushButton("Dry Run")
         self.run_button.clicked.connect(self.start_dry_run)
+        self.stop_run_button = QPushButton("Stop Run")
+        self.stop_run_button.clicked.connect(self.request_stop_run)
+        self.stop_run_button.setEnabled(False)
         self.doctor_button = QPushButton("Full Doctor")
         self.doctor_button.clicked.connect(self.start_doctor)
         self.preflight_button = QPushButton("Preflight")
@@ -507,6 +526,7 @@ class MainWindow(QMainWindow):
         run_button_row = QHBoxLayout()
         run_button_row.addWidget(self.plan_button)
         run_button_row.addWidget(self.run_button)
+        run_button_row.addWidget(self.stop_run_button)
         run_button_row.addWidget(self.preflight_button)
         run_button_row.addWidget(self.hardware_run_button)
         run_button_row.addStretch(1)
@@ -952,6 +972,20 @@ class MainWindow(QMainWindow):
         self.worker.finished.connect(lambda: self.set_running(False))
         self.worker.start()
 
+    def request_stop_run(self) -> None:
+        requested = False
+        if self.worker is not None and self.worker.isRunning():
+            self.worker.request_stop()
+            requested = True
+        if self.hardware_worker is not None and self.hardware_worker.isRunning():
+            self.hardware_worker.request_stop()
+            requested = True
+        if requested:
+            self.stop_run_button.setEnabled(False)
+            self.progress_text.appendPlainText("Stop requested. The run will stop at the next safe checkpoint.")
+            self.status_label.setText("Stop requested")
+            self.log_session("Stop requested for active run")
+
     def start_preflight(self) -> None:
         if self.preflight_worker is not None and self.preflight_worker.isRunning():
             return
@@ -1173,6 +1207,7 @@ class MainWindow(QMainWindow):
     def set_running(self, running: bool) -> None:
         is_drain_iv = self.current_method() == "drain_iv"
         self.run_button.setEnabled(not running)
+        self.stop_run_button.setEnabled(running)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
@@ -1184,6 +1219,7 @@ class MainWindow(QMainWindow):
 
     def set_preflighting(self, running: bool) -> None:
         is_drain_iv = self.current_method() == "drain_iv"
+        self.stop_run_button.setEnabled(False)
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.plan_button.setEnabled(not running)
         self.doctor_button.setEnabled(not running)
@@ -1197,6 +1233,7 @@ class MainWindow(QMainWindow):
     def set_hardware_running(self, running: bool) -> None:
         is_drain_iv = self.current_method() == "drain_iv"
         self.hardware_run_button.setEnabled(is_drain_iv and not running)
+        self.stop_run_button.setEnabled(running)
         self.preflight_button.setEnabled(is_drain_iv and not running)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
@@ -1208,6 +1245,7 @@ class MainWindow(QMainWindow):
 
     def set_doctor_running(self, running: bool) -> None:
         is_drain_iv = self.current_method() == "drain_iv"
+        self.stop_run_button.setEnabled(False)
         self.doctor_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
@@ -1219,6 +1257,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Running doctor...")
 
     def set_instrument_refreshing(self, running: bool) -> None:
+        self.stop_run_button.setEnabled(False)
         self.refresh_instruments_button.setEnabled(not running)
         self.test_connection_button.setEnabled(not running)
         self.doctor_button.setEnabled(not running)
@@ -1226,6 +1265,7 @@ class MainWindow(QMainWindow):
             self.status_label.setText("Refreshing instruments...")
 
     def set_communication_testing(self, running: bool) -> None:
+        self.stop_run_button.setEnabled(False)
         self.test_connection_button.setEnabled(not running)
         self.refresh_instruments_button.setEnabled(not running)
         self.doctor_button.setEnabled(not running)

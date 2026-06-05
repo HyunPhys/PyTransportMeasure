@@ -102,3 +102,26 @@ def test_keyboard_interrupt_saves_partial_and_turns_output_off(tmp_path):
     saved = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
     assert saved["interrupted"] is True
     assert saved["points_written"] == 1
+
+
+def test_stop_request_saves_partial_and_turns_output_off(tmp_path):
+    smu = FakeSMU(noise_std_a=0)
+    progress = []
+
+    metadata = run_drain_iv(
+        make_recipe(tmp_path),
+        make_safety(),
+        smu,
+        progress_callback=lambda point, total: progress.append(point.index),
+        stop_requested=lambda: len(progress) >= 2,
+    )
+
+    assert metadata["completed"] is False
+    assert metadata["interrupted"] is True
+    assert metadata["error_type"] == "KeyboardInterrupt"
+    assert metadata["points_written"] == 2
+    assert smu.is_output_on is False
+    run_dir = next(tmp_path.iterdir())
+    saved = json.loads((run_dir / "metadata.json").read_text(encoding="utf-8"))
+    assert saved["interrupted"] is True
+    assert saved["points_written"] == 2

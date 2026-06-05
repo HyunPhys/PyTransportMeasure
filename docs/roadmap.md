@@ -200,6 +200,10 @@ This roadmap tracks the large development phases. Completed items are checked.
 - [x] Phase 24s: GUI dry-run model scroll
   - keep the collapsible dry-run model readable after expansion
   - use a scroll container for fake-model settings in constrained windows
+- [x] Phase 24t: GUI cooperative stop
+  - add a Stop Run button for active GUI dry-runs and guarded hardware runs
+  - stop Drain I-V at safe runner checkpoints with partial artifacts and output
+    off cleanup
 
 ## Next GUI
 
@@ -217,7 +221,7 @@ This roadmap tracks the large development phases. Completed items are checked.
 
 - [ ] Method plugins or modules for additional instruments and measurement
   families.
-- [ ] More robust live monitoring and abort controls.
+- [ ] More robust live monitoring beyond Drain I-V cooperative stop.
 - [ ] Richer metadata for sample, device, cooldown, contacts, and lab notebook
   references.
 - [ ] Automated report templates for publications and internal experiment logs.

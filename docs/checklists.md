@@ -41,6 +41,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Workflow tab tracks the major run-preparation steps and next action.
 - [x] GUI plot preview uses a non-stretched points-based plot and live Drain I-V
   plot updates during measurement progress.
+- [x] GUI Stop Run requests cooperative Drain I-V interruption with partial
+  artifacts and output-off cleanup.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -142,6 +144,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ptm feedback-bundle data\raw\<run_folder> --extra-file doctor.json
   ```
 - [ ] Confirm output is off after normal completion, error, or interrupt.
+- [ ] If testing GUI `Stop Run` on hardware, use the resistor setup first and
+  confirm output is off after the interrupted run.
 
 ## GUI Lab Feedback
 
@@ -159,6 +163,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Click `Check YAML`, `Refresh Instruments`, `Test Selected Address`,
   `Plan`, and a dry-run; confirm each successful step changes to `[x]`.
 - [ ] Edit YAML or the form and confirm recipe-dependent workflow steps reset.
+- [ ] Start a multi-point Drain I-V dry-run, click `Stop Run`, and confirm
+  metadata records `completed=false` and `interrupted=true`.
 - [ ] Run `Doctor`, `Preflight`, or `Dry Run`.
 - [ ] Confirm `Doctor` lives under `Instruments`.
 - [ ] Confirm prior runs, plot preview, reports, and feedback bundle controls

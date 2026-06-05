@@ -396,6 +396,11 @@ communication-test state remain visible for the current session.
 noise, gate modulation, or lock-in simulation values need editing. The expanded
 settings area is scrollable so it remains readable in short windows.
 
+`Stop Run` is enabled during GUI dry-runs and guarded Drain I-V hardware runs.
+It requests a cooperative stop at the next safe runner checkpoint. Interrupted
+runs keep partial CSV/metadata artifacts, set `interrupted: true`, and still use
+the runner cleanup path that turns Keithley output off.
+
 Drain I-V form workflow:
 
 1. Select `Drain I-V`.
@@ -469,6 +474,10 @@ Guarded hardware run workflow:
 `Hardware Run` reruns preflight immediately before enabling output. If preflight
 does not pass, the run is blocked before the Keithley output is enabled. GUI
 hardware runs currently support only Keithley 2450 Drain I-V recipes.
+
+To stop an active GUI Drain I-V run, click `Stop Run` once and wait for the
+runner to finish cleanup. Test this on the 1 kOhm resistor setup before relying
+on it with a real device.
 
 Feedback bundle workflow:
 

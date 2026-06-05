@@ -339,6 +339,7 @@ def run_gui_dry_run_text(
     create_plot: bool = True,
     create_report: bool = True,
     progress_callback: GuiProgressCallback | None = None,
+    stop_requested=None,
 ) -> GuiRunResult:
     recipe = load_recipe_from_text(measurement_type, text)
     draft_path = write_gui_draft_recipe(measurement_type, recipe.measurement_name, text, draft_dir)
@@ -351,6 +352,7 @@ def run_gui_dry_run_text(
         create_plot=create_plot,
         create_report=create_report,
         progress_callback=progress_callback,
+        stop_requested=stop_requested,
     )
 
 
@@ -451,6 +453,7 @@ def run_gui_hardware_text(
     probe_factory=None,
     smu_factory=None,
     progress_callback: GuiProgressCallback | None = None,
+    stop_requested=None,
 ) -> GuiRunResult:
     if measurement_type != "drain_iv":
         raise ValueError("GUI hardware runs currently support Drain I-V recipes only")
@@ -467,7 +470,14 @@ def run_gui_hardware_text(
     safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
     factory = smu_factory or (lambda address, timeout_ms: Keithley2450(address, timeout_ms))
     smu = factory(recipe.instrument.address, recipe.instrument.timeout_ms)
-    metadata = run_drain_iv(recipe, safety, smu, recipe_path=draft_path, progress_callback=progress_callback)
+    metadata = run_drain_iv(
+        recipe,
+        safety,
+        smu,
+        recipe_path=draft_path,
+        progress_callback=progress_callback,
+        stop_requested=stop_requested,
+    )
     metadata.setdefault("measurement_type", measurement_type)
     return finalize_gui_run_result(
         measurement_type,
@@ -509,6 +519,7 @@ def run_gui_dry_run(
     create_plot: bool = True,
     create_report: bool = True,
     progress_callback: GuiProgressCallback | None = None,
+    stop_requested=None,
 ) -> GuiRunResult:
     fake_settings = fake or GuiFakeSettings()
     handler = handler_for_measurement_type(measurement_type)
@@ -522,6 +533,7 @@ def run_gui_dry_run(
             FakeSMU(fake_settings.resistance_ohm, fake_settings.noise_std_a),
             recipe_path=recipe_path,
             progress_callback=progress_callback,
+            stop_requested=stop_requested,
         )
     elif measurement_type == "single_gate_sweep":
         state = CoupledFakeDeviceState(

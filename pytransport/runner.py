@@ -21,6 +21,7 @@ def run_drain_iv(
     smu: SourceMeasureUnit,
     recipe_path: str | Path | None = None,
     progress_callback: Callable[[MeasurementPoint, int], None] | None = None,
+    stop_requested: Callable[[], bool] | None = None,
 ) -> dict[str, Any]:
     validate_recipe_against_safety(recipe, safety)
     writer = RunWriter(Path(recipe.output.directory), recipe.measurement_name)
@@ -71,9 +72,10 @@ def run_drain_iv(
         voltages = sweep_voltages(recipe.sweep)
         delays = sweep_delays(recipe.sweep)
         for index, (voltage_v, delay_s) in enumerate(zip(voltages, delays)):
+            raise_if_stop_requested(stop_requested)
             smu.set_voltage(float(voltage_v))
-            if delay_s:
-                time.sleep(delay_s)
+            sleep_with_stop_check(delay_s, stop_requested)
+            raise_if_stop_requested(stop_requested)
             current_a, compliance_hit = smu.measure_current()
             if compliance_hit:
                 raise SafetyLimitError("Instrument compliance was reached", "instrument_compliance")
@@ -117,3 +119,17 @@ def run_drain_iv(
             metadata["points_written"] = points_written
             writer.write_metadata(metadata)
             writer.close()
+
+
+def raise_if_stop_requested(stop_requested: Callable[[], bool] | None) -> None:
+    if stop_requested is not None and stop_requested():
+        raise KeyboardInterrupt()
+
+
+def sleep_with_stop_check(delay_s: float, stop_requested: Callable[[], bool] | None) -> None:
+    remaining = float(delay_s or 0)
+    while remaining > 0:
+        raise_if_stop_requested(stop_requested)
+        interval = min(remaining, 0.05)
+        time.sleep(interval)
+        remaining -= interval
