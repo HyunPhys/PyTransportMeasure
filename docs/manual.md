@@ -107,6 +107,8 @@ commands such as `:SENS:CURR:RSEN ON`, and readback queries that must exist
 before a 4-wire DC runner can be implemented.
 The schema draft recipe is non-executable and carries
 `implementation_status: schema_draft_non_executable`.
+The Keithley driver has a tested current remote-sense primitive, but no active
+runner calls it yet.
 
 ## Installation
 

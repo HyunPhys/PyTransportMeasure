@@ -7,11 +7,16 @@ class FakeVisaInstrument:
         self.commands = []
         self.errors = []
         self.language = "SCPI"
+        self.current_remote_sense = "0"
 
     def write(self, command):
         self.commands.append(command)
         if command.startswith(":SOUR:VOLT:ILIM "):
             self.errors.append('-113,"Undefined SCPI header"')
+        if command == ":SENS:CURR:RSEN ON":
+            self.current_remote_sense = "1"
+        if command == ":SENS:CURR:RSEN OFF":
+            self.current_remote_sense = "0"
 
     def query(self, command):
         if command == "*IDN?":
@@ -30,6 +35,8 @@ class FakeVisaInstrument:
             return "0.0002"
         if command == ":SENS:CURR:RANG:AUTO?":
             return "0"
+        if command == ":SENS:CURR:RSEN?":
+            return self.current_remote_sense
         if command == ":SOUR:VOLT:RANG?":
             return "0.2"
         if command == ":SOUR:VOLT:DEL?":
@@ -67,6 +74,7 @@ def test_keithley_current_limit_falls_back_after_undefined_header():
     assert ":SENS:CURR:RANG 0.0002" in smu.inst.commands
     assert ":SOUR:VOLT:ILIMIT 0.0002" in smu.inst.commands
     assert not any(command.startswith(":FORM:ELEM") for command in smu.inst.commands)
+    assert not any(command.startswith(":SENS:CURR:RSEN") for command in smu.inst.commands)
 
 
 def test_keithley_rejects_non_scpi_command_set():
@@ -122,3 +130,31 @@ def test_keithley_voltage_source_config_readback_uses_accepted_current_limit_que
     assert readback["voltage_readback"] == "1"
     assert readback["source_current_limit"] == "0.0002"
     assert readback["source_current_limit_query"] == ":SOUR:VOLT:ILIMIT?"
+
+
+def test_keithley_current_remote_sense_uses_current_rsen_scpi():
+    smu = Keithley2450("FAKE")
+    smu._inst = FakeVisaInstrument()
+
+    smu.configure_current_remote_sense(True)
+    assert smu.read_current_remote_sense() == "1"
+    smu.configure_current_remote_sense(False)
+    assert smu.read_current_remote_sense() == "0"
+
+    assert ":SENS:CURR:RSEN ON" in smu.inst.commands
+    assert ":SENS:CURR:RSEN OFF" in smu.inst.commands
+
+
+def test_keithley_current_remote_sense_requires_scpi_command_set():
+    smu = Keithley2450("FAKE")
+    fake = FakeVisaInstrument()
+    fake.language = "TSP"
+    smu._inst = fake
+
+    try:
+        smu.configure_current_remote_sense(True)
+    except RuntimeError as exc:
+        assert "must be SCPI" in str(exc)
+    else:
+        raise AssertionError("Expected RuntimeError")
+    assert ":SENS:CURR:RSEN ON" not in smu.inst.commands

@@ -90,7 +90,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "verify 2450 remote-sense SCPI from manual before implementation",
         ),
         current_limitations=("No active runner yet; intentionally left as TODO for future 4-probe DC phase.",),
-        next_step="Validate configs/recipes/four_terminal_dc_schema_draft.yaml, then add driver SCPI tests before any active output path.",
+        next_step="Add four-terminal DC preflight readback for :SENS:CURR:RSEN? before any active output path.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

@@ -96,6 +96,16 @@ class Keithley2450:
         joined_errors = "; ".join(errors)
         raise RuntimeError(f"Keithley 2450 did not accept any current limit command: {joined_errors}")
 
+    def configure_current_remote_sense(self, enabled: bool) -> None:
+        language = self.language()
+        if language != "SCPI":
+            raise RuntimeError(f"Keithley 2450 command set must be SCPI for current remote sense, got {language!r}")
+        state = "ON" if enabled else "OFF"
+        self._write_checked(f":SENS:CURR:RSEN {state}", "current remote-sense configuration")
+
+    def read_current_remote_sense(self) -> str:
+        return self._query_optional(":SENS:CURR:RSEN?")
+
     def configure_voltage_source(self, config: SMUVoltageSourceConfig) -> None:
         self.inst.write("*RST")
         self.inst.write("*CLS")

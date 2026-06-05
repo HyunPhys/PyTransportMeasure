@@ -19,6 +19,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   SCPI/contact guards while keeping active hardware output blocked.
 - [x] Four-terminal DC schema draft validates force/sense contacts and
   `remote_4wire` intent while remaining non-executable.
+- [x] Keithley 2450 current remote-sense driver primitive is fake-VISA tested
+  for `:SENS:CURR:RSEN ON/OFF` but not wired into active runners.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
 - [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.

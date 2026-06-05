@@ -607,11 +607,15 @@ root.
     with explicit force/sense contacts and `dc_sense_mode`
   - keep hardware execution blocked until driver SCPI tests and preflight
     readback are implemented
-- [ ] Phase 25cn: Four-terminal DC Keithley driver SCPI tests
+- [x] Phase 25cn: Four-terminal DC Keithley driver SCPI tests
   - add a driver-level remote-sense configuration primitive for current
     measurement without wiring it into active runners
   - verify exact `:SENS:CURR:RSEN ON/OFF` command and readback behavior with
     fake VISA before any hardware run exists
+- [ ] Phase 25co: Four-terminal DC preflight readback gate
+  - add non-output preflight readback planning for `:SENS:CURR:RSEN?`
+  - keep remote-sense output blocked until preflight proves terminal, range,
+    NPLC, compliance, and remote-sense readback checks are available
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -118,7 +118,7 @@ def test_four_terminal_dc_design_gate_accepts_candidate_recipe_but_keeps_blocker
     assert report.measurement_name == "future_four_terminal_dc"
     assert report.measurement_geometry == {"method": "four_terminal", "terminal_count": 4, "notes": "Future Keithley remote-sense DC recipe; design gate only."}
     assert ("blocker", "runner") in issues
-    assert ("blocker", "driver") in issues
+    assert ("info", "driver") in issues
     assert ("blocker", "preflight") in issues
     assert ("warning", "schema") in issues
     assert not any(issue.field.startswith("instrument.") for issue in report.issues)
@@ -133,7 +133,7 @@ def test_four_terminal_dc_design_gate_accepts_schema_draft_recipe(tmp_path):
 
     assert report.measurement_name == "schema_draft_four_terminal_dc"
     assert ("warning", "schema") not in issues
-    assert ("blocker", "driver") in issues
+    assert ("info", "driver") in issues
     assert ("blocker", "preflight") in issues
 
 

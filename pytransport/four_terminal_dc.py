@@ -82,11 +82,11 @@ REQUIRED_CONTACT_GUARDS = (
 )
 
 IMPLEMENTATION_TODOS = (
-    "Keep the FourTerminalDCRecipe schema non-executable until driver and preflight tests pass.",
+    "Keep the FourTerminalDCRecipe schema non-executable until preflight and runner phases pass.",
     "Add fake driver metadata support without claiming improved physics.",
-    "Add Keithley driver unit tests for exact remote-sense SCPI sequence.",
+    "Keep Keithley current remote-sense driver primitive out of active runners until preflight exists.",
     "Add preflight readback for :SENS:CURR:RSEN? before enabling output.",
-    "Add resistor/contact-fixture hardware smoke recipe only after driver tests pass.",
+    "Add resistor/contact-fixture hardware smoke recipe only after preflight and runner tests pass.",
 )
 
 
@@ -98,9 +98,9 @@ def inspect_four_terminal_dc_design_gate(recipe_path: str | Path | None = None) 
             message="No active four-terminal DC runner is implemented; hardware output remains blocked.",
         ),
         FourTerminalDCDesignIssue(
-            severity="blocker",
+            severity="info",
             field="driver",
-            message="Keithley 2450 remote-sense SCPI path is not implemented in the active driver yet.",
+            message="Keithley 2450 current remote-sense primitive exists but is not wired into active runners.",
         ),
         FourTerminalDCDesignIssue(
             severity="blocker",
