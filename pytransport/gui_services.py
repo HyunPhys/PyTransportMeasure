@@ -25,7 +25,7 @@ from .preflight import format_preflight_report, run_preflight_for_recipe
 from .pulse import run_pulse_measurement
 from .quality import evaluate_run_quality, quality_report_to_dict
 from .recipes import load_named_safety_preset, sweep_voltages
-from .run_index import append_run_index, filter_run_index, read_run_index
+from .run_index import append_run_index, build_index_record, filter_run_index, read_run_index
 from .runner import run_drain_iv
 from .single_gate import run_single_gate_sweep
 from .single_gate_review import write_single_gate_stats_csv
@@ -655,6 +655,7 @@ def safe_filename(value: str) -> str:
 def list_gui_runs(
     index_path: str | Path = "data/run_index.jsonl",
     limit: int = 100,
+    source_dir: str | Path | None = None,
     sample_id: str | None = None,
     device_id: str | None = None,
     cooldown_id: str | None = None,
@@ -664,7 +665,7 @@ def list_gui_runs(
     failed: bool = False,
     interrupted: bool | None = None,
 ) -> list[dict[str, Any]]:
-    records = read_run_index(index_path)
+    records = list_gui_runs_from_directory(source_dir) if source_dir else read_run_index(index_path)
     records = filter_run_index(
         records,
         sample_id=blank_to_none(sample_id),
@@ -677,6 +678,28 @@ def list_gui_runs(
         interrupted=interrupted,
     )
     return list(reversed(records[-limit:]))
+
+
+def list_gui_runs_from_directory(source_dir: str | Path | None) -> list[dict[str, Any]]:
+    if source_dir is None:
+        return []
+    root = Path(source_dir).expanduser()
+    if not root.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    metadata_paths = []
+    if (root / "metadata.json").exists():
+        metadata_paths.append(root / "metadata.json")
+    metadata_paths.extend(sorted(root.glob("*/metadata.json")))
+    for metadata_path in metadata_paths:
+        try:
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(metadata, dict):
+            records.append(build_index_record(metadata))
+    records.sort(key=lambda record: record.get("started_at") or "")
+    return records
 
 
 def blank_to_none(value: str | None) -> str | None:

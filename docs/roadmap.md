@@ -210,6 +210,9 @@ This roadmap tracks the large development phases. Completed items are checked.
 - [x] Phase 24v: GUI run filters
   - filter Analysis runs by sample, device, cooldown, tag, method, and status
   - show lab context fields in the GUI run table
+- [x] Phase 24w: GUI Analysis source folder, sorting, and loaded row
+  - scan selected run folders or parent folders in Analysis
+  - enable Runs table sorting and highlight the currently loaded run
 
 ## Next GUI
 

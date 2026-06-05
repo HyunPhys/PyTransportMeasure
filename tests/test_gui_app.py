@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -6,7 +7,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 
-from pytransport.gui_app import MainWindow, padded_range, run_status_text, update_plain_text_preserving_scroll
+from pytransport.gui_app import MainWindow, padded_range, run_status_text, same_path, update_plain_text_preserving_scroll
 
 
 @pytest.fixture
@@ -155,11 +156,15 @@ def test_gui_analysis_filters_and_run_table_columns(app):
     window.add_run_record_to_table(record)
 
     assert window.recent_table.columnCount() == 11
+    assert window.recent_table.isSortingEnabled()
     assert window.recent_table.item(0, 3).text() == "Completed"
     assert window.recent_table.item(0, 7).text() == "cd-1"
     assert window.recent_table.item(0, 10).text() == "data/raw/filtered_run"
     window.recent_table.selectRow(0)
     assert str(window.selected_run_dir()) == "data\\raw\\filtered_run" or str(window.selected_run_dir()) == "data/raw/filtered_run"
+    window.loaded_run_dir = window.selected_run_dir()
+    window.highlight_loaded_run_row()
+    assert window.recent_table.item(0, 0).background().color().name() == "#dbeafe"
 
     window.run_filter_sample.setText("sample-a")
     window.run_filter_device.setText("dev-1")
@@ -173,6 +178,10 @@ def test_gui_analysis_filters_and_run_table_columns(app):
     assert window.run_filter_sample.text() == ""
     assert window.run_filter_status.currentText() == "Any status"
     window.close()
+
+
+def test_same_path_handles_equivalent_relative_paths():
+    assert same_path(Path("data/raw"), Path("data") / "raw")
 
 
 def test_run_status_text_prefers_interrupted_and_errors():

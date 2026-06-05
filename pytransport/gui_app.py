@@ -91,6 +91,19 @@ DEFAULT_RECIPES = {
 }
 
 
+if QTableWidgetItem is not None:
+    class SortableTableWidgetItem(QTableWidgetItem):
+        def __init__(self, text: str, sort_key: Any | None = None):
+            super().__init__(text)
+            self.sort_key = text.lower() if sort_key is None else sort_key
+
+        def __lt__(self, other: Any) -> bool:
+            other_key = getattr(other, "sort_key", other.text().lower() if hasattr(other, "text") else other)
+            return self.sort_key < other_key
+else:  # pragma: no cover - PySide6 missing fallback.
+    SortableTableWidgetItem = object  # type: ignore[assignment]
+
+
 class DryRunWorker(QThread):
     finished_ok = Signal(object)
     failed = Signal(str)
@@ -420,6 +433,11 @@ class MainWindow(QMainWindow):
         self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
         self.load_run_button = QPushButton("Load Selected")
         self.load_run_button.clicked.connect(self.load_selected_run)
+        self.run_source_dir = QLineEdit("data/raw")
+        self.run_source_dir.setPlaceholderText("run source folder")
+        self.run_source_dir.setMinimumWidth(220)
+        self.browse_run_source_button = QPushButton("Source Folder")
+        self.browse_run_source_button.clicked.connect(self.browse_run_source_folder)
         self.run_filter_sample = QLineEdit()
         self.run_filter_sample.setPlaceholderText("sample")
         self.run_filter_device = QLineEdit()
@@ -439,6 +457,7 @@ class MainWindow(QMainWindow):
         self.open_report_button.setEnabled(False)
         self.feedback_bundle_button.setEnabled(False)
         self.load_run_button.setEnabled(False)
+        self.loaded_run_dir: Path | None = None
 
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -488,6 +507,7 @@ class MainWindow(QMainWindow):
             ]
         )
         self.recent_table.horizontalHeader().setStretchLastSection(True)
+        self.recent_table.setSortingEnabled(True)
         self.recent_table.itemSelectionChanged.connect(self.update_selected_run_controls)
 
         workspace_tabs = QTabWidget()
@@ -633,7 +653,12 @@ class MainWindow(QMainWindow):
         filter_row.addWidget(self.run_filter_method)
         filter_row.addWidget(self.run_filter_status)
         filter_row.addWidget(self.clear_run_filters_button)
+        source_row = QHBoxLayout()
+        source_row.addWidget(QLabel("Source"))
+        source_row.addWidget(self.run_source_dir, stretch=1)
+        source_row.addWidget(self.browse_run_source_button)
         controls_layout.addLayout(action_row)
+        controls_layout.addLayout(source_row)
         controls_layout.addLayout(filter_row)
         layout.addWidget(controls)
         analysis_tabs = QTabWidget()
@@ -1226,6 +1251,7 @@ class MainWindow(QMainWindow):
 
     def display_result(self, result, add_to_table: bool) -> None:
         self.last_result = result
+        self.loaded_run_dir = result.run_dir
         self.summary_text.setPlainText("\n".join(part for part in [result.summary_text, result.quality_text] if part))
         self.metadata_text.setPlainText(read_text(Path(result.metadata["metadata_path"])))
         report_path = self.report_path()
@@ -1234,6 +1260,8 @@ class MainWindow(QMainWindow):
         self.update_plot_preview()
         if add_to_table:
             self.add_recent_run(result)
+        else:
+            self.highlight_loaded_run_row()
         self.open_run_button.setEnabled(True)
         self.open_plot_button.setEnabled(self.plot_path() is not None)
         self.open_report_button.setEnabled(self.report_path() is not None)
@@ -1400,11 +1428,15 @@ class MainWindow(QMainWindow):
             record.get("run_dir"),
         ]
         for column, value in enumerate(values):
-            self.recent_table.setItem(row, column, QTableWidgetItem("" if value is None else str(value)))
+            text = "" if value is None else str(value)
+            item = SortableTableWidgetItem(text, run_table_sort_key(column, value))
+            self.recent_table.setItem(row, column, item)
+        self.apply_loaded_run_highlight_to_row(row)
 
     def refresh_indexed_runs(self) -> None:
         try:
             records = list_gui_runs(
+                source_dir=self.run_source_dir.text(),
                 sample_id=self.run_filter_sample.text(),
                 device_id=self.run_filter_device.text(),
                 cooldown_id=self.run_filter_cooldown.text(),
@@ -1415,9 +1447,12 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.show_error(exc)
             return
+        self.recent_table.setSortingEnabled(False)
         self.recent_table.setRowCount(0)
         for record in records:
             self.add_run_record_to_table(record)
+        self.recent_table.setSortingEnabled(True)
+        self.highlight_loaded_run_row()
         self.status_label.setText(f"Loaded {len(records)} indexed runs")
         self.log_session(f"Indexed runs refreshed: {len(records)} records")
 
@@ -1445,6 +1480,12 @@ class MainWindow(QMainWindow):
         self.run_filter_status.setCurrentIndex(0)
         self.refresh_indexed_runs()
 
+    def browse_run_source_folder(self) -> None:
+        selected = QFileDialog.getExistingDirectory(self, "Select Run Source Folder", str(Path(self.run_source_dir.text() or "data/raw").resolve()))
+        if selected:
+            self.run_source_dir.setText(selected)
+            self.refresh_indexed_runs()
+
     def selected_run_dir(self) -> Path | None:
         selected = self.recent_table.selectedItems()
         if not selected:
@@ -1467,8 +1508,25 @@ class MainWindow(QMainWindow):
         except Exception as exc:
             self.show_error(exc)
             return
+        self.loaded_run_dir = result.run_dir
         self.display_result(result, add_to_table=False)
+        self.highlight_loaded_run_row()
         self.log_session(f"Saved run loaded: {run_dir}")
+
+    def highlight_loaded_run_row(self) -> None:
+        for row in range(self.recent_table.rowCount()):
+            self.apply_loaded_run_highlight_to_row(row)
+
+    def apply_loaded_run_highlight_to_row(self, row: int) -> None:
+        is_loaded = False
+        item = self.recent_table.item(row, 10)
+        if item is not None and item.text() and self.loaded_run_dir is not None:
+            is_loaded = same_path(Path(item.text()), self.loaded_run_dir)
+        color = QColor("#dbeafe") if is_loaded else QColor("#ffffff")
+        for column in range(self.recent_table.columnCount()):
+            cell = self.recent_table.item(row, column)
+            if cell is not None:
+                cell.setBackground(color)
 
     def plot_path(self) -> Path | None:
         if self.last_result is None:
@@ -1593,6 +1651,24 @@ def run_status_text(record: dict[str, Any]) -> str:
     if record.get("completed") is False:
         return "Incomplete"
     return "Unknown"
+
+
+def run_table_sort_key(column: int, value: Any) -> Any:
+    if value is None:
+        return ""
+    if column == 4:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return -1
+    return str(value).lower()
+
+
+def same_path(left: Path, right: Path) -> bool:
+    try:
+        return left.resolve() == right.resolve()
+    except OSError:
+        return str(left) == str(right)
 
 
 def open_path(path: Path) -> None:

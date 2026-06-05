@@ -286,6 +286,28 @@ def test_list_gui_runs_filters_lab_context_and_status(tmp_path):
     assert [record["run_dir"] for record in list_gui_runs(index_path, interrupted=True)] == ["run-c"]
 
 
+def test_list_gui_runs_can_scan_selected_source_directory(tmp_path):
+    raw_dir = tmp_path / "raw"
+    run_a = raw_dir / "run-a"
+    run_b = raw_dir / "run-b"
+    run_a.mkdir(parents=True)
+    run_b.mkdir()
+    (run_a / "metadata.json").write_text(
+        '{"started_at": "2026-06-05T10:00:00", "measurement_name": "a", "completed": true, "points_written": 2, "run_dir": "run-a", "recipe": {"experiment": {"sample_id": "s1", "cooldown_id": "cd1"}}}',
+        encoding="utf-8",
+    )
+    (run_b / "metadata.json").write_text(
+        '{"started_at": "2026-06-05T11:00:00", "measurement_name": "b", "completed": true, "points_written": 3, "run_dir": "run-b", "recipe": {"experiment": {"sample_id": "s2", "cooldown_id": "cd2"}}}',
+        encoding="utf-8",
+    )
+    index_path = tmp_path / "unused_index.jsonl"
+
+    records = list_gui_runs(index_path, source_dir=raw_dir, sample_id="s2")
+
+    assert [record["measurement_name"] for record in records] == ["b"]
+    assert [record["measurement_name"] for record in list_gui_runs(index_path, source_dir=run_a)] == ["a"]
+
+
 def test_drain_iv_form_round_trip_from_default_recipe():
     text = Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8")
     values = drain_iv_form_from_text(text)

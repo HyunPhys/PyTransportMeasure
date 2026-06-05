@@ -99,6 +99,7 @@ ptm-gui
 - GUI cooperative stop: [docs/phase43_gui_cooperative_stop.md](docs/phase43_gui_cooperative_stop.md)
 - Lab context metadata: [docs/phase44_lab_context_metadata.md](docs/phase44_lab_context_metadata.md)
 - GUI run filters: [docs/phase45_gui_run_filters.md](docs/phase45_gui_run_filters.md)
+- GUI Analysis source folder and sorting: [docs/phase46_gui_analysis_source_and_sort.md](docs/phase46_gui_analysis_source_and_sort.md)
 
 ## Hardware Smoke Test
 

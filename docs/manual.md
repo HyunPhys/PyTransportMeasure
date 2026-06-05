@@ -525,12 +525,17 @@ Run browsing workflow:
 
 1. Open `Analysis`.
 2. Open the `Runs` subtab.
-3. Optionally fill sample, device, cooldown, tag, method, or status filters.
-4. Click `Refresh Runs`.
-5. Select a saved run.
-6. Click `Load Selected`.
-7. Open `Plot` to inspect a points-based GUI plot that is redrawn on resize.
-8. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
+3. Use `Source Folder` when runs are stored outside the default `data/raw`
+   folder. The source can be a parent folder containing many runs or one saved
+   run folder containing `metadata.json`.
+4. Optionally fill sample, device, cooldown, tag, method, or status filters.
+5. Click `Refresh Runs`.
+6. Click table headers to sort the run list.
+7. Select a saved run.
+8. Click `Load Selected`.
+9. Confirm the loaded row is highlighted in light blue.
+10. Open `Plot` to inspect a points-based GUI plot that is redrawn on resize.
+11. Use `Run Folder`, `Plot`, `Report`, or `Feedback Bundle` to open/export
    artifacts externally.
 
 Use `Clear Filters` to return to the recent unfiltered run list. The run table

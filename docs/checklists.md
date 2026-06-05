@@ -47,6 +47,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   lab notebook reference in recipes/reports.
 - [x] GUI Analysis can filter indexed runs by sample, device, cooldown, tag,
   method, and status.
+- [x] GUI Analysis can scan selected run folders, sort Runs columns, and
+  highlight the currently loaded row.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -179,6 +181,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   live under `Analysis`.
 - [ ] In `Analysis`, filter runs by sample/device/cooldown/status and confirm
   `Refresh Runs` updates the table.
+- [ ] Use `Source Folder` to select a different run parent folder, then confirm
+  `Refresh Runs` scans that location.
+- [ ] Click Runs table headers and confirm rows sort.
+- [ ] Load a row and confirm it is highlighted in light blue.
 - [ ] Click `Clear Filters` and confirm the recent run list returns.
 - [ ] Confirm `Measurement > Live Plot` updates during a dry-run.
 - [ ] Confirm the Session Log tab accumulates the same major events and progress
