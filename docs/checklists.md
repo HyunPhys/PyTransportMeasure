@@ -604,6 +604,12 @@ remain point-guarded.
   ```
 - [ ] Confirm `ready_for_analysis` was not granted unless measurement-condition
   audits, Keithley parameter audits, and SR860 setting audits are still PASS.
+- [ ] Run the returned-run acquisition-condition drift guard before analysis.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-condition-drift data\hall_packages\<sample_lab_package>
+  ```
+- [ ] Confirm it prints PASS and `condition_drift_report.md` lists no drift
+  issues.
 - [ ] Confirm the report shows each run acceptance as PASS and no
   `recipe_match`, `grid_signature`, `voltage_probe_role`, or magnetic-field
   errors.

@@ -566,11 +566,16 @@ root.
     measurement-condition artifacts
   - keep Hall-bar package transitions focused on reproducible measurement
     conditions, not only file existence
-- [ ] Phase 25ce: Hall package acquisition-condition drift guard
+- [x] Phase 25ce: Hall package acquisition-condition drift guard
   - compare package audit records against returned run metadata before analysis
   - flag changed Keithley NPLC/range/compliance/source-delay or SR860 settings
     as measurement-condition drift
   - keep repeated Hall scans comparable across lab-laptop runs
+- [ ] Phase 25cf: Hall condition drift summary in lifecycle status
+  - surface acquisition-condition drift PASS/FAIL in lifecycle status after
+    result intake
+  - make package lifecycle visibly block analysis and next-scan decisions when
+    returned metadata drifts from packaged measurement conditions
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

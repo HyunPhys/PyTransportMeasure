@@ -606,15 +606,29 @@ false unless the preserved measurement-condition audits pass. Use it as the
 quick lab-notebook status check before deciding what the next command should
 be.
 
+Before analysis, compare the packaged measurement conditions against the
+returned run metadata:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-condition-drift data\hall_packages\sampleA_cd1_lab1
+```
+
+This writes `condition_drift_report.md` and `condition_drift.json`. It checks
+the returned run recipe snapshots and configured SMU/lock-in metadata against
+the packaged Keithley NPLC, voltage/current ranges, compliance, source delay,
+and SR860 settings. `dual-gate-lockin-hall-suite-analyze` also runs this guard
+internally and refuses analysis if drift is detected.
+
 When intake passes, the full Hall analysis sequence can be run as one command:
 
 ```powershell
 ptm dual-gate-lockin-hall-suite-analyze data\hall_packages\sampleA_cd1_lab1
 ```
 
-This command reads `result_intake.json`, refuses to run if intake did not PASS,
-writes `hall_analysis/antisym`, writes `hall_analysis/zero_corrected` when a
-0B run was supplied, writes `hall_analysis/mobility`, and records provenance in
+This command reads `result_intake.json`, refuses to run if intake did not PASS
+or acquisition-condition drift is detected, writes `hall_analysis/antisym`,
+writes `hall_analysis/zero_corrected` when a 0B run was supplied, writes
+`hall_analysis/mobility`, and records provenance in
 `hall_suite_analysis_manifest.json`. By default, mobility uses zero-corrected
 Hall density when a 0B run is present; add `--prefer-antisym-density` to force
 antisymmetrized Hall density instead.

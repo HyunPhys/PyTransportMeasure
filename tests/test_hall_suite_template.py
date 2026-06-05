@@ -1,5 +1,6 @@
 import csv
 import json
+from pathlib import Path
 import zipfile
 
 import yaml
@@ -639,6 +640,47 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert "Accepted for Hall analysis: True" in report.read_text(encoding="utf-8")
     assert payload["accepted"] is True
     assert payload["runs"]["longitudinal"]["points_written"] == 4
+    drift_json = tmp_path / "condition_drift.json"
+    drift_code = main(
+        [
+            "dual-gate-lockin-hall-suite-condition-drift",
+            str(package_dir),
+            "--json-output",
+            str(drift_json),
+            "--output",
+            str(tmp_path / "condition_drift.md"),
+        ]
+    )
+    drift = json.loads(drift_json.read_text(encoding="utf-8"))
+    assert drift_code == 0
+    assert drift["accepted"] is True
+    assert drift["issues"] == []
+
+    plus_metadata_path = Path(plus_run) / "metadata.json"
+    plus_metadata = json.loads(plus_metadata_path.read_text(encoding="utf-8"))
+    original_nplc = plus_metadata["recipe"]["gate1_instrument"]["nplc"]
+    plus_metadata["recipe"]["gate1_instrument"]["nplc"] = 3.0
+    plus_metadata_path.write_text(json.dumps(plus_metadata, indent=2, sort_keys=True), encoding="utf-8")
+    drift_fail_json = tmp_path / "condition_drift_fail.json"
+    drift_fail_code = main(
+        [
+            "dual-gate-lockin-hall-suite-condition-drift",
+            str(package_dir),
+            "--json-output",
+            str(drift_fail_json),
+            "--output",
+            str(tmp_path / "condition_drift_fail.md"),
+        ]
+    )
+    drift_fail = json.loads(drift_fail_json.read_text(encoding="utf-8"))
+    assert drift_fail_code == 2
+    assert drift_fail["accepted"] is False
+    assert any(issue["field"] == "gate1_instrument.nplc" for issue in drift_fail["issues"])
+    analyze_drift_code = main(["dual-gate-lockin-hall-suite-analyze", str(package_dir)])
+    assert analyze_drift_code == 2
+    plus_metadata["recipe"]["gate1_instrument"]["nplc"] = original_nplc
+    plus_metadata_path.write_text(json.dumps(plus_metadata, indent=2, sort_keys=True), encoding="utf-8")
+
     return_code = main(
         [
             "dual-gate-lockin-hall-suite-lab-return-manifest",

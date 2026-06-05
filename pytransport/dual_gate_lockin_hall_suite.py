@@ -107,6 +107,26 @@ class HallSuiteResultIntake:
 
 
 @dataclass(frozen=True)
+class HallSuiteConditionDriftIssue:
+    severity: str
+    run_key: str
+    field: str
+    expected: Any
+    actual: Any
+    message: str
+
+
+@dataclass(frozen=True)
+class HallSuiteConditionDriftAudit:
+    package_manifest_path: Path
+    result_intake_json_path: Path
+    accepted: bool
+    report_path: Path | None
+    json_path: Path | None
+    issues: tuple[HallSuiteConditionDriftIssue, ...]
+
+
+@dataclass(frozen=True)
 class HallSuiteAnalysisResult:
     output_dir: Path
     antisym_dir: Path
@@ -599,6 +619,10 @@ def write_dual_gate_lockin_hall_suite_analysis(
     intake = _load_result_intake_json(intake_json_path)
     if intake.get("accepted") is not True:
         raise ValueError("Hall suite result intake is not accepted; run/fix dual-gate-lockin-hall-suite-intake first")
+    manifest_path_for_drift = _package_manifest_path_from_intake(intake_json_path, intake)
+    drift_payload = _build_condition_drift_payload(manifest_path_for_drift, intake_json_path)
+    if drift_payload.get("accepted") is not True:
+        raise ValueError("Hall suite acquisition-condition drift audit failed; run/fix dual-gate-lockin-hall-suite-condition-drift first")
     runs = intake.get("runs")
     if not isinstance(runs, dict):
         raise ValueError("result_intake.json is missing runs")
@@ -679,6 +703,78 @@ def write_dual_gate_lockin_hall_suite_analysis(
         report_path=report_path,
         manifest_path=manifest_path,
     )
+
+
+def write_dual_gate_lockin_hall_suite_condition_drift_audit(
+    package_manifest_or_dir: str | Path,
+    *,
+    result_intake_json: str | Path | None = None,
+    output_path: str | Path | None = None,
+    json_output_path: str | Path | None = None,
+    overwrite: bool = False,
+) -> HallSuiteConditionDriftAudit:
+    manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    intake_path = _resolve_result_intake_json_path(result_intake_json or package_dir)
+    payload = _build_condition_drift_payload(manifest_path, intake_path)
+    report_text = format_dual_gate_lockin_hall_suite_condition_drift_audit(payload)
+    report_path = Path(output_path) if output_path is not None else package_dir / "condition_drift_report.md"
+    json_path = Path(json_output_path) if json_output_path is not None else package_dir / "condition_drift.json"
+    for path in [report_path, json_path]:
+        if path.exists() and not overwrite:
+            raise FileExistsError(f"Condition drift output already exists: {path}")
+        path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(report_text, encoding="utf-8")
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return HallSuiteConditionDriftAudit(
+        package_manifest_path=manifest_path,
+        result_intake_json_path=intake_path,
+        accepted=bool(payload["accepted"]),
+        report_path=report_path,
+        json_path=json_path,
+        issues=tuple(HallSuiteConditionDriftIssue(**issue) for issue in payload["issues"]),
+    )
+
+
+def format_dual_gate_lockin_hall_suite_condition_drift_audit(payload: dict[str, Any]) -> str:
+    status = "PASS" if payload.get("accepted") else "FAIL"
+    lines = [
+        "# Hall Suite Acquisition-Condition Drift Audit",
+        "",
+        f"- Status: {status}",
+        f"- Package manifest: `{payload.get('package_manifest_path')}`",
+        f"- Result intake JSON: `{payload.get('result_intake_json_path')}`",
+        "",
+        "## Runs",
+        "",
+    ]
+    runs = payload.get("runs") if isinstance(payload.get("runs"), dict) else {}
+    if runs:
+        for key, run in runs.items():
+            lines.append(f"- {key}: `{run.get('run_dir')}`")
+    else:
+        lines.append("- none")
+    lines.extend(["", "## Drift Issues", ""])
+    issues = payload.get("issues") if isinstance(payload.get("issues"), list) else []
+    if not issues:
+        lines.append("- none")
+    else:
+        for issue in issues:
+            lines.append(
+                f"- [{issue.get('severity')}] {issue.get('run_key')}.{issue.get('field')}: "
+                f"{issue.get('message')} expected={issue.get('expected')!r} actual={issue.get('actual')!r}"
+            )
+    lines.extend(
+        [
+            "",
+            "## Measurement-Condition Reminder",
+            "",
+            "Keithley NPLC/ranges/compliance/source-delay and SR860 settings are measurement conditions.",
+            "If this audit fails, regenerate the package or repeat the run before comparing Hall scans.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def format_dual_gate_lockin_hall_suite_analysis_report(manifest: dict[str, Any]) -> str:
@@ -2738,6 +2834,209 @@ def _compare_run_to_packaged_recipe(
             )
         )
     return issues
+
+
+def _check_condition_drift_for_run(
+    key: str,
+    packaged_recipe: DualGateLockInRecipe,
+    metadata: dict[str, Any],
+    issues: list[HallSuiteConditionDriftIssue],
+) -> None:
+    run_recipe = metadata.get("recipe")
+    if not isinstance(run_recipe, dict):
+        issues.append(
+            HallSuiteConditionDriftIssue(
+                "error",
+                key,
+                "recipe",
+                "recipe snapshot",
+                None,
+                "run metadata is missing recipe snapshot",
+            )
+        )
+        return
+    expected = packaged_recipe.model_dump(mode="json")
+    for instrument_key in ["gate1_instrument", "gate2_instrument"]:
+        for field in ["address", "terminal", "voltage_range_v", "current_range_a", "nplc", "source_delay_s"]:
+            _append_condition_issue_if_different(
+                issues,
+                key,
+                f"{instrument_key}.{field}",
+                _nested_get(expected, instrument_key, field),
+                _nested_get(run_recipe, instrument_key, field),
+            )
+    for sweep_key in ["gate1_sweep", "gate2_sweep"]:
+        for field in ["current_compliance_a", "settle_s"]:
+            _append_condition_issue_if_different(
+                issues,
+                key,
+                f"{sweep_key}.{field}",
+                _nested_get(expected, sweep_key, field),
+                _nested_get(run_recipe, sweep_key, field),
+            )
+    expected_lockin = expected.get("lockin") if isinstance(expected.get("lockin"), dict) else {}
+    run_lockin = run_recipe.get("lockin") if isinstance(run_recipe.get("lockin"), dict) else {}
+    for field in sorted(set(expected_lockin_settings(expected_lockin)) | {"read_settle_s", "settle_time_constants"}):
+        _append_condition_issue_if_different(
+            issues,
+            key,
+            f"lockin.{field}",
+            expected_lockin.get(field),
+            run_lockin.get(field),
+        )
+    for role, instrument_key, sweep_key in [
+        ("gate1", "gate1_instrument", "gate1_sweep"),
+        ("gate2", "gate2_instrument", "gate2_sweep"),
+    ]:
+        configured = metadata.get(f"configured_{role}_smu")
+        if not isinstance(configured, dict):
+            issues.append(
+                HallSuiteConditionDriftIssue(
+                    "error",
+                    key,
+                    f"configured_{role}_smu",
+                    "metadata snapshot",
+                    None,
+                    "run metadata is missing configured SMU snapshot",
+                )
+            )
+            continue
+        expected_config = {
+            "current_compliance_a": _nested_get(expected, sweep_key, "current_compliance_a"),
+            "voltage_range_v": _nested_get(expected, instrument_key, "voltage_range_v"),
+            "current_range_a": _nested_get(expected, instrument_key, "current_range_a"),
+            "terminal": _nested_get(expected, instrument_key, "terminal"),
+            "nplc": _nested_get(expected, instrument_key, "nplc"),
+            "source_delay_s": _nested_get(expected, instrument_key, "source_delay_s"),
+        }
+        for field, expected_value in expected_config.items():
+            _append_condition_issue_if_different(
+                issues,
+                key,
+                f"configured_{role}_smu.{field}",
+                expected_value,
+                configured.get(field),
+            )
+        readback_check = metadata.get(f"configured_{role}_smu_readback_check")
+        if isinstance(readback_check, dict) and readback_check.get("matched") is False:
+            issues.append(
+                HallSuiteConditionDriftIssue(
+                    "error",
+                    key,
+                    f"configured_{role}_smu_readback_check",
+                    True,
+                    False,
+                    "Keithley readback did not match configured recipe values during run",
+                )
+            )
+    if metadata.get("lockin_settings_readback_available") is True and metadata.get("lockin_settings_readback_matched") is False:
+        issues.append(
+            HallSuiteConditionDriftIssue(
+                "error",
+                key,
+                "lockin_settings_readback",
+                True,
+                False,
+                "SR860 readback did not match configured recipe values during run",
+            )
+        )
+
+
+def _build_condition_drift_payload(manifest_path: Path, intake_path: Path) -> dict[str, Any]:
+    package_dir = manifest_path.parent
+    manifest = _load_package_manifest(manifest_path)
+    intake = _load_result_intake_json(intake_path)
+    recipe_paths = _package_recipe_paths(manifest, package_dir)
+    runs = intake.get("runs")
+    if not isinstance(runs, dict):
+        raise ValueError("result_intake.json is missing runs")
+    issues: list[HallSuiteConditionDriftIssue] = []
+    run_payloads: dict[str, dict[str, Any]] = {}
+    for key, recipe_path in recipe_paths.items():
+        run_info = runs.get(key)
+        if not isinstance(run_info, dict) or not run_info.get("run_dir"):
+            if key in {"longitudinal", "plus", "minus"}:
+                issues.append(
+                    HallSuiteConditionDriftIssue(
+                        "error",
+                        key,
+                        "run_dir",
+                        str(recipe_path),
+                        None,
+                        "required run is missing from result_intake.json",
+                    )
+                )
+            continue
+        run_dir = Path(str(run_info["run_dir"]))
+        metadata = read_dual_gate_lockin_metadata(run_dir)
+        run_payloads[key] = {
+            "run_dir": str(run_dir),
+            "metadata_path": str(run_dir / "metadata.json"),
+        }
+        packaged_recipe = DualGateLockInRecipe.model_validate(load_yaml(recipe_path))
+        _check_condition_drift_for_run(key, packaged_recipe, metadata, issues)
+    return {
+        "package_manifest_path": str(manifest_path),
+        "result_intake_json_path": str(intake_path),
+        "accepted": not any(issue.severity == "error" for issue in issues),
+        "runs": run_payloads,
+        "issues": [issue.__dict__ for issue in issues],
+    }
+
+
+def _package_manifest_path_from_intake(intake_json_path: Path, intake: dict[str, Any]) -> Path:
+    value = intake.get("package_manifest_path")
+    if not value:
+        raise ValueError("result_intake.json is missing package_manifest_path")
+    path = Path(str(value))
+    if not path.is_absolute():
+        candidate = intake_json_path.parent / path
+        path = candidate if candidate.exists() else path
+    if not path.exists():
+        raise FileNotFoundError(f"Package manifest from result_intake.json does not exist: {path}")
+    return path
+
+
+def _append_condition_issue_if_different(
+    issues: list[HallSuiteConditionDriftIssue],
+    run_key: str,
+    field: str,
+    expected: Any,
+    actual: Any,
+) -> None:
+    if _condition_values_equal(expected, actual):
+        return
+    issues.append(
+        HallSuiteConditionDriftIssue(
+            "error",
+            run_key,
+            field,
+            expected,
+            actual,
+            "acquisition condition differs from packaged recipe",
+        )
+    )
+
+
+def _condition_values_equal(expected: Any, actual: Any) -> bool:
+    if expected is None and actual is None:
+        return True
+    if isinstance(expected, (int, float)) or isinstance(actual, (int, float)):
+        expected_float = _optional_float(expected)
+        actual_float = _optional_float(actual)
+        if expected_float is None or actual_float is None:
+            return False
+        return abs(expected_float - actual_float) <= max(1e-12, abs(expected_float) * 1e-9)
+    return expected == actual
+
+
+def _nested_get(data: dict[str, Any], *keys: str) -> Any:
+    cursor: Any = data
+    for key in keys:
+        if not isinstance(cursor, dict):
+            return None
+        cursor = cursor.get(key)
+    return cursor
 
 
 def _run_role_fields(run_dirs: dict[str, Path]) -> dict[str, dict[str, Any]]:
