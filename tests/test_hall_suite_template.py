@@ -1,3 +1,4 @@
+import csv
 import json
 import zipfile
 
@@ -556,6 +557,31 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert manifest["outputs"]["zero_corrected_csv"].endswith("hall_zero_corrected.csv")
     assert manifest["hall_density_source"].endswith("hall_zero_corrected.csv")
 
+    code = main(["dual-gate-lockin-hall-suite-review", str(analysis_dir)])
+    assert code == 0
+    review_json = analysis_dir / "hall_suite_analysis_review.json"
+    review_payload = json.loads(review_json.read_text(encoding="utf-8"))
+    review_text = (analysis_dir / "hall_suite_analysis_review.md").read_text(encoding="utf-8")
+    assert review_payload["accepted_for_next_scan_decision"] is True
+    assert review_payload["summary"]["mobility"]["gate_points"] == 4
+    assert "mobility_magnitude_cm2_per_v_s" in review_text
+
+    mobility_csv = analysis_dir / "mobility" / "hall_mobility.csv"
+    with mobility_csv.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    rows[0]["hall_carrier_density_per_m2"] = "1.0e12"
+    rows[1]["hall_carrier_density_per_m2"] = "-1.0e12"
+    with mobility_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(fieldnames))
+        writer.writeheader()
+        writer.writerows(rows)
+    code = main(["dual-gate-lockin-hall-suite-review", str(analysis_dir), "--overwrite"])
+    assert code == 0
+    review_payload = json.loads(review_json.read_text(encoding="utf-8"))
+    assert any(issue["check"] == "mobility_density.sign_change" for issue in review_payload["issues"])
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(
@@ -609,3 +635,15 @@ def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path
     code = main(["dual-gate-lockin-hall-suite-analyze", str(package_dir)])
     assert code == 2
     assert not (package_dir / "hall_analysis").exists()
+
+
+def test_cli_dual_gate_lockin_hall_suite_review_rejects_missing_analysis_artifacts(tmp_path):
+    analysis_dir = tmp_path / "missing_analysis"
+    analysis_dir.mkdir()
+
+    code = main(["dual-gate-lockin-hall-suite-review", str(analysis_dir)])
+
+    assert code == 2
+    payload = json.loads((analysis_dir / "hall_suite_analysis_review.json").read_text(encoding="utf-8"))
+    assert payload["accepted_for_next_scan_decision"] is False
+    assert any(issue["severity"] == "error" for issue in payload["issues"])

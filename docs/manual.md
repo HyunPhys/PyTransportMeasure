@@ -535,6 +535,24 @@ writes `hall_analysis/antisym`, writes `hall_analysis/zero_corrected` when a
 Hall density when a 0B run is present; add `--prefer-antisym-density` to force
 antisymmetrized Hall density instead.
 
+Before choosing the next graphene gate scan, review the derived Hall artifacts:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-review data\hall_packages\sampleA_cd1_lab1\hall_analysis
+```
+
+The review command is read-only with respect to raw runs. It reads the analysis
+manifest plus `hall_antisym.csv`, optional `hall_zero_corrected.csv`, and
+`hall_mobility.csv`, then writes `hall_suite_analysis_review.md` and
+`hall_suite_analysis_review.json`. It summarizes carrier density, Hall
+resistance, sheet conductivity/resistance, and mobility ranges, and flags gate
+grid mismatches, carrier-density sign changes, missing mobility values,
+field-even Hall offsets, and large zero-field Hall offsets. Treat warnings as
+human-review prompts before expanding the gate window. Also confirm the
+Keithley NPLC used in the underlying recipes/runs; NPLC sets current
+integration time and should only change when the lab deliberately trades sweep
+speed for lower current noise.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 from dataclasses import dataclass
 from datetime import datetime
+from math import isfinite
 from pathlib import Path
 from typing import Any
 
@@ -23,6 +25,9 @@ from .dual_gate_lockin_review import (
 )
 from .dual_gate_lockin_scaleup import build_dual_gate_lockin_adjusted_recipe_data
 from .hall_analysis import (
+    HALL_ANTISYM_COLUMNS,
+    HALL_MOBILITY_COLUMNS,
+    HALL_ZERO_CORRECTED_COLUMNS,
     HallValueColumn,
     write_dual_gate_lockin_hall_antisym,
     write_dual_gate_lockin_hall_mobility,
@@ -102,6 +107,22 @@ class HallSuiteAnalysisResult:
     mobility_dir: Path
     report_path: Path
     manifest_path: Path
+
+
+@dataclass(frozen=True)
+class HallSuiteAnalysisReviewIssue:
+    severity: str
+    check: str
+    message: str
+
+
+@dataclass(frozen=True)
+class HallSuiteAnalysisReview:
+    analysis_dir: Path
+    accepted_for_next_scan_decision: bool
+    report_path: Path
+    json_path: Path
+    issues: tuple[HallSuiteAnalysisReviewIssue, ...]
 
 
 def write_dual_gate_lockin_hall_suite_template(
@@ -605,6 +626,150 @@ def format_dual_gate_lockin_hall_suite_analysis_report(manifest: dict[str, Any])
             "",
         ]
     )
+
+
+def write_dual_gate_lockin_hall_suite_analysis_review(
+    analysis_dir: str | Path,
+    *,
+    output: str | Path | None = None,
+    json_output: str | Path | None = None,
+    overwrite: bool = False,
+) -> HallSuiteAnalysisReview:
+    analysis_path = Path(analysis_dir)
+    if not analysis_path.exists() or not analysis_path.is_dir():
+        raise FileNotFoundError(f"Hall suite analysis directory does not exist: {analysis_path}")
+    report_path = Path(output) if output is not None else analysis_path / "hall_suite_analysis_review.md"
+    json_path = Path(json_output) if json_output is not None else analysis_path / "hall_suite_analysis_review.json"
+    if report_path.exists() and not overwrite:
+        raise FileExistsError(f"Hall suite analysis review report already exists: {report_path}")
+    if json_path.exists() and not overwrite:
+        raise FileExistsError(f"Hall suite analysis review JSON already exists: {json_path}")
+
+    manifest_path = analysis_path / "hall_suite_analysis_manifest.json"
+    issues: list[HallSuiteAnalysisReviewIssue] = []
+    manifest: dict[str, Any] = {}
+    if not manifest_path.exists():
+        issues.append(HallSuiteAnalysisReviewIssue("error", "manifest.exists", f"missing analysis manifest: {manifest_path}"))
+    else:
+        try:
+            loaded_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            if isinstance(loaded_manifest, dict):
+                manifest = loaded_manifest
+            else:
+                issues.append(HallSuiteAnalysisReviewIssue("error", "manifest.type", "analysis manifest must contain a JSON object"))
+        except json.JSONDecodeError as exc:
+            issues.append(HallSuiteAnalysisReviewIssue("error", "manifest.parse", f"could not parse analysis manifest: {exc}"))
+
+    outputs = manifest.get("outputs") if isinstance(manifest.get("outputs"), dict) else {}
+    antisym_csv = _analysis_csv_path(analysis_path, outputs.get("antisym_csv"), "antisym/hall_antisym.csv")
+    zero_corrected_csv = _analysis_csv_path(analysis_path, outputs.get("zero_corrected_csv"), "zero_corrected/hall_zero_corrected.csv")
+    mobility_csv = _analysis_csv_path(analysis_path, outputs.get("mobility_csv"), "mobility/hall_mobility.csv")
+
+    antisym_rows = _read_analysis_rows(antisym_csv, HALL_ANTISYM_COLUMNS, "antisym_csv", issues, required=True)
+    zero_rows = _read_analysis_rows(zero_corrected_csv, HALL_ZERO_CORRECTED_COLUMNS, "zero_corrected_csv", issues, required=False)
+    mobility_rows = _read_analysis_rows(mobility_csv, HALL_MOBILITY_COLUMNS, "mobility_csv", issues, required=True)
+
+    summary = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "analysis_dir": str(analysis_path),
+        "manifest_path": str(manifest_path),
+        "files": {
+            "antisym_csv": str(antisym_csv),
+            "zero_corrected_csv": str(zero_corrected_csv) if zero_corrected_csv is not None else None,
+            "mobility_csv": str(mobility_csv),
+        },
+        "antisym": _analysis_table_summary(
+            antisym_rows,
+            {
+                "hall_antisym_resistance_ohm": "hall_antisym_resistance_ohm",
+                "field_even_resistance_ohm": "field_even_resistance_ohm",
+                "hall_carrier_density_per_m2": "hall_carrier_density_per_m2",
+            },
+        ),
+        "zero_corrected": _analysis_table_summary(
+            zero_rows,
+            {
+                "hall_zero_corrected_resistance_ohm": "hall_zero_corrected_resistance_ohm",
+                "zero_field_resistance_ohm": "zero_field_resistance_ohm",
+                "hall_carrier_density_per_m2": "hall_carrier_density_per_m2",
+            },
+        ),
+        "mobility": _analysis_table_summary(
+            mobility_rows,
+            {
+                "hall_carrier_density_per_m2": "hall_carrier_density_per_m2",
+                "longitudinal_sheet_conductivity_s_per_sq": "longitudinal_sheet_conductivity_s_per_sq",
+                "longitudinal_sheet_resistance_ohm_per_sq": "longitudinal_sheet_resistance_ohm_per_sq",
+                "mobility_signed_m2_per_v_s": "mobility_signed_m2_per_v_s",
+                "mobility_magnitude_cm2_per_v_s": "mobility_magnitude_cm2_per_v_s",
+            },
+        ),
+    }
+    _append_hall_suite_analysis_review_issues(antisym_rows, zero_rows, mobility_rows, issues)
+    accepted = not any(issue.severity == "error" for issue in issues)
+    payload = {
+        "accepted_for_next_scan_decision": accepted,
+        "summary": summary,
+        "issues": [issue.__dict__ for issue in issues],
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    json_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(format_dual_gate_lockin_hall_suite_analysis_review(payload), encoding="utf-8")
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    return HallSuiteAnalysisReview(analysis_path, accepted, report_path, json_path, tuple(issues))
+
+
+def format_dual_gate_lockin_hall_suite_analysis_review(payload: dict[str, Any]) -> str:
+    summary = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+    issues = payload.get("issues") if isinstance(payload.get("issues"), list) else []
+    lines = [
+        "# Dual-Gate Lock-In Hall Suite Analysis Review",
+        "",
+        f"- Analysis directory: `{summary.get('analysis_dir')}`",
+        f"- Ready for next-scan decision: {payload.get('accepted_for_next_scan_decision')}",
+        "",
+        "## Artifact Summary",
+        "",
+        "| Artifact | Gate points | Columns reviewed |",
+        "| --- | ---: | --- |",
+        _analysis_summary_table_row("Antisym", summary.get("antisym")),
+        _analysis_summary_table_row("Zero-corrected", summary.get("zero_corrected")),
+        _analysis_summary_table_row("Mobility", summary.get("mobility")),
+        "",
+        "## Key Ranges",
+        "",
+        "### Hall Antisym",
+        "",
+        *_analysis_range_lines(summary.get("antisym")),
+        "",
+        "### Zero-Corrected Hall",
+        "",
+        *_analysis_range_lines(summary.get("zero_corrected")),
+        "",
+        "### Mobility",
+        "",
+        *_analysis_range_lines(summary.get("mobility")),
+        "",
+        "## Issues For Next Scan Decision",
+        "",
+    ]
+    if issues:
+        lines.extend(f"- [{issue.get('severity')}] {issue.get('check')}: {issue.get('message')}" for issue in issues)
+    else:
+        lines.append("- No automatic review issues were found.")
+    lines.extend(
+        [
+            "",
+            "## Lab Decision Notes",
+            "",
+            "- Treat warnings as prompts for human review, not automatic rejection.",
+            "- If carrier density changes sign, inspect whether the scan crossed the charge neutrality point or whether Hall polarity/contact labeling is wrong.",
+            "- If field-even or zero-field offsets are large, review contact asymmetry, lock-in phase, magnetic-field settling, and wiring before expanding the gate window.",
+            "- Keep Keithley NPLC, current range, voltage range, compliance, source delay, and SR860 settings fixed when comparing repeated scans unless the lab deliberately changes them.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
 
 
 def format_dual_gate_lockin_hall_suite_result_intake(
@@ -1355,6 +1520,236 @@ def _load_result_intake_json(path: Path) -> dict[str, Any]:
     return data
 
 
+def _analysis_csv_path(analysis_dir: Path, manifest_value: Any, fallback_relative: str) -> Path | None:
+    if manifest_value is None:
+        fallback = analysis_dir / fallback_relative
+        return fallback if fallback.exists() else None
+    path = Path(str(manifest_value))
+    if not path.is_absolute() and not path.exists():
+        path = analysis_dir / path
+    return path
+
+
+def _read_analysis_rows(
+    path: Path | None,
+    expected_columns: list[str],
+    label: str,
+    issues: list[HallSuiteAnalysisReviewIssue],
+    *,
+    required: bool,
+) -> list[dict[str, str]]:
+    if path is None or not path.exists():
+        severity = "error" if required else "info"
+        message = "missing required CSV" if required else "CSV not present; optional analysis was not run"
+        issues.append(HallSuiteAnalysisReviewIssue(severity, f"{label}.exists", f"{message}: {path or 'n/a'}"))
+        return []
+    try:
+        with path.open("r", newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            rows = [dict(row) for row in reader]
+            missing = [column for column in expected_columns if column not in (reader.fieldnames or [])]
+    except OSError as exc:
+        issues.append(HallSuiteAnalysisReviewIssue("error", f"{label}.read", f"could not read CSV: {exc}"))
+        return []
+    if missing:
+        issues.append(HallSuiteAnalysisReviewIssue("error", f"{label}.columns", f"missing columns: {', '.join(missing)}"))
+    if required and not rows:
+        issues.append(HallSuiteAnalysisReviewIssue("error", f"{label}.rows", "CSV contains no rows"))
+    return rows
+
+
+def _analysis_table_summary(rows: list[dict[str, str]], columns: dict[str, str]) -> dict[str, Any]:
+    return {
+        "points": len(rows),
+        "columns": {
+            label: _analysis_range(rows, column)
+            for label, column in columns.items()
+        },
+        "gate_points": len(_analysis_gate_points(rows)),
+    }
+
+
+def _analysis_range(rows: list[dict[str, str]], column: str) -> dict[str, Any]:
+    values = [_optional_float(row.get(column)) for row in rows]
+    finite = [value for value in values if value is not None]
+    signs = {1 if value > 0 else -1 if value < 0 else 0 for value in finite}
+    return {
+        "finite_count": len(finite),
+        "missing_count": len(rows) - len(finite),
+        "min": min(finite) if finite else None,
+        "max": max(finite) if finite else None,
+        "has_positive": 1 in signs,
+        "has_negative": -1 in signs,
+        "has_zero": 0 in signs,
+    }
+
+
+def _analysis_gate_points(rows: list[dict[str, str]]) -> set[tuple[float, float]]:
+    points = set()
+    for row in rows:
+        gate1 = _optional_float(row.get("gate1_voltage_v"))
+        gate2 = _optional_float(row.get("gate2_voltage_v"))
+        if gate1 is not None and gate2 is not None:
+            points.add((gate1, gate2))
+    return points
+
+
+def _append_hall_suite_analysis_review_issues(
+    antisym_rows: list[dict[str, str]],
+    zero_rows: list[dict[str, str]],
+    mobility_rows: list[dict[str, str]],
+    issues: list[HallSuiteAnalysisReviewIssue],
+) -> None:
+    antisym_points = _analysis_gate_points(antisym_rows)
+    zero_points = _analysis_gate_points(zero_rows)
+    mobility_points = _analysis_gate_points(mobility_rows)
+    if antisym_rows and mobility_rows and antisym_points != mobility_points:
+        issues.append(
+            HallSuiteAnalysisReviewIssue(
+                "error",
+                "gate_grid.mobility_vs_antisym",
+                f"mobility grid ({len(mobility_points)}) differs from antisym grid ({len(antisym_points)})",
+            )
+        )
+    if zero_rows and mobility_rows and zero_points != mobility_points:
+        issues.append(
+            HallSuiteAnalysisReviewIssue(
+                "error",
+                "gate_grid.mobility_vs_zero_corrected",
+                f"mobility grid ({len(mobility_points)}) differs from zero-corrected grid ({len(zero_points)})",
+            )
+        )
+    for label, rows, column in [
+        ("antisym_density", antisym_rows, "hall_carrier_density_per_m2"),
+        ("zero_corrected_density", zero_rows, "hall_carrier_density_per_m2"),
+        ("mobility_density", mobility_rows, "hall_carrier_density_per_m2"),
+    ]:
+        signs = _finite_signs(rows, column)
+        if 1 in signs and -1 in signs:
+            issues.append(
+                HallSuiteAnalysisReviewIssue(
+                    "warning",
+                    f"{label}.sign_change",
+                    "finite carrier density contains both electron-like and hole-like signs",
+                )
+            )
+    _append_offset_warnings(antisym_rows, zero_rows, issues)
+    missing_mobility = sum(1 for row in mobility_rows if _optional_float(row.get("mobility_magnitude_cm2_per_v_s")) is None)
+    if missing_mobility:
+        issues.append(
+            HallSuiteAnalysisReviewIssue(
+                "warning",
+                "mobility.missing",
+                f"{missing_mobility} mobility rows are missing finite mobility magnitude",
+            )
+        )
+
+
+def _finite_signs(rows: list[dict[str, str]], column: str) -> set[int]:
+    signs = set()
+    for row in rows:
+        value = _optional_float(row.get(column))
+        if value is None:
+            continue
+        if value > 0:
+            signs.add(1)
+        elif value < 0:
+            signs.add(-1)
+        else:
+            signs.add(0)
+    return signs
+
+
+def _append_offset_warnings(
+    antisym_rows: list[dict[str, str]],
+    zero_rows: list[dict[str, str]],
+    issues: list[HallSuiteAnalysisReviewIssue],
+) -> None:
+    even_larger = 0
+    for row in antisym_rows:
+        odd = _optional_float(row.get("hall_antisym_resistance_ohm"))
+        even = _optional_float(row.get("field_even_resistance_ohm"))
+        if odd is not None and even is not None and abs(even) > abs(odd):
+            even_larger += 1
+    if even_larger:
+        issues.append(
+            HallSuiteAnalysisReviewIssue(
+                "warning",
+                "hall.field_even_offset",
+                f"field-even resistance exceeds antisym Hall resistance at {even_larger} gate points",
+            )
+        )
+    zero_large = 0
+    sign_changed = 0
+    antisym_by_gate = {point: row for point, row in _analysis_rows_by_gate(antisym_rows).items()}
+    for point, row in _analysis_rows_by_gate(zero_rows).items():
+        field = _optional_float(row.get("field_resistance_ohm"))
+        zero = _optional_float(row.get("zero_field_resistance_ohm"))
+        if field is not None and zero is not None and abs(field) > 0 and abs(zero) / abs(field) > 0.5:
+            zero_large += 1
+        antisym_density = _optional_float(antisym_by_gate.get(point, {}).get("hall_carrier_density_per_m2"))
+        zero_density = _optional_float(row.get("hall_carrier_density_per_m2"))
+        if (
+            antisym_density is not None
+            and zero_density is not None
+            and antisym_density != 0
+            and zero_density != 0
+            and (antisym_density > 0) != (zero_density > 0)
+        ):
+            sign_changed += 1
+    if zero_large:
+        issues.append(
+            HallSuiteAnalysisReviewIssue(
+                "warning",
+                "hall.zero_field_offset",
+                f"zero-field Hall resistance is more than 50% of finite-field resistance at {zero_large} gate points",
+            )
+        )
+    if sign_changed:
+        issues.append(
+            HallSuiteAnalysisReviewIssue(
+                "warning",
+                "hall.zero_correction_sign_change",
+                f"zero-field correction changes carrier-density sign at {sign_changed} gate points",
+            )
+        )
+
+
+def _analysis_rows_by_gate(rows: list[dict[str, str]]) -> dict[tuple[float, float], dict[str, str]]:
+    by_gate = {}
+    for row in rows:
+        gate1 = _optional_float(row.get("gate1_voltage_v"))
+        gate2 = _optional_float(row.get("gate2_voltage_v"))
+        if gate1 is not None and gate2 is not None:
+            by_gate[(gate1, gate2)] = row
+    return by_gate
+
+
+def _analysis_summary_table_row(label: str, summary: Any) -> str:
+    if not isinstance(summary, dict):
+        return f"| {label} | 0 | n/a |"
+    columns = summary.get("columns") if isinstance(summary.get("columns"), dict) else {}
+    return f"| {label} | {summary.get('gate_points', 0)} | {', '.join(columns) or 'n/a'} |"
+
+
+def _analysis_range_lines(summary: Any) -> list[str]:
+    if not isinstance(summary, dict):
+        return ["- n/a"]
+    columns = summary.get("columns") if isinstance(summary.get("columns"), dict) else {}
+    if not columns:
+        return ["- n/a"]
+    lines = []
+    for label, stats in columns.items():
+        if not isinstance(stats, dict) or stats.get("finite_count", 0) == 0:
+            lines.append(f"- `{label}`: no finite values")
+            continue
+        lines.append(
+            f"- `{label}`: min={_fmt_optional(stats.get('min'))}, "
+            f"max={_fmt_optional(stats.get('max'))}, finite={stats.get('finite_count')}, missing={stats.get('missing_count')}"
+        )
+    return lines
+
+
 def _load_package_manifest(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(data, dict):
@@ -1636,3 +2031,19 @@ def _fmt_field(value: float | None) -> str:
 
 def _fmt_optional(value: object) -> str:
     return "auto" if value is None else str(value)
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        parsed = float(value)
+    else:
+        text = str(value).strip()
+        if not text:
+            return None
+        try:
+            parsed = float(text)
+        except ValueError:
+            return None
+    return parsed if isfinite(parsed) else None

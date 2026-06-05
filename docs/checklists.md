@@ -563,6 +563,20 @@ remain point-guarded.
 - [ ] Confirm `hall_analysis/mobility/hall_mobility.csv` is written.
 - [ ] Confirm `hall_analysis/hall_suite_analysis_manifest.json` records the
   intake JSON, run folders, value column, and chosen Hall density source.
+- [ ] Review the suite-level Hall analysis before choosing the next gate scan.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-review data\hall_packages\<sample_lab_package>\hall_analysis
+  ```
+- [ ] Confirm `hall_suite_analysis_review.md` summarizes carrier density,
+  Hall resistance, sheet conductivity/resistance, and mobility ranges.
+- [ ] Confirm `hall_suite_analysis_review.json` has
+  `accepted_for_next_scan_decision: true` before using the artifacts for the
+  next measurement decision.
+- [ ] Review all warnings about density sign changes, field-even offsets,
+  zero-field offsets, missing mobility values, or gate-grid mismatches.
+- [ ] Confirm the Keithley NPLC values used for the underlying source/gate
+  SMUs were intentional; do not compare scans with changed NPLC unless the
+  lab deliberately changed the integration-time/noise tradeoff.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

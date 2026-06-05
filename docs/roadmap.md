@@ -460,11 +460,17 @@ root.
     correction, and mobility analysis from one command
   - require result intake PASS before writing derived Hall artifacts
   - keep analysis provenance tied to package manifest and run folders
-- [ ] Phase 25bj: Hall-suite analysis review
+- [x] Phase 25bj: Hall-suite analysis review
   - summarize density, sheet conductivity, and mobility maps from the
     orchestrated analysis folder
   - flag sign changes, missing gate points, and suspicious zero-field offsets
   - write one review report for deciding the next graphene gate scan
+- [ ] Phase 25bk: Hall-suite next-scan proposal
+  - use accepted analysis review artifacts to propose the next gate window and
+    spacing for graphene Hall-bar scans
+  - keep lab approval mandatory before writing any hardware recipe
+  - preserve Keithley NPLC/range/compliance and SR860 settings unless the
+    proposal explicitly calls out why they should change
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
