@@ -63,6 +63,7 @@ from .dual_gate_lockin_scaleup import (
 )
 from .dual_gate_lockin_hall_suite import (
     audit_dual_gate_lockin_hall_suite,
+    format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_plan,
     format_hall_suite_audit,
     write_dual_gate_lockin_hall_suite_template,
@@ -482,6 +483,21 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_plan.add_argument("--zero-field-recipe", type=Path)
     dual_gate_lockin_hall_suite_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_plan.add_argument("--preview-points", type=int, default=3)
+
+    dual_gate_lockin_hall_suite_chunk_plan = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-chunk-plan",
+        help="Print a chunked Hall-suite acquisition, stitching, and analysis runbook without hardware.",
+    )
+    dual_gate_lockin_hall_suite_chunk_plan.add_argument("longitudinal_recipe", type=Path)
+    dual_gate_lockin_hall_suite_chunk_plan.add_argument("plus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_chunk_plan.add_argument("minus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_chunk_plan.add_argument("--zero-field-recipe", type=Path)
+    dual_gate_lockin_hall_suite_chunk_plan.add_argument("--chunk-size", type=int, required=True)
+    dual_gate_lockin_hall_suite_chunk_plan.add_argument(
+        "--max-hardware-points",
+        type=int,
+        default=DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+    )
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -1600,6 +1616,30 @@ def command_dual_gate_lockin_hall_suite_plan(args: argparse.Namespace) -> int:
             preview_points=args.preview_points,
         )
     )
+    return 0 if audit.compatible else 2
+
+
+def command_dual_gate_lockin_hall_suite_chunk_plan(args: argparse.Namespace) -> int:
+    audit = audit_dual_gate_lockin_hall_suite(
+        args.longitudinal_recipe,
+        args.plus_hall_recipe,
+        args.minus_hall_recipe,
+        zero_hall_recipe=args.zero_field_recipe,
+    )
+    try:
+        print(
+            format_dual_gate_lockin_hall_suite_chunk_workflow_plan(
+                args.longitudinal_recipe,
+                args.plus_hall_recipe,
+                args.minus_hall_recipe,
+                zero_hall_recipe=args.zero_field_recipe,
+                chunk_size=args.chunk_size,
+                max_hardware_points=args.max_hardware_points,
+            )
+        )
+    except ValueError as exc:
+        print(f"Dual-gate lock-in Hall suite chunk plan failed: {exc}", file=sys.stderr)
+        return 2
     return 0 if audit.compatible else 2
 
 
@@ -2882,6 +2922,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_check(args)
     if args.command == "dual-gate-lockin-hall-suite-plan":
         return command_dual_gate_lockin_hall_suite_plan(args)
+    if args.command == "dual-gate-lockin-hall-suite-chunk-plan":
+        return command_dual_gate_lockin_hall_suite_chunk_plan(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

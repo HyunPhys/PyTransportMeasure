@@ -3,6 +3,7 @@ import yaml
 from pytransport.cli import main
 from pytransport.dual_gate_lockin_hall_suite import (
     audit_dual_gate_lockin_hall_suite,
+    format_dual_gate_lockin_hall_suite_chunk_workflow_plan,
     format_dual_gate_lockin_hall_suite_plan,
     write_dual_gate_lockin_hall_suite_template,
 )
@@ -43,6 +44,7 @@ def test_write_hall_suite_template_creates_valid_recipe_set(tmp_path):
     review = result.review_path.read_text(encoding="utf-8")
     assert "dual-gate-lockin-hall-suite-check" in review
     assert "dual-gate-lockin-hall-suite-plan" in review
+    assert "dual-gate-lockin-hall-suite-chunk-plan" in review
     assert "dual-gate-lockin-hall-antisym" in review
     assert "dual-gate-lockin-hall-mobility" in review
 
@@ -128,6 +130,20 @@ def test_cli_dual_gate_lockin_hall_suite_template(tmp_path):
     )
     assert code == 0
 
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-chunk-plan",
+            str(output / "cli_graphene_vxx.yaml"),
+            str(output / "cli_graphene_vxy_plus_b.yaml"),
+            str(output / "cli_graphene_vxy_minus_b.yaml"),
+            "--zero-field-recipe",
+            str(output / "cli_graphene_vxy_zero_b.yaml"),
+            "--chunk-size",
+            "2",
+        ]
+    )
+    assert code == 0
+
 
 def test_hall_suite_plan_formats_aggregate_runbook(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(
@@ -156,6 +172,34 @@ def test_hall_suite_plan_formats_aggregate_runbook(tmp_path):
     assert "dual-gate-lockin-hall-zero-correct" in plan
     assert "dual-gate-lockin-hall-mobility" in plan
     assert "Plan Snapshots" in plan
+
+
+def test_hall_suite_chunk_workflow_plan_formats_chunk_and_stitch_commands(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="chunk_graphene",
+        magnetic_field_t=1.0,
+    )
+
+    plan = format_dual_gate_lockin_hall_suite_chunk_workflow_plan(
+        result.longitudinal_recipe,
+        result.plus_hall_recipe,
+        result.minus_hall_recipe,
+        zero_hall_recipe=result.zero_hall_recipe,
+        chunk_size=4,
+        max_hardware_points=4,
+    )
+
+    assert "Dual-Gate Lock-In Hall Suite Chunk Workflow" in plan
+    assert "Chunks per recipe: 7" in plan
+    assert "dual-gate-lockin-chunk-plan" in plan
+    assert "dual-gate-lockin-stitch-chunks" in plan
+    assert "chunk_graphene_vxx_stitched" in plan
+    assert "chunk_graphene_vxy_plus_b_stitched" in plan
+    assert "dual-gate-lockin-hall-antisym" in plan
+    assert "dual-gate-lockin-hall-zero-correct" in plan
+    assert "dual-gate-lockin-hall-mobility" in plan
 
 
 def test_hall_suite_check_fails_for_mismatched_field(tmp_path):
@@ -187,6 +231,20 @@ def test_hall_suite_check_fails_for_mismatched_field(tmp_path):
             str(result.minus_hall_recipe),
             "--zero-field-recipe",
             str(result.zero_hall_recipe),
+        ]
+    )
+    assert code == 2
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-chunk-plan",
+            str(result.longitudinal_recipe),
+            str(result.plus_hall_recipe),
+            str(result.minus_hall_recipe),
+            "--zero-field-recipe",
+            str(result.zero_hall_recipe),
+            "--chunk-size",
+            "2",
         ]
     )
     assert code == 2

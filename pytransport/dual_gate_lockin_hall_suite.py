@@ -175,6 +175,8 @@ def format_hall_suite_review(
             + (f" --zero-field-recipe {zero_hall_recipe}" if zero_hall_recipe is not None else ""),
             f"ptm dual-gate-lockin-hall-suite-plan {longitudinal_recipe} {plus_hall_recipe} {minus_hall_recipe}"
             + (f" --zero-field-recipe {zero_hall_recipe}" if zero_hall_recipe is not None else ""),
+            f"ptm dual-gate-lockin-hall-suite-chunk-plan {longitudinal_recipe} {plus_hall_recipe} {minus_hall_recipe} --chunk-size <N>"
+            + (f" --zero-field-recipe {zero_hall_recipe}" if zero_hall_recipe is not None else ""),
             f"ptm dual-gate-lockin-plan {longitudinal_recipe}",
             f"ptm dual-gate-lockin-plan {plus_hall_recipe}",
             f"ptm dual-gate-lockin-plan {minus_hall_recipe}",
@@ -417,6 +419,142 @@ def format_dual_gate_lockin_hall_suite_plan(
             ]
         )
     return "\n".join(lines)
+
+
+def format_dual_gate_lockin_hall_suite_chunk_workflow_plan(
+    longitudinal_recipe: str | Path,
+    plus_hall_recipe: str | Path,
+    minus_hall_recipe: str | Path,
+    zero_hall_recipe: str | Path | None = None,
+    *,
+    chunk_size: int,
+    max_hardware_points: int = 9,
+) -> str:
+    if chunk_size <= 0:
+        raise ValueError("chunk_size must be positive")
+    if max_hardware_points <= 0:
+        raise ValueError("max_hardware_points must be positive")
+    audit = audit_dual_gate_lockin_hall_suite(
+        longitudinal_recipe,
+        plus_hall_recipe,
+        minus_hall_recipe,
+        zero_hall_recipe=zero_hall_recipe,
+    )
+    lines = [
+        "Dual-Gate Lock-In Hall Suite Chunk Workflow",
+        "",
+        format_hall_suite_audit(audit),
+        "",
+    ]
+    if not audit.compatible:
+        lines.extend(
+            [
+                "Chunk workflow stopped because consistency check failed.",
+                "Fix the listed issue(s) before planning chunked hardware use.",
+                "",
+            ]
+        )
+        return "\n".join(lines)
+
+    recipes = _load_suite_recipes(audit)
+    suite = _suite_entries(audit, recipes)
+    chunks_per_recipe = (
+        0 if audit.point_count is None else (audit.point_count + chunk_size - 1) // chunk_size
+    )
+    lines.extend(
+        [
+            f"Chunk size: {chunk_size}",
+            f"Max hardware points per invocation: {max_hardware_points}",
+            f"Gate-grid points per recipe: {audit.point_count if audit.point_count is not None else 'n/a'}",
+            f"Chunks per recipe: {chunks_per_recipe}",
+            "",
+            "Hardware-Free Planning Commands",
+            "",
+            "```powershell",
+            f"ptm dual-gate-lockin-hall-suite-check {audit.longitudinal_recipe} {audit.plus_hall_recipe} {audit.minus_hall_recipe}"
+            + (f" --zero-field-recipe {audit.zero_hall_recipe}" if audit.zero_hall_recipe is not None else ""),
+            *[
+                f"ptm dual-gate-lockin-chunk-plan {path} --chunk-size {chunk_size} --max-hardware-points {max_hardware_points}"
+                for _, _, path, _ in suite
+            ],
+            "```",
+            "",
+            "Per-Recipe Chunk Acquisition",
+            "",
+        ]
+    )
+    for _, label, path, recipe in suite:
+        lines.extend(
+            [
+                f"### {label}",
+                "",
+                "```powershell",
+                f"ptm dual-gate-lockin-chunk-plan {path} --chunk-size {chunk_size} --max-hardware-points {max_hardware_points}",
+                (
+                    f"# Run the printed chunk sequence for {recipe.measurement_name}, "
+                    "reviewing each checkpoint before continuing."
+                ),
+                "```",
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "Stitch Completed Chunks",
+            "",
+            "```powershell",
+            *[
+                (
+                    f"ptm dual-gate-lockin-stitch-chunks data\\raw\\<{recipe.measurement_name}_chunk_01> "
+                    f"data\\raw\\<{recipe.measurement_name}_chunk_02> --measurement-name {recipe.measurement_name}_stitched "
+                    "--gate-stats --plot --report"
+                )
+                for _, _, _, recipe in suite
+            ],
+            "```",
+            "",
+            "Hall Analysis From Stitched Runs",
+            "",
+            "```powershell",
+            f"ptm dual-gate-lockin-hall-antisym data\\raw\\<{recipes['plus'].measurement_name}_stitched> data\\raw\\<{recipes['minus'].measurement_name}_stitched> --output-dir data\\analysis\\<hall_antisym_folder>",
+            *(
+                [
+                    f"ptm dual-gate-lockin-hall-zero-correct data\\raw\\<{recipes['plus'].measurement_name}_stitched> data\\raw\\<{recipes['zero'].measurement_name}_stitched> --output-dir data\\analysis\\<hall_zero_corrected_folder>"
+                ]
+                if "zero" in recipes
+                else []
+            ),
+            f"ptm dual-gate-lockin-hall-mobility data\\analysis\\<hall_density_folder> data\\raw\\<{recipes['longitudinal'].measurement_name}_stitched> --output-dir data\\analysis\\<hall_mobility_folder>",
+            "```",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _load_suite_recipes(audit: HallSuiteAudit) -> dict[str, DualGateLockInRecipe]:
+    recipes = {
+        "longitudinal": DualGateLockInRecipe.model_validate(load_yaml(audit.longitudinal_recipe)),
+        "plus": DualGateLockInRecipe.model_validate(load_yaml(audit.plus_hall_recipe)),
+        "minus": DualGateLockInRecipe.model_validate(load_yaml(audit.minus_hall_recipe)),
+    }
+    if audit.zero_hall_recipe is not None:
+        recipes["zero"] = DualGateLockInRecipe.model_validate(load_yaml(audit.zero_hall_recipe))
+    return recipes
+
+
+def _suite_entries(
+    audit: HallSuiteAudit,
+    recipes: dict[str, DualGateLockInRecipe],
+) -> list[tuple[str, str, Path, DualGateLockInRecipe]]:
+    entries = [
+        ("1", "Longitudinal Vxx", audit.longitudinal_recipe, recipes["longitudinal"]),
+        ("2", "+B Hall Vxy", audit.plus_hall_recipe, recipes["plus"]),
+        ("3", "-B Hall Vxy", audit.minus_hall_recipe, recipes["minus"]),
+    ]
+    if audit.zero_hall_recipe is not None and "zero" in recipes:
+        entries.append(("4", "0B Hall Vxy", audit.zero_hall_recipe, recipes["zero"]))
+    return entries
 
 
 def _recipe_variant(

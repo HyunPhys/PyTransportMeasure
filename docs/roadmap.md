@@ -412,7 +412,11 @@ root.
   - merge newly measured rows from checkpoint chunk runs into one standard
     dual-gate lock-in run artifact
   - support stats, plot, report, and run-index artifacts on the stitched run
-- [ ] Phase 25ba: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ba: Hall-suite chunk workflow plan
+  - add `ptm dual-gate-lockin-hall-suite-chunk-plan`
+  - combine suite consistency, per-recipe chunk acquisition, stitching, and
+    stitched-run Hall analysis commands in one hardware-free runbook
+- [ ] Phase 25bb: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

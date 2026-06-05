@@ -506,10 +506,14 @@ remain point-guarded.
 - [ ] Print the aggregate Hall-suite runbook before hardware use.
   ```powershell
   ptm dual-gate-lockin-hall-suite-plan configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml
+  ptm dual-gate-lockin-hall-suite-chunk-plan configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml --chunk-size <N>
   ```
 - [ ] Confirm the suite plan shows the Vxx/+B/-B/0B measurement order,
   per-recipe plan snapshots, preflight commands, guarded hardware command
   templates, and Hall analysis commands.
+- [ ] Confirm the Hall-suite chunk plan shows per-recipe chunk-plan commands,
+  stitch commands for Vxx/+B/-B/0B, and Hall analysis commands from stitched
+  run folders.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

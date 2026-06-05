@@ -477,12 +477,15 @@ To print one aggregate runbook for the whole Hall suite, use:
 
 ```powershell
 ptm dual-gate-lockin-hall-suite-plan configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml
+ptm dual-gate-lockin-hall-suite-chunk-plan configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml --chunk-size <N>
 ```
 
 The suite plan is also hardware-free. It repeats the consistency result, lists
 the Vxx/+B/-B/0B measurement order, prints preflight and guarded hardware command
 templates, and shows the downstream Hall antisymmetry, zero-field correction,
 and mobility commands.
+The chunk-plan variant prints the chunked acquisition, per-recipe stitching,
+and stitched-run Hall analysis sequence for the same suite.
 
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
