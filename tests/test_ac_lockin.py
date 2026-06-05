@@ -67,6 +67,7 @@ def test_ac_lockin_recipe_sample_and_plan():
     assert "AC Lock-In Sweep Plan" in plan
     assert "Measurement geometry: two_terminal, 2-terminal" in plan
     assert "Lock-in timing: after_dc_settle" in plan
+    assert "Lock-in read settle: 0 s" in plan
     assert "Lock-in reference frequency: 17.777 Hz" in plan
     assert "Lock-in filter slope: 24 dB/oct" in plan
 
@@ -81,8 +82,11 @@ def test_ac_lockin_hardware_smoke_recipe_is_conservative():
     assert recipe.bias_sweep.current_compliance_a <= 1e-7
     assert recipe.lockin.reference_frequency_hz == pytest.approx(17.777)
     assert recipe.lockin.time_constant_index == 10
+    assert recipe.lockin.settle_time_constants == pytest.approx(3.0)
     assert ac_lockin_point_count(recipe) == 5
     assert "Source NPLC: 1.0" in plan
+    assert "Lock-in time constant: 0.1 s" in plan
+    assert "Lock-in read settle: 0.3 s" in plan
     assert "Lock-in sine output amplitude: 0.01 V" in plan
 
 
@@ -97,6 +101,8 @@ def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert metadata["completed"] is True
     assert metadata["measurement_type"] == "ac_lockin_sweep"
     assert metadata["points_written"] == 5
+    assert metadata["lockin_time_constant_s"] == pytest.approx(0.1)
+    assert metadata["lockin_read_settle_s"] == pytest.approx(0.0)
     assert source.is_output_on is False
     assert lockin.connected is False
     run_dir = Path(metadata["run_dir"])

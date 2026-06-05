@@ -16,6 +16,7 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMeasureUnit
 from .io import unique_run_dir
+from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import AcLockInRecipe, SafetyPreset, sweep_delays, sweep_voltages
 from .safety import validate_ac_lockin_recipe_against_safety, validate_point_current
 
@@ -132,6 +133,8 @@ def format_geometry(geometry: dict) -> str:
 
 
 def format_lockin_settings(lockin: dict[str, Any]) -> list[str]:
+    time_constant_s = lockin_time_constant_s(lockin)
+    read_settle_s = lockin_read_settle_s(lockin)
     fields = [
         ("reference_source", "Lock-in reference source"),
         ("reference_frequency_hz", "Lock-in reference frequency"),
@@ -143,10 +146,14 @@ def format_lockin_settings(lockin: dict[str, Any]) -> list[str]:
         ("voltage_input_range_v", "Lock-in voltage input range"),
         ("sensitivity_index", "Lock-in sensitivity index"),
         ("time_constant_index", "Lock-in time constant index"),
+        ("settle_time_constants", "Lock-in settle time constants"),
+        ("read_settle_s", "Lock-in read settle override"),
         ("filter_slope_db_per_oct", "Lock-in filter slope"),
         ("synchronous_filter", "Lock-in sync filter"),
     ]
-    lines = []
+    lines = [f"Lock-in read settle: {read_settle_s:.6g} s"]
+    if time_constant_s is not None:
+        lines.append(f"Lock-in time constant: {time_constant_s:.6g} s")
     for key, label in fields:
         value = lockin.get(key)
         if value is None:
@@ -156,6 +163,8 @@ def format_lockin_settings(lockin: dict[str, Any]) -> list[str]:
             suffix = " Hz"
         elif key in {"sine_output_amplitude_v", "voltage_input_range_v"}:
             suffix = " V"
+        elif key == "read_settle_s":
+            suffix = " s"
         elif key == "filter_slope_db_per_oct":
             suffix = " dB/oct"
         lines.append(f"{label}: {value}{suffix}")
@@ -175,6 +184,8 @@ def run_ac_lockin_sweep(
     writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
     writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
     points_written = 0
+    lockin_tc_s = lockin_time_constant_s(recipe.lockin)
+    lockin_settle_s = lockin_read_settle_s(recipe.lockin)
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "measurement_type": "ac_lockin_sweep",
@@ -191,6 +202,9 @@ def run_ac_lockin_sweep(
         "run_dir": str(writer.run_dir),
         "source_instrument_probe": None,
         "lockin_probe": None,
+        "lockin_time_constant_s": lockin_tc_s,
+        "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
+        "lockin_read_settle_s": lockin_settle_s,
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
@@ -224,6 +238,8 @@ def run_ac_lockin_sweep(
             if compliance_hit:
                 raise SafetyLimitError("Source instrument compliance was reached", "source_instrument_compliance")
             validate_point_current(source_current_a, safety)
+            if lockin_settle_s:
+                time.sleep(lockin_settle_s)
             reading = lockin.read_channels()
             source_resistance_ohm = None if source_current_a == 0 else float(voltage_v) / source_current_a
             point = AcLockInPoint(

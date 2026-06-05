@@ -514,6 +514,7 @@ lockin:
   voltage_input_range_v: 0.01
   sensitivity_index: 18
   time_constant_index: 10
+  settle_time_constants: 3.0
   filter_slope_db_per_oct: 24
   synchronous_filter: false
 ```
@@ -524,6 +525,14 @@ read-only commands and compare them against these recipe values. A mismatch in
 declared reference frequency, sine amplitude, input mode, input range,
 sensitivity, time constant, filter slope, or synchronous filter blocks the
 preflight before any Keithley output is enabled.
+
+For hardware lock-in reads, the runner can wait after the DC/gate settle and
+before `SNAP?`/`OUTP?` readout. Set `settle_time_constants` to derive this
+delay from the SR860 `time_constant_index`, or set `read_settle_s` for an
+explicit seconds override. For example, `time_constant_index: 10` is 0.1 s on
+the SR860, so `settle_time_constants: 3.0` adds a 0.3 s lock-in read settle per
+point. Plan and metadata output include `lockin_time_constant_s` and
+`lockin_read_settle_s`.
 
 Current hardware code reads SR860 channels and setting readback but does not
 reset or reconfigure the SR860. Adjust the SR860 front panel manually until the
@@ -914,6 +923,10 @@ instrument:
   address: GPIB0::2::INSTR
   nplc: 1.0
 ```
+
+Longer NPLC improves current averaging at the cost of sweep speed. For DC gate
+leakage and source-current checks, set NPLC deliberately in every active
+Keithley block before a hardware run.
 
 For the first AC/lock-in hardware smoke test, use:
 

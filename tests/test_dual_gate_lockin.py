@@ -118,12 +118,14 @@ def test_dual_gate_lockin_recipe_sample_and_plan():
     assert "Lock-in timing: after_dc_settle" in plan
     assert "Lock-in reference source: internal" in plan
     assert "Lock-in time constant index: 10" in plan
+    assert "Lock-in read settle: 0 s" in plan
     assert "Topology layout: hall_bar" in plan
     assert "Source/drain contacts: S -> D" in plan
     assert "Nominal source-drain AC current: 1e-08 A" in plan
     assert "Total points: 25" in plan
     assert "Scan readiness:" in plan
     assert "Gate grid: 5 x 5 = 25 points" in plan
+    assert "Lock-in read settle per point: 0 s" in plan
     assert "Within default point guard: False" in plan
 
 
@@ -136,8 +138,12 @@ def test_dual_gate_lockin_limited_active_recipe_is_tiny_and_guarded():
     assert dual_gate_lockin_point_count(recipe) == 4
     assert recipe.gate1_sweep.current_compliance_a <= 1e-8
     assert recipe.gate2_sweep.current_compliance_a <= 1e-8
+    assert recipe.lockin.settle_time_constants == pytest.approx(3.0)
     assert "Total points: 4" in plan
     assert "Gate grid: 2 x 2 = 4 points" in plan
+    assert "Lock-in read settle: 0.3 s" in plan
+    assert "Lock-in read settle per point: 0.3 s" in plan
+    assert "Minimum programmed settle time: 2.4 s" in plan
     assert "Within default point guard: True" in plan
 
 
@@ -169,6 +175,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert metadata["recovery_recommendation"] == "run_completed_no_recovery_needed"
     assert metadata["source_drain_excitation_v"] == pytest.approx(0.01)
     assert metadata["source_drain_nominal_current_a"] == pytest.approx(1e-8)
+    assert metadata["lockin_time_constant_s"] == pytest.approx(0.1)
+    assert metadata["lockin_read_settle_s"] == pytest.approx(0.0)
     assert gate1_smu.is_output_on is False
     assert gate2_smu.is_output_on is False
     assert lockin.connected is False

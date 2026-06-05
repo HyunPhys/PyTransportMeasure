@@ -472,9 +472,10 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   `reference_source`, `reference_frequency_hz`, `sine_output_amplitude_v`,
   `input_mode`, `voltage_input`, `input_coupling`, `input_grounding`,
   `voltage_input_range_v`, `sensitivity_index`, `time_constant_index`,
-  `filter_slope_db_per_oct`, and `synchronous_filter`.
-- [ ] Confirm the plan output prints the expected SR860 settings before any
-  hardware run.
+  `settle_time_constants` or `read_settle_s`, `filter_slope_db_per_oct`, and
+  `synchronous_filter`.
+- [ ] Confirm the plan output prints the expected Keithley NPLC, SR860 settings,
+  SR860 time constant, and `Lock-in read settle` before any hardware run.
 - [ ] Confirm `ptm probe --instrument srs_sr860` reports `setting_*` fields for
   SR860 reference, excitation, input, range, sensitivity, filter, and sync
   settings.
@@ -498,6 +499,8 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
   ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
   ```
+- [ ] Confirm the hardware smoke plan prints `Lock-in read settle: 0.3 s` when
+  using `time_constant_index: 10` and `settle_time_constants: 3.0`.
 - [ ] Run the first hardware smoke test without `--yes`.
   ```powershell
   ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report

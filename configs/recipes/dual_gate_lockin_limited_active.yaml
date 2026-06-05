@@ -55,6 +55,7 @@ lockin:
   voltage_input_range_v: 0.01
   sensitivity_index: 18
   time_constant_index: 10
+  settle_time_constants: 3.0
   filter_slope_db_per_oct: 24
   synchronous_filter: false
 topology:

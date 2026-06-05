@@ -40,6 +40,8 @@ class LockInConfig(BaseModel):
     voltage_input_range_v: Literal[1.0, 0.3, 0.1, 0.03, 0.01] | None = None
     sensitivity_index: int | None = Field(default=None, ge=0, le=27)
     time_constant_index: int | None = Field(default=None, ge=0, le=21)
+    settle_time_constants: float = Field(default=0.0, ge=0.0)
+    read_settle_s: float | None = Field(default=None, ge=0.0)
     filter_slope_db_per_oct: Literal[6, 12, 18, 24] | None = None
     synchronous_filter: bool | None = None
 

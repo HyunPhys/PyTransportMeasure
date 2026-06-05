@@ -21,6 +21,7 @@ from .batch import safe_name
 from .errors import SafetyLimitError
 from .instruments.base import LockInAmplifier, SMUVoltageSourceConfig, SourceMeasureUnit
 from .io import unique_run_dir
+from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import DualGateLockInRecipe, SafetyPreset, gate_voltages_from_config
 from .safety import validate_dual_gate_lockin_recipe_against_safety, validate_point_current
 from .ac_lockin import format_lockin_settings
@@ -163,7 +164,11 @@ def format_dual_gate_lockin_scan_readiness(
     total_points = len(gate1_voltages) * len(gate2_voltages)
     gate1_step = voltage_step(gate1_voltages)
     gate2_step = voltage_step(gate2_voltages)
-    minimum_settle_s = len(gate1_voltages) * recipe.gate1_sweep.settle_s + total_points * recipe.gate2_sweep.settle_s
+    lockin_settle_s = lockin_read_settle_s(recipe.lockin)
+    minimum_settle_s = (
+        len(gate1_voltages) * recipe.gate1_sweep.settle_s
+        + total_points * (recipe.gate2_sweep.settle_s + lockin_settle_s)
+    )
     topology = recipe.topology.model_dump(mode="json")
     nominal_current = nominal_source_drain_current_a(topology)
     lines = [
@@ -171,6 +176,7 @@ def format_dual_gate_lockin_scan_readiness(
         f"  Gate grid: {len(gate1_voltages)} x {len(gate2_voltages)} = {total_points} points",
         f"  Gate1 step: {format_step(gate1_step)}",
         f"  Gate2 step: {format_step(gate2_step)}",
+        f"  Lock-in read settle per point: {lockin_settle_s:.6g} s",
         f"  Minimum programmed settle time: {minimum_settle_s:.6g} s",
         f"  Default hardware point guard: {max_hardware_points} points",
         f"  Within default point guard: {total_points <= max_hardware_points}",
@@ -276,6 +282,8 @@ def run_dual_gate_lockin_sweep(
     gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
     total_points = len(gate1_voltages) * len(gate2_voltages)
     topology = recipe.topology.model_dump(mode="json")
+    lockin_tc_s = lockin_time_constant_s(recipe.lockin)
+    lockin_settle_s = lockin_read_settle_s(recipe.lockin)
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "measurement_type": "dual_gate_lockin_sweep",
@@ -309,6 +317,9 @@ def run_dual_gate_lockin_sweep(
         "gate1_instrument_probe": None,
         "gate2_instrument_probe": None,
         "lockin_probe": None,
+        "lockin_time_constant_s": lockin_tc_s,
+        "lockin_settle_time_constants": recipe.lockin.settle_time_constants,
+        "lockin_read_settle_s": lockin_settle_s,
         "csv_path": str(writer.csv_path),
         "metadata_path": str(writer.metadata_path),
         "recipe_snapshot_path": str(writer.recipe_snapshot_path),
@@ -362,6 +373,8 @@ def run_dual_gate_lockin_sweep(
                 if gate2_compliance_hit:
                     raise SafetyLimitError("Gate2 instrument compliance was reached", "gate2_instrument_compliance")
                 validate_point_current(gate2_current_a, safety)
+                if lockin_settle_s:
+                    time.sleep(lockin_settle_s)
                 reading = lockin.read_channels()
                 transport = derive_lockin_transport_values(
                     reading.r_v,

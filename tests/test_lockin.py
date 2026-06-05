@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from pytransport.instruments.base import LockInReading
 from pytransport.instruments.fake import FakeLockIn
 from pytransport.instruments.srs_sr860 import SRS_SR860
+from pytransport.lockin_timing import lockin_read_settle_s, lockin_time_constant_s, sr860_time_constant_s
 from pytransport.recipes import LockInConfig
 
 
@@ -46,6 +47,32 @@ def test_lockin_config_requires_address_only_when_enabled():
 
     with pytest.raises(ValidationError):
         LockInConfig.model_validate({"enabled": True})
+
+
+def test_sr860_time_constant_lookup_and_read_settle_policy():
+    assert sr860_time_constant_s(10) == pytest.approx(0.1)
+
+    lockin = LockInConfig.model_validate(
+        {
+            "enabled": True,
+            "address": "GPIB0::4::INSTR",
+            "time_constant_index": 10,
+            "settle_time_constants": 3.0,
+        }
+    )
+
+    assert lockin_time_constant_s(lockin) == pytest.approx(0.1)
+    assert lockin_read_settle_s(lockin) == pytest.approx(0.3)
+
+
+def test_lockin_read_settle_explicit_override_wins():
+    lockin = {
+        "time_constant_index": 10,
+        "settle_time_constants": 3.0,
+        "read_settle_s": 0.05,
+    }
+
+    assert lockin_read_settle_s(lockin) == pytest.approx(0.05)
 
 
 class FakeSR860VisaInstrument:

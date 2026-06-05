@@ -224,7 +224,13 @@ root.
   - save default/requested guard, recipe point count, raised status, and
     approval note in run metadata
   - keep actual broad-scan size decision tied to lab feedback
-- [ ] Phase 25n: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25n: Lock-in read settling policy
+  - add SR860 time-constant lookup and shared lock-in read-settle calculation
+  - support `settle_time_constants` and explicit `read_settle_s` in lock-in
+    recipes
+  - apply the computed read settle before AC and dual-gate lock-in readout
+  - print and save `lockin_time_constant_s` and `lockin_read_settle_s`
+- [ ] Phase 25o: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory
