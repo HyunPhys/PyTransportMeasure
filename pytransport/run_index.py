@@ -37,6 +37,9 @@ def build_index_record(metadata: dict[str, Any]) -> dict[str, Any]:
         "recipe_path": metadata.get("recipe_path"),
         "sample_id": experiment.get("sample_id"),
         "device_id": experiment.get("device_id"),
+        "cooldown_id": experiment.get("cooldown_id"),
+        "contact_geometry": experiment.get("contact_geometry"),
+        "lab_notebook_ref": experiment.get("lab_notebook_ref"),
         "tags": experiment.get("tags") or [],
     }
 
@@ -128,13 +131,14 @@ def format_run_index(records: list[dict[str, Any]], limit: int = 10) -> str:
         measurement_type = record.get("measurement_type") or "drain_iv"
         sample = record.get("sample_id") or "n/a"
         device = record.get("device_id") or "n/a"
+        cooldown = record.get("cooldown_id") or "n/a"
         tags = ", ".join(record.get("tags") or []) or "none"
         error = record.get("error_type") or ""
         suffix = f", error={error}" if error else ""
         lines.append(
             (
                 f"{record.get('started_at')} | type={measurement_type} | completed={completed} | "
-                f"points={points} | sample={sample} | device={device} | tags={tags}{suffix}\n"
+                f"points={points} | sample={sample} | device={device} | cooldown={cooldown} | tags={tags}{suffix}\n"
                 f"  {record.get('run_dir')}"
             )
         )

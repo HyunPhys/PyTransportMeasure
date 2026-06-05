@@ -97,6 +97,7 @@ ptm-gui
 - GUI workflow guide: [docs/phase41_gui_workflow_guide.md](docs/phase41_gui_workflow_guide.md)
 - GUI dry-run model scroll: [docs/phase42_gui_dry_run_model_scroll.md](docs/phase42_gui_dry_run_model_scroll.md)
 - GUI cooperative stop: [docs/phase43_gui_cooperative_stop.md](docs/phase43_gui_cooperative_stop.md)
+- Lab context metadata: [docs/phase44_lab_context_metadata.md](docs/phase44_lab_context_metadata.md)
 
 ## Hardware Smoke Test
 

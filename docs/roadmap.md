@@ -204,6 +204,9 @@ This roadmap tracks the large development phases. Completed items are checked.
   - add a Stop Run button for active GUI dry-runs and guarded hardware runs
   - stop Drain I-V at safe runner checkpoints with partial artifacts and output
     off cleanup
+- [x] Phase 24u: lab context metadata
+  - add cooldown/contact/notebook fields to recipe experiment metadata
+  - expose lab context in GUI Drain I-V form, validation, reports, and run index
 
 ## Next GUI
 
@@ -222,7 +225,7 @@ This roadmap tracks the large development phases. Completed items are checked.
 - [ ] Method plugins or modules for additional instruments and measurement
   families.
 - [ ] More robust live monitoring beyond Drain I-V cooperative stop.
-- [ ] Richer metadata for sample, device, cooldown, contacts, and lab notebook
+- [x] Richer metadata for sample, device, cooldown, contacts, and lab notebook
   references.
 - [ ] Automated report templates for publications and internal experiment logs.
 - [ ] Hardware integration tests that can be run explicitly in the lab.

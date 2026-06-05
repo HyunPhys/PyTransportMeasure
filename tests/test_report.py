@@ -23,6 +23,10 @@ def test_write_run_report(tmp_path):
                     "experiment": {
                         "sample_id": "sample",
                         "device_id": "device",
+                        "cooldown_id": "cooldown-1",
+                        "contact_geometry": "hall bar",
+                        "contact_notes": "outer pads",
+                        "lab_notebook_ref": "ELN-1 p.2",
                         "operator": "operator",
                         "notes": "note",
                         "tags": ["tag"],
@@ -77,5 +81,8 @@ def test_write_run_report(tmp_path):
     assert output == run_dir / "report.md"
     assert "# report_test" in text
     assert "- Sample: sample" in text
+    assert "- Cooldown: cooldown-1" in text
+    assert "- Contact geometry: hall bar" in text
+    assert "- Lab notebook: ELN-1 p.2" in text
     assert "- Fitted resistance: 1000 ohm" in text
     assert "![I-V plot](iv_plot.svg)" in text

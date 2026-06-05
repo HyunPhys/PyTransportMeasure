@@ -85,6 +85,22 @@ def test_gui_recipe_editor_reports_schema_errors():
     assert "Validation: FAIL" in message
 
 
+def test_drain_iv_form_round_trips_lab_context_fields():
+    values = drain_iv_form_from_text(Path("configs/recipes/drain_iv_1k_resistor.yaml").read_text(encoding="utf-8"))
+    values["cooldown_id"] = "cd-2026-06"
+    values["contact_geometry"] = "2-probe wirebond"
+    values["contact_notes"] = "outer Au pads"
+    values["lab_notebook_ref"] = "ELN-42 p.7"
+
+    text = drain_iv_text_from_form(values)
+    round_trip = drain_iv_form_from_text(text)
+
+    assert round_trip["cooldown_id"] == "cd-2026-06"
+    assert round_trip["contact_geometry"] == "2-probe wirebond"
+    assert round_trip["contact_notes"] == "outer Au pads"
+    assert round_trip["lab_notebook_ref"] == "ELN-42 p.7"
+
+
 def test_gui_dry_run_writes_artifacts_for_drain_iv(tmp_path):
     recipe_path = tmp_path / "drain.yaml"
     recipe_path.write_text(

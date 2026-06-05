@@ -15,6 +15,9 @@ class RecipeValidationReport:
     measurement_name: str
     sample_id: str | None
     device_id: str | None
+    cooldown_id: str | None
+    contact_geometry: str | None
+    lab_notebook_ref: str | None
     operator: str | None
     tags: list[str]
     safety_preset: str
@@ -57,6 +60,9 @@ def validate_recipe(
         measurement_name=recipe.measurement_name,
         sample_id=recipe.experiment.sample_id,
         device_id=recipe.experiment.device_id,
+        cooldown_id=recipe.experiment.cooldown_id,
+        contact_geometry=recipe.experiment.contact_geometry,
+        lab_notebook_ref=recipe.experiment.lab_notebook_ref,
         operator=recipe.experiment.operator,
         tags=recipe.experiment.tags,
         safety_preset=recipe.safety_preset,
@@ -89,6 +95,9 @@ def format_validation_report(report: RecipeValidationReport) -> str:
             f"Measurement: {report.measurement_name}",
             f"Sample: {report.sample_id or 'n/a'}",
             f"Device: {report.device_id or 'n/a'}",
+            f"Cooldown: {report.cooldown_id or 'n/a'}",
+            f"Contact geometry: {report.contact_geometry or 'n/a'}",
+            f"Lab notebook: {report.lab_notebook_ref or 'n/a'}",
             f"Operator: {report.operator or 'n/a'}",
             f"Tags: {', '.join(report.tags) if report.tags else 'none'}",
             f"Safety preset: {report.safety_preset}",

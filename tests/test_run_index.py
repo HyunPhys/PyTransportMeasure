@@ -28,6 +28,9 @@ def make_metadata(run_dir="data/raw/run1"):
             "experiment": {
                 "sample_id": "sample",
                 "device_id": "device",
+                "cooldown_id": "cooldown-1",
+                "contact_geometry": "hall bar",
+                "lab_notebook_ref": "ELN-1",
                 "tags": ["smoke-test"],
             }
         },
@@ -45,6 +48,9 @@ def test_build_index_record_extracts_search_fields():
 
     assert record["sample_id"] == "sample"
     assert record["device_id"] == "device"
+    assert record["cooldown_id"] == "cooldown-1"
+    assert record["contact_geometry"] == "hall bar"
+    assert record["lab_notebook_ref"] == "ELN-1"
     assert record["tags"] == ["smoke-test"]
     assert record["measurement_type"] == "drain_iv"
 
@@ -75,6 +81,7 @@ def test_append_and_read_run_index(tmp_path):
     text = format_run_index(records, limit=1)
     assert "run-b" in text
     assert "run-a" not in text
+    assert "cooldown=cooldown-1" in text
     assert "tags=smoke-test" in text
 
 

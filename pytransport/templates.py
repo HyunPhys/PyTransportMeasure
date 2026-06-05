@@ -19,6 +19,10 @@ def recipe_template(
     address: str,
     sample_id: str = "",
     device_id: str = "",
+    cooldown_id: str = "",
+    contact_geometry: str = "",
+    contact_notes: str = "",
+    lab_notebook_ref: str = "",
     operator: str = "",
 ) -> dict:
     base = {
@@ -27,6 +31,10 @@ def recipe_template(
         "experiment": {
             "sample_id": sample_id,
             "device_id": device_id,
+            "cooldown_id": cooldown_id,
+            "contact_geometry": contact_geometry,
+            "contact_notes": contact_notes,
+            "lab_notebook_ref": lab_notebook_ref,
             "operator": operator,
             "notes": "Fill in notes before running on a real device.",
             "tags": ["template"],
@@ -63,6 +71,10 @@ def write_recipe_template(
     address: str,
     sample_id: str = "",
     device_id: str = "",
+    cooldown_id: str = "",
+    contact_geometry: str = "",
+    contact_notes: str = "",
+    lab_notebook_ref: str = "",
     operator: str = "",
     overwrite: bool = False,
 ) -> Path:
@@ -70,7 +82,18 @@ def write_recipe_template(
     if path.exists() and not overwrite:
         raise FileExistsError(f"Recipe already exists: {path}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    data = recipe_template(mode, measurement_name, address, sample_id, device_id, operator)
+    data = recipe_template(
+        mode,
+        measurement_name,
+        address,
+        sample_id,
+        device_id,
+        cooldown_id,
+        contact_geometry,
+        contact_notes,
+        lab_notebook_ref,
+        operator,
+    )
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(data, handle, sort_keys=False)
     return path

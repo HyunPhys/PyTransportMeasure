@@ -405,8 +405,9 @@ Drain I-V form workflow:
 
 1. Select `Drain I-V`.
 2. Open `Drain I-V Form`.
-3. Edit the address, terminal, voltage/current ranges, sweep, safety preset,
-   output directory, and optional quality checks.
+3. Edit sample/device context, cooldown/contact/notebook metadata, address,
+   terminal, voltage/current ranges, sweep, safety preset, output directory, and
+   optional quality checks.
 4. Click `Form -> YAML`.
 5. Click `Plan` to preview the current editor draft.
 6. Open `Validation` and check that the recipe passes.
@@ -436,6 +437,20 @@ Recipe tool button meanings:
 - `YAML -> Form`: copy values from the current YAML editor into the structured
   Drain I-V form.
 - `Form -> YAML`: regenerate the YAML editor contents from the structured form.
+
+Lab context metadata:
+
+The `experiment` block can include `sample_id`, `device_id`, `cooldown_id`,
+`contact_geometry`, `contact_notes`, `lab_notebook_ref`, `operator`, `notes`,
+and `tags`. These fields do not change the measurement. They are saved into
+metadata, validation output, reports, and the run index so a run can be traced
+back to the actual device state and lab notebook.
+
+CLI starter recipes can include this context:
+
+```powershell
+ptm new-recipe configs/recipes/my_device_iv.yaml --measurement-name my_device_iv --sample-id sample001 --device-id devA --cooldown-id cd-1 --contact-geometry "2-probe wirebond" --lab-notebook-ref "ELN-1 p.2"
+```
 
 The GUI status under `Recipe Tools` tracks this relationship. If YAML is edited,
 YAML remains the execution source and the form may be stale. If the form is

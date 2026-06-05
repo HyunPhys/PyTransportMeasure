@@ -19,6 +19,33 @@ def test_load_example_recipe():
     assert recipe.sweep.points == 21
 
 
+def test_experiment_metadata_accepts_lab_context_fields():
+    recipe = DrainIVRecipe.model_validate(
+        {
+            "measurement_name": "metadata_context",
+            "experiment": {
+                "sample_id": "sample-a",
+                "device_id": "dev-1",
+                "cooldown_id": "cd-2026-06",
+                "contact_geometry": "2-probe wirebond",
+                "contact_notes": "Au pads, left-right",
+                "lab_notebook_ref": "ELN-42 p.7",
+            },
+            "instrument": {"address": "FAKE"},
+            "sweep": {
+                "start_v": -0.01,
+                "stop_v": 0.01,
+                "points": 3,
+                "current_compliance_a": 1e-6,
+            },
+        }
+    )
+
+    assert recipe.experiment.cooldown_id == "cd-2026-06"
+    assert recipe.experiment.contact_geometry == "2-probe wirebond"
+    assert recipe.experiment.lab_notebook_ref == "ELN-42 p.7"
+
+
 def test_load_phase0_recipe_templates():
     resistor = load_recipe(Path("configs/recipes/drain_iv_1k_resistor.yaml"))
     nanodevice = load_recipe(Path("configs/recipes/drain_iv_nanodevice_safe.yaml"))

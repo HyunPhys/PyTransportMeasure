@@ -43,6 +43,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   plot updates during measurement progress.
 - [x] GUI Stop Run requests cooperative Drain I-V interruption with partial
   artifacts and output-off cleanup.
+- [x] Lab context metadata tracks cooldown, contact geometry, contact notes, and
+  lab notebook reference in recipes/reports.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -82,6 +84,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ```
 - [ ] Edit `measurement_name`, `experiment`, `instrument.address`,
   `instrument.terminal`, sweep range, compliance, and output directory.
+- [ ] Fill `experiment.cooldown_id`, `experiment.contact_geometry`,
+  `experiment.contact_notes`, and `experiment.lab_notebook_ref` when available.
 - [ ] Choose a conservative safety preset.
 - [ ] Validate the recipe.
   ```powershell
@@ -163,6 +167,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Click `Check YAML`, `Refresh Instruments`, `Test Selected Address`,
   `Plan`, and a dry-run; confirm each successful step changes to `[x]`.
 - [ ] Edit YAML or the form and confirm recipe-dependent workflow steps reset.
+- [ ] Fill `Cooldown`, `Contact geometry`, `Contact notes`, and `Notebook ref`;
+  click `Form -> YAML` and confirm they appear under `experiment`.
 - [ ] Start a multi-point Drain I-V dry-run, click `Stop Run`, and confirm
   metadata records `completed=false` and `interrupted=true`.
 - [ ] Run `Doctor`, `Preflight`, or `Dry Run`.

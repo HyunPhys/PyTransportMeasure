@@ -62,6 +62,9 @@ def test_gui_recipe_tool_labels_are_distinct(app):
     assert window.apply_form_button.text() == "Form -> YAML"
     assert window.instrument_address_combo.currentText()
     assert "Execution source" in window.recipe_sync_status.text()
+    assert "cooldown_id" in window.form_fields
+    assert "contact_geometry" in window.form_fields
+    assert "lab_notebook_ref" in window.form_fields
     window.close()
 
 

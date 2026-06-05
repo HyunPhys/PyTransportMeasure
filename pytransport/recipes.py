@@ -128,6 +128,10 @@ class ExperimentMetadata(BaseModel):
 
     sample_id: str | None = None
     device_id: str | None = None
+    cooldown_id: str | None = None
+    contact_geometry: str | None = None
+    contact_notes: str | None = None
+    lab_notebook_ref: str | None = None
     operator: str | None = None
     notes: str | None = None
     tags: list[str] = Field(default_factory=list)

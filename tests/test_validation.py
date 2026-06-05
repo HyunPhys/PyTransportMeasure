@@ -20,6 +20,42 @@ def test_validate_recipe_file_reports_smoke_test():
     assert "Sample: resistor_box" in format_validation_report(report)
 
 
+def test_validate_recipe_file_reports_lab_context(tmp_path):
+    recipe_path = tmp_path / "context.yaml"
+    recipe_path.write_text(
+        """
+measurement_name: context
+safety_preset: nano_device_safe
+experiment:
+  sample_id: sample-a
+  device_id: dev-1
+  cooldown_id: cd-1
+  contact_geometry: hall bar
+  lab_notebook_ref: ELN-1
+instrument:
+  id: keithley_2450
+  address: FAKE
+sweep:
+  mode: linear_one_way
+  start_v: -0.01
+  stop_v: 0.01
+  points: 3
+  delay_s: 0
+  current_compliance_a: 1.0e-7
+output:
+  directory: data/raw
+""".strip(),
+        encoding="utf-8",
+    )
+
+    report = validate_recipe_file(recipe_path)
+    text = format_validation_report(report)
+
+    assert report.cooldown_id == "cd-1"
+    assert "Contact geometry: hall bar" in text
+    assert "Lab notebook: ELN-1" in text
+
+
 def test_validate_recipe_file_rejects_safety_limit(tmp_path):
     recipe_path = tmp_path / "unsafe.yaml"
     recipe_path.write_text(

@@ -274,6 +274,10 @@ def build_parser() -> argparse.ArgumentParser:
     new_recipe.add_argument("--address", default="GPIB0::2::INSTR")
     new_recipe.add_argument("--sample-id", default="")
     new_recipe.add_argument("--device-id", default="")
+    new_recipe.add_argument("--cooldown-id", default="")
+    new_recipe.add_argument("--contact-geometry", default="")
+    new_recipe.add_argument("--contact-notes", default="")
+    new_recipe.add_argument("--lab-notebook-ref", default="")
     new_recipe.add_argument("--operator", default="")
     new_recipe.add_argument("--overwrite", action="store_true")
 
@@ -1364,6 +1368,10 @@ def command_new_recipe(args: argparse.Namespace) -> int:
         address=args.address,
         sample_id=args.sample_id,
         device_id=args.device_id,
+        cooldown_id=args.cooldown_id,
+        contact_geometry=args.contact_geometry,
+        contact_notes=args.contact_notes,
+        lab_notebook_ref=args.lab_notebook_ref,
         operator=args.operator,
         overwrite=args.overwrite,
     )

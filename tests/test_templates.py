@@ -16,6 +16,10 @@ def test_write_linear_recipe_template(tmp_path):
         address="GPIB0::2::INSTR",
         sample_id="sample",
         device_id="device",
+        cooldown_id="cd-1",
+        contact_geometry="hall bar",
+        contact_notes="outer pads",
+        lab_notebook_ref="ELN-1",
     )
 
     recipe = load_recipe(path)
@@ -23,6 +27,10 @@ def test_write_linear_recipe_template(tmp_path):
     assert recipe.measurement_name == "new_linear"
     assert recipe.experiment.sample_id == "sample"
     assert recipe.experiment.device_id == "device"
+    assert recipe.experiment.cooldown_id == "cd-1"
+    assert recipe.experiment.contact_geometry == "hall bar"
+    assert recipe.experiment.contact_notes == "outer pads"
+    assert recipe.experiment.lab_notebook_ref == "ELN-1"
     assert len(sweep_voltages(recipe.sweep)) == 21
 
 
