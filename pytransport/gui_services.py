@@ -108,6 +108,12 @@ class GuiSchemeComparison:
 
 
 @dataclass(frozen=True)
+class GuiState:
+    run_source_dir: str = "data/raw"
+    scheme_source_dir: str = "data/schemes"
+
+
+@dataclass(frozen=True)
 class GuiSchemaField:
     path: str
     label: str
@@ -1415,6 +1421,38 @@ def write_gui_draft_recipe(
     path = directory / f"{safe_filename(measurement_type)}_{safe_filename(measurement_name)}.yaml"
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def load_gui_state(path: str | Path = "data/gui_state.json") -> GuiState:
+    state_path = Path(path)
+    try:
+        data = json.loads(state_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return GuiState()
+    if not isinstance(data, dict):
+        return GuiState()
+    return GuiState(
+        run_source_dir=str(data.get("run_source_dir") or "data/raw"),
+        scheme_source_dir=str(data.get("scheme_source_dir") or "data/schemes"),
+    )
+
+
+def save_gui_state(state: GuiState, path: str | Path = "data/gui_state.json") -> Path:
+    state_path = Path(path)
+    state_path.parent.mkdir(parents=True, exist_ok=True)
+    state_path.write_text(
+        json.dumps(
+            {
+                "run_source_dir": state.run_source_dir,
+                "scheme_source_dir": state.scheme_source_dir,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return state_path
 
 
 def safe_filename(value: str) -> str:

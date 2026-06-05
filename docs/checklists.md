@@ -67,6 +67,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   without embedding stretched SVG artifacts.
 - [x] GUI Schemes workspace can filter saved schemes and export comparison rows
   as CSV.
+- [x] GUI remembers run/scheme source folders in a small GUI state file.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -429,6 +430,9 @@ Use this checklist before pulse hardware work begins.
 - [ ] Confirm the saved scheme appears in `Saved`.
 - [ ] Set saved filters by name, completion, QC, or dry-run state and confirm
   `Refresh Saved` narrows the table.
+- [ ] Change the saved scheme source folder, close/reopen the GUI, and confirm
+  the field is remembered.
+- [ ] Type a scheme-name filter and press Enter, then confirm the table refreshes.
 - [ ] Select the row and confirm `Load Selected` becomes enabled.
 - [ ] Click `Load Selected`.
 - [ ] Confirm `Result` and `Report` update to the selected saved scheme.

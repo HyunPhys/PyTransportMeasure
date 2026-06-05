@@ -503,6 +503,10 @@ Saved Scheme Browser workflow:
 8. Use `Scheme Folder` to open the selected saved scheme directory.
 9. Use `Scheme Report` when the saved scheme has a `scheme_report.md` file.
 
+The GUI remembers the latest run and scheme source folders in
+`data/gui_state.json`. If the file is missing or invalid, the GUI falls back to
+`data/raw` and `data/schemes`.
+
 Scheme Comparison workflow:
 
 1. Open `Schemes`.

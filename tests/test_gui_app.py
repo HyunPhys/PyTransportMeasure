@@ -341,6 +341,23 @@ def test_gui_scheme_filter_controls(app):
     window.close()
 
 
+def test_gui_source_state_and_table_column_widths(app, tmp_path):
+    window = MainWindow()
+    window.gui_state_path = tmp_path / "gui_state.json"
+
+    window.run_source_dir.setText("custom/raw")
+    window.scheme_source_dir.setText("custom/schemes")
+    window.save_gui_source_state()
+
+    text = window.gui_state_path.read_text(encoding="utf-8")
+    assert "custom/raw" in text
+    assert "custom/schemes" in text
+    assert window.saved_scheme_table.columnWidth(1) >= 180
+    assert window.scheme_compare_table.columnWidth(10) >= 100
+    assert window.recent_table.columnWidth(10) >= 250
+    window.close()
+
+
 def test_same_path_handles_equivalent_relative_paths():
     assert same_path(Path("data/raw"), Path("data") / "raw")
 

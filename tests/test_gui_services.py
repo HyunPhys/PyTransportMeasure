@@ -5,6 +5,7 @@ import pytest
 
 from pytransport.gui_services import (
     GuiFakeSettings,
+    GuiState,
     GuiSchemeStepDraft,
     available_gui_methods,
     compare_gui_schemes,
@@ -23,6 +24,7 @@ from pytransport.gui_services import (
     list_gui_schemes,
     load_gui_saved_run,
     load_gui_saved_scheme,
+    load_gui_state,
     load_recipe_from_text,
     primary_plot_path,
     primary_report_path,
@@ -32,6 +34,7 @@ from pytransport.gui_services import (
     run_gui_hardware_text,
     run_gui_scheme_dry_run_text,
     save_recipe_text,
+    save_gui_state,
     schema_form_from_text,
     schema_form_text_from_values,
     scheme_builder_from_text,
@@ -253,6 +256,21 @@ def test_gui_scheme_filters_and_comparison_csv_export(tmp_path):
     assert "scheme_name,step_label,started_at" in text
     assert "keep_scheme,iv" in text
     assert "drop_scheme,iv" in text
+
+
+def test_gui_state_load_save_round_trip_and_defaults(tmp_path):
+    state_path = tmp_path / "gui_state.json"
+
+    assert load_gui_state(state_path) == GuiState()
+
+    saved = save_gui_state(GuiState(run_source_dir="lab/raw", scheme_source_dir="lab/schemes"), state_path)
+    loaded = load_gui_state(saved)
+
+    assert loaded.run_source_dir == "lab/raw"
+    assert loaded.scheme_source_dir == "lab/schemes"
+
+    state_path.write_text("{bad json", encoding="utf-8")
+    assert load_gui_state(state_path) == GuiState()
 
 
 def test_gui_scheme_plot_series_reads_plottable_saved_runs(tmp_path):

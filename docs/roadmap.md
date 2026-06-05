@@ -256,9 +256,12 @@ This roadmap tracks the large development phases. Completed items are checked.
 - [x] Phase 24af: GUI scheme comparison export
   - export the GUI comparison table as CSV
   - add optional saved scheme filters
-- [ ] Phase 24ag: GUI saved scheme table polish
+- [x] Phase 24ag: GUI saved scheme table polish
   - persist last selected scheme source folder
   - improve saved table column sizing and filter ergonomics
+- [ ] Phase 24ah: GUI saved source persistence expansion
+  - remember more non-hardware GUI preferences only when useful
+  - keep persisted state separate from recipes and measurement metadata
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation

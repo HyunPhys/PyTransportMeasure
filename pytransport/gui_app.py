@@ -13,6 +13,7 @@ from .gui_services import (
     GuiSchemaField,
     GuiSchemeRunResult,
     GuiSchemeStepDraft,
+    GuiState,
     available_gui_methods,
     compare_gui_schemes,
     create_gui_feedback_bundle,
@@ -25,6 +26,7 @@ from .gui_services import (
     format_recipe_overview_text,
     list_gui_runs,
     list_gui_schemes,
+    load_gui_state,
     load_gui_saved_run,
     load_gui_saved_scheme,
     load_recipe_from_text,
@@ -39,6 +41,7 @@ from .gui_services import (
     run_gui_hardware_text,
     run_gui_scheme_dry_run_text,
     run_gui_dry_run_text,
+    save_gui_state,
     save_recipe_text,
     schema_form_from_text,
     schema_form_text_from_values,
@@ -422,6 +425,8 @@ class MainWindow(QMainWindow):
         self.last_result: Any | None = None
         self.last_scheme_result: GuiSchemeRunResult | None = None
         self.last_scheme_comparison: Any | None = None
+        self.gui_state_path = Path("data/gui_state.json")
+        self.gui_state = load_gui_state(self.gui_state_path)
         self._syncing_recipe_widgets = False
         self.workflow_state: dict[str, bool] = {
             "yaml_checked": False,
@@ -503,7 +508,7 @@ class MainWindow(QMainWindow):
         self.refresh_runs_button.clicked.connect(self.refresh_indexed_runs)
         self.load_run_button = QPushButton("Load Selected")
         self.load_run_button.clicked.connect(self.load_selected_run)
-        self.run_source_dir = QLineEdit("data/raw")
+        self.run_source_dir = QLineEdit(self.gui_state.run_source_dir)
         self.run_source_dir.setPlaceholderText("run source folder")
         self.run_source_dir.setMinimumWidth(220)
         self.browse_run_source_button = QPushButton("Source Folder")
@@ -567,7 +572,7 @@ class MainWindow(QMainWindow):
         self.export_scheme_compare_button = QPushButton("Export CSV")
         self.export_scheme_compare_button.clicked.connect(self.export_scheme_comparison_csv)
         self.export_scheme_compare_button.setEnabled(False)
-        self.scheme_source_dir = QLineEdit("data/schemes")
+        self.scheme_source_dir = QLineEdit(self.gui_state.scheme_source_dir)
         self.scheme_source_dir.setPlaceholderText("scheme source folder")
         self.scheme_source_dir.setMinimumWidth(220)
         self.browse_scheme_source_button = QPushButton("Source Folder")
@@ -582,6 +587,7 @@ class MainWindow(QMainWindow):
         self.scheme_filter_dry.addItems(["Any dry-run", "Dry-run", "Hardware"])
         self.clear_scheme_filters_button = QPushButton("Clear Filters")
         self.clear_scheme_filters_button.clicked.connect(self.clear_scheme_filters)
+        self.scheme_filter_name.returnPressed.connect(self.refresh_saved_schemes)
 
         self.status_label = QLabel("Ready")
         self.status_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
@@ -663,6 +669,7 @@ class MainWindow(QMainWindow):
         self.saved_scheme_table.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.saved_scheme_table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.saved_scheme_table.itemSelectionChanged.connect(self.update_selected_scheme_controls)
+        self.configure_saved_scheme_table_columns()
         self.scheme_compare_table = QTableWidget(0, 15)
         self.scheme_compare_table.setHorizontalHeaderLabels(
             [
@@ -685,6 +692,7 @@ class MainWindow(QMainWindow):
         )
         self.scheme_compare_table.horizontalHeader().setStretchLastSection(True)
         self.scheme_compare_table.setSortingEnabled(True)
+        self.configure_scheme_compare_table_columns()
         self.saved_plot_canvas = IvPlotCanvas()
         self.live_plot_canvas = IvPlotCanvas()
         self.plot_status = QLabel("No plot loaded")
@@ -707,6 +715,7 @@ class MainWindow(QMainWindow):
         self.recent_table.horizontalHeader().setStretchLastSection(True)
         self.recent_table.setSortingEnabled(True)
         self.recent_table.itemSelectionChanged.connect(self.update_selected_run_controls)
+        self.configure_run_table_columns()
 
         workspace_tabs = QTabWidget()
         workspace_tabs.addTab(self.build_measurement_workspace(), "Measurement")
@@ -946,6 +955,21 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.scheme_compare_table, stretch=1)
         return container
 
+    def configure_run_table_columns(self) -> None:
+        widths = [150, 130, 180, 120, 70, 110, 110, 110, 130, 130, 300]
+        for column, width in enumerate(widths):
+            self.recent_table.setColumnWidth(column, width)
+
+    def configure_saved_scheme_table_columns(self) -> None:
+        widths = [150, 210, 110, 70, 70, 70, 70, 360]
+        for column, width in enumerate(widths):
+            self.saved_scheme_table.setColumnWidth(column, width)
+
+    def configure_scheme_compare_table_columns(self) -> None:
+        widths = [190, 140, 150, 105, 70, 70, 70, 90, 80, 80, 105, 105, 105, 105, 105]
+        for column, width in enumerate(widths):
+            self.scheme_compare_table.setColumnWidth(column, width)
+
     def build_plot_preview(self) -> QWidget:
         container = QWidget()
         layout = QVBoxLayout(container)
@@ -1027,6 +1051,20 @@ class MainWindow(QMainWindow):
             "- Form edits must be applied with Form -> YAML before they affect runs.",
         ]
         self.workflow_text.setPlainText("\n".join(lines))
+
+    def save_gui_source_state(self) -> None:
+        self.gui_state = GuiState(
+            run_source_dir=self.run_source_dir.text().strip() or "data/raw",
+            scheme_source_dir=self.scheme_source_dir.text().strip() or "data/schemes",
+        )
+        try:
+            save_gui_state(self.gui_state, self.gui_state_path)
+        except OSError as exc:
+            self.log_session(f"Could not save GUI state: {exc}")
+
+    def closeEvent(self, event: Any) -> None:  # noqa: N802 - Qt override
+        self.save_gui_source_state()
+        super().closeEvent(event)
 
     def update_recipe_overview(self) -> None:
         if not hasattr(self, "recipe_overview_text"):
@@ -1306,6 +1344,7 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(Path(path).resolve().as_uri())
 
     def refresh_saved_schemes(self) -> None:
+        self.save_gui_source_state()
         try:
             records = list_gui_schemes(
                 self.scheme_source_dir.text(),
@@ -1503,6 +1542,7 @@ class MainWindow(QMainWindow):
         )
         if selected:
             self.scheme_source_dir.setText(selected)
+            self.save_gui_source_state()
             self.refresh_saved_schemes()
 
     def browse_recipe(self) -> None:
@@ -2100,6 +2140,7 @@ class MainWindow(QMainWindow):
         self.apply_loaded_run_highlight_to_row(row)
 
     def refresh_indexed_runs(self) -> None:
+        self.save_gui_source_state()
         try:
             records = list_gui_runs(
                 source_dir=self.run_source_dir.text(),
@@ -2150,6 +2191,7 @@ class MainWindow(QMainWindow):
         selected = QFileDialog.getExistingDirectory(self, "Select Run Source Folder", str(Path(self.run_source_dir.text() or "data/raw").resolve()))
         if selected:
             self.run_source_dir.setText(selected)
+            self.save_gui_source_state()
             self.refresh_indexed_runs()
 
     def selected_run_dir(self) -> Path | None:

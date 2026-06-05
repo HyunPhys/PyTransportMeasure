@@ -28,6 +28,7 @@ Current verified setup and supported workflows:
   plus a method-aware Recipe Overview tab, schema-driven Recipe Form, and GUI
   Scheme Builder with Drain I-V step overrides, scheme dry-runs, and saved
   scheme browsing/comparison/export with in-app scheme overlay previews
+  plus persisted GUI source-folder state
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -112,6 +113,7 @@ ptm-gui
 - GUI scheme comparison: [docs/phase53_gui_scheme_comparison.md](docs/phase53_gui_scheme_comparison.md)
 - GUI scheme overlay preview: [docs/phase54_gui_scheme_overlay_preview.md](docs/phase54_gui_scheme_overlay_preview.md)
 - GUI scheme comparison export: [docs/phase55_gui_scheme_comparison_export.md](docs/phase55_gui_scheme_comparison_export.md)
+- GUI saved scheme table polish: [docs/phase56_gui_saved_scheme_table_polish.md](docs/phase56_gui_saved_scheme_table_polish.md)
 
 ## Hardware Smoke Test
 
@@ -337,6 +339,8 @@ scheme/step statistics. Saved scheme overlays are previewed from `points.csv`
 data in the GUI canvas rather than by stretching SVG artifacts. Saved scheme
 filters and comparison CSV export support curation outside the app. Hardware
 scheme execution remains CLI/future-smoke-test gated.
+
+The GUI remembers the last run and scheme source folders in `data/gui_state.json`.
 
 4-probe hardware, active SR860 hardware acquisition, pulse hardware, and GUI
 hardware support beyond guarded Drain I-V are intentionally kept as future
