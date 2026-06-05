@@ -416,11 +416,17 @@ root.
   - add `ptm dual-gate-lockin-hall-suite-chunk-plan`
   - combine suite consistency, per-recipe chunk acquisition, stitching, and
     stitched-run Hall analysis commands in one hardware-free runbook
-- [ ] Phase 25bb: Dual-gate lock-in first broader hardware scan
-  - decide the first non-smoke grid size after lab feedback
-  - require SR860 settings readback to match the recipe before output
+- [x] Phase 25bb: Dual-gate lock-in first broader hardware scan packet
+  - add `ptm dual-gate-lockin-broader-scan-packet`
+  - summarize accepted-run audit, scale-up compatibility, measurement
+    parameters, chunked acquisition commands, stitch commands, and strict audit
+    in one lab execution packet
+  - make NPLC/range/compliance visible before the broader scan starts
+- [ ] Phase 25bc: First Hall-suite chunk acquisition feedback
+  - use lab feedback from the broader packet and first measured chunks
+  - decide whether chunk size, settle time, NPLC, or SR860 sensitivity needs
+    adjustment before full Vxx/+B/-B/0B acquisition
   - keep point-count guard, previous-run acceptance, and preflight mandatory
-  - consider manual restart tooling only after repeated interruption data exists
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

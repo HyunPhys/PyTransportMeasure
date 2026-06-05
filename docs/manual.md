@@ -629,6 +629,20 @@ The command must print both `Dual-gate lock-in acceptance: PASS` and
 `Dual-gate lock-in scale-up compatibility: PASS` before the candidate recipe is
 used for a raised-point hardware run.
 
+Before the first broader hardware scan, generate a lab execution packet from
+the accepted previous run and candidate recipe:
+
+```powershell
+ptm dual-gate-lockin-broader-scan-packet data\raw\<accepted_limited_run_folder> configs\recipes\<candidate_broader_recipe>.yaml --chunk-size <N> --max-hardware-points <N> --output docs\<sample>_broader_scan_packet.md
+```
+
+The packet is hardware-free. It repeats the strict accepted-run audit, candidate
+scale-up compatibility, chunk plan, chunked hardware commands, stitch/audit
+commands, and a measurement-parameter table. Review the Keithley voltage range,
+current range, NPLC, source delay, gate sweep, and compliance rows before any
+output is enabled. NPLC is part of the measurement condition because it controls
+the Keithley current integration time in power-line cycles.
+
 To reduce manual copy errors, generate a candidate broader recipe from the
 accepted run metadata and only change the gate grid:
 

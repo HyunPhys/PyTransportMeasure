@@ -58,6 +58,8 @@ from .dual_gate_lockin import (
 )
 from .dual_gate_lockin_scaleup import (
     default_dual_gate_lockin_scale_up_review_path,
+    format_dual_gate_lockin_broader_scan_packet,
+    write_dual_gate_lockin_broader_scan_packet,
     write_dual_gate_lockin_scale_up_recipe,
     write_dual_gate_lockin_scale_up_review,
 )
@@ -107,7 +109,11 @@ from .instruments.fake import (
 from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
-from .measurement_parameters import assert_explicit_nplc_for_hardware, assert_required_smu_parameters_for_hardware
+from .measurement_parameters import (
+    assert_explicit_nplc_for_hardware,
+    assert_required_smu_parameters_for_hardware,
+    missing_required_smu_hardware_parameters,
+)
 from .model import MeasurementPoint
 from .plot import write_iv_svg
 from .preflight import (
@@ -446,6 +452,22 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_scale_up_template.add_argument("--review-path", type=Path)
     dual_gate_lockin_scale_up_template.add_argument("--no-review", action="store_true")
     dual_gate_lockin_scale_up_template.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_broader_scan_packet = subparsers.add_parser(
+        "dual-gate-lockin-broader-scan-packet",
+        help="Print a lab execution packet for the first broader dual-gate lock-in hardware scan.",
+    )
+    dual_gate_lockin_broader_scan_packet.add_argument("accepted_run_dir", type=Path)
+    dual_gate_lockin_broader_scan_packet.add_argument("candidate_recipe", type=Path)
+    dual_gate_lockin_broader_scan_packet.add_argument("--chunk-size", type=int, required=True)
+    dual_gate_lockin_broader_scan_packet.add_argument(
+        "--max-hardware-points",
+        type=int,
+        default=DEFAULT_DUAL_GATE_LOCKIN_HARDWARE_POINTS,
+    )
+    dual_gate_lockin_broader_scan_packet.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_broader_scan_packet.add_argument("--output", type=Path)
+    dual_gate_lockin_broader_scan_packet.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_suite_template = subparsers.add_parser(
         "dual-gate-lockin-hall-suite-template",
@@ -1562,6 +1584,52 @@ def command_dual_gate_lockin_scale_up_template(args: argparse.Namespace) -> int:
         candidate_recipe=output_path,
     )
     return command_dual_gate_lockin_scale_up_check(check_args)
+
+
+def command_dual_gate_lockin_broader_scan_packet(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type("dual_gate_lockin_sweep")
+    recipe = method.load_recipe(args.candidate_recipe)
+    safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
+    try:
+        if args.output is not None:
+            output_path = write_dual_gate_lockin_broader_scan_packet(
+                args.output,
+                args.accepted_run_dir,
+                args.candidate_recipe,
+                recipe,
+                safety,
+                chunk_size=args.chunk_size,
+                max_hardware_points=args.max_hardware_points,
+                overwrite=args.overwrite,
+            )
+            print(f"Broader scan packet: {output_path}")
+        else:
+            print(
+                format_dual_gate_lockin_broader_scan_packet(
+                    args.accepted_run_dir,
+                    args.candidate_recipe,
+                    recipe,
+                    safety,
+                    chunk_size=args.chunk_size,
+                    max_hardware_points=args.max_hardware_points,
+                )
+            )
+    except (FileExistsError, ValueError) as exc:
+        print(f"Dual-gate lock-in broader scan packet failed: {exc}", file=sys.stderr)
+        return 2
+    acceptance = audit_dual_gate_lockin_run(args.accepted_run_dir, require_lockin_settings=True)
+    blocking_warnings = scale_up_blocking_acceptance_issues(acceptance)
+    scale_up = audit_dual_gate_lockin_scale_up(args.accepted_run_dir, recipe)
+    chunks = dual_gate_lockin_chunks(recipe, args.chunk_size)
+    parameter_issues = missing_required_smu_hardware_parameters(recipe, roles=("gate1", "gate2"))
+    ready = (
+        acceptance.accepted
+        and not blocking_warnings
+        and scale_up.compatible
+        and not parameter_issues
+        and all(chunk.point_count <= args.max_hardware_points for chunk in chunks)
+    )
+    return 0 if ready else 2
 
 
 def command_dual_gate_lockin_hall_suite_template(args: argparse.Namespace) -> int:
@@ -2916,6 +2984,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_check(args)
     if args.command == "dual-gate-lockin-scale-up-template":
         return command_dual_gate_lockin_scale_up_template(args)
+    if args.command == "dual-gate-lockin-broader-scan-packet":
+        return command_dual_gate_lockin_broader_scan_packet(args)
     if args.command == "dual-gate-lockin-hall-suite-template":
         return command_dual_gate_lockin_hall_suite_template(args)
     if args.command == "dual-gate-lockin-hall-suite-check":

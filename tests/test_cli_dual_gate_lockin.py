@@ -661,6 +661,110 @@ def test_cli_dual_gate_lockin_scale_up_template_writes_compatible_candidate(tmp_
     assert "Candidate points: 9" in review_text
 
 
+def test_cli_dual_gate_lockin_broader_scan_packet_writes_lab_runbook(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    output_recipe = tmp_path / "candidate_broader.yaml"
+    packet_path = tmp_path / "broader_packet.md"
+
+    assert (
+        cli.main(
+            [
+                "dual-gate-lockin-scale-up-template",
+                str(previous_run),
+                str(output_recipe),
+                "--gate1-start-v",
+                "-0.1",
+                "--gate1-stop-v",
+                "0.1",
+                "--gate1-points",
+                "3",
+                "--gate2-start-v",
+                "-0.1",
+                "--gate2-stop-v",
+                "0.1",
+                "--gate2-points",
+                "3",
+                "--measurement-name",
+                "broader_packet_candidate",
+                "--output-directory",
+                str(tmp_path / "raw_broader"),
+            ]
+        )
+        == 0
+    )
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-broader-scan-packet",
+            str(previous_run),
+            str(output_recipe),
+            "--chunk-size",
+            "4",
+            "--max-hardware-points",
+            "4",
+            "--output",
+            str(packet_path),
+        ]
+    )
+
+    assert code == 0
+    text = packet_path.read_text(encoding="utf-8")
+    assert "Dual-Gate Lock-In Broader Scan Packet" in text
+    assert "Packet ready for lab execution: yes" in text
+    assert "| Role | Address | Terminal | Voltage range (V) | Current range (A) | NPLC |" in text
+    assert "broader_packet_candidate" in text
+    assert "ptm dual-gate-lockin-scale-up-check" in text
+    assert "ptm dual-gate-lockin-preflight" in text
+    assert "ptm dual-gate-lockin-chunk-plan" in text
+    assert "--stop-after-new-points 4 --max-hardware-points 4" in text
+    assert "ptm dual-gate-lockin-stitch-chunks" in text
+    assert "broader_packet_candidate_chunk_03" in text
+    assert "ptm dual-gate-lockin-audit" in text
+
+
+def test_cli_dual_gate_lockin_broader_scan_packet_fails_when_missing_nplc(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    output_recipe = tmp_path / "candidate_missing_nplc.yaml"
+    assert (
+        cli.main(
+            [
+                "dual-gate-lockin-scale-up-template",
+                str(previous_run),
+                str(output_recipe),
+                "--gate1-start-v",
+                "-0.1",
+                "--gate1-stop-v",
+                "0.1",
+                "--gate1-points",
+                "3",
+                "--gate2-start-v",
+                "-0.1",
+                "--gate2-stop-v",
+                "0.1",
+                "--gate2-points",
+                "3",
+                "--no-review",
+            ]
+        )
+        == 0
+    )
+    output_recipe.write_text(output_recipe.read_text(encoding="utf-8").replace("  nplc: 1.0\n", "", 1), encoding="utf-8")
+
+    code = cli.main(
+        [
+            "dual-gate-lockin-broader-scan-packet",
+            str(previous_run),
+            str(output_recipe),
+            "--chunk-size",
+            "4",
+            "--max-hardware-points",
+            "4",
+        ]
+    )
+
+    assert code == 2
+
+
 def test_cli_dual_gate_lockin_scale_up_template_fails_when_grid_does_not_include_previous(tmp_path):
     previous_run = make_strictly_accepted_previous_run(tmp_path)
     output_recipe = tmp_path / "candidate_bad.yaml"
