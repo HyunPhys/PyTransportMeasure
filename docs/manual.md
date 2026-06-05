@@ -692,12 +692,16 @@ ptm dual-gate-lockin-hall-suite-condition-drift data\hall_packages\sampleA_cd1_l
 
 The snapshot command writes `condition_snapshot_report.md` and
 `condition_snapshot.json`, a lab-notebook table comparing Vxx/+B/-B/0B
-Keithley and SR860 settings side by side. The drift command writes
+Keithley settings, SR860 settings, and Hall-bar contact topology side by side.
+The topology table shows the voltage-probe role, magnetic field, excitation
+contacts, SR860 voltage contacts, channel geometry, bias resistor, and topology
+layout for each returned run. The drift command writes
 `condition_drift_report.md` and `condition_drift.json`. It checks the returned
 run recipe snapshots and configured SMU/lock-in metadata against the packaged
-Keithley NPLC, voltage/current ranges, compliance, source delay, and SR860
-settings. `dual-gate-lockin-hall-suite-analyze` also runs this guard internally
-and refuses analysis if drift is detected.
+Keithley NPLC, voltage/current ranges, compliance, source delay, SR860 settings,
+and topology fields such as Vxx/Vxy voltage contacts and excitation contacts.
+`dual-gate-lockin-hall-suite-analyze` also runs this guard internally and
+refuses analysis if drift is detected.
 
 After running the snapshot and drift audits, rerun lifecycle status. The
 lifecycle state should move from `condition_snapshot_pending` to

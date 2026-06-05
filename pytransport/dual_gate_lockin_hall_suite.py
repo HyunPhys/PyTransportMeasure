@@ -881,9 +881,32 @@ def format_dual_gate_lockin_hall_suite_condition_snapshot_report(payload: dict[s
     lines.extend(
         [
             "",
+            "## Hall-Bar Topology",
+            "",
+            "| Run | Role | B (T) | Excitation contacts | SR860 voltage contacts | Channel L (m) | Channel W (m) | Bias resistor (ohm) | Layout |",
+            "| --- | --- | ---: | --- | --- | ---: | ---: | ---: | --- |",
+        ]
+    )
+    for run in runs:
+        topology = run.get("topology") if isinstance(run.get("topology"), dict) else {}
+        lines.append(
+            "| "
+            f"{run.get('run_key')} | "
+            f"{_fmt_optional(topology.get('voltage_probe_role'))} | "
+            f"{_fmt_optional(topology.get('magnetic_field_t'))} | "
+            f"{_fmt_contact_list(topology.get('excitation_contacts'))} | "
+            f"{_fmt_contact_list(topology.get('lockin_input_contacts'))} | "
+            f"{_fmt_optional(topology.get('channel_length_m'))} | "
+            f"{_fmt_optional(topology.get('channel_width_m'))} | "
+            f"{_fmt_optional(topology.get('bias_resistor_ohm'))} | "
+            f"{_fmt_optional(topology.get('topology_layout'))} |"
+        )
+    lines.extend(
+        [
+            "",
             "## Reminder",
             "",
-            "Use this snapshot as a lab-notebook table before Hall analysis. NPLC, ranges, compliance, source delay, and SR860 settings are measurement conditions.",
+            "Use this snapshot as a lab-notebook table before Hall analysis. NPLC, ranges, compliance, source delay, SR860 settings, and Hall-bar contact topology are measurement conditions.",
             "",
         ]
     )
@@ -3093,6 +3116,27 @@ def _check_condition_drift_for_run(
             expected_lockin.get(field),
             run_lockin.get(field),
         )
+    expected_topology = expected.get("topology") if isinstance(expected.get("topology"), dict) else {}
+    run_topology = run_recipe.get("topology") if isinstance(run_recipe.get("topology"), dict) else {}
+    for field in [
+        "voltage_probe_role",
+        "lockin_input_contacts",
+        "excitation_contacts",
+        "source_contact",
+        "drain_contact",
+        "magnetic_field_t",
+        "channel_length_m",
+        "channel_width_m",
+        "bias_resistor_ohm",
+        "topology_layout",
+    ]:
+        _append_condition_issue_if_different(
+            issues,
+            key,
+            f"topology.{field}",
+            expected_topology.get(field),
+            run_topology.get(field),
+        )
     for role, instrument_key, sweep_key in [
         ("gate1", "gate1_instrument", "gate1_sweep"),
         ("gate2", "gate2_instrument", "gate2_sweep"),
@@ -3225,6 +3269,7 @@ def _condition_snapshot_row(run_key: str, run_dir: Path, metadata: dict[str, Any
         "planned_points": metadata.get("planned_points"),
         "voltage_probe_role": metadata.get("voltage_probe_role"),
         "magnetic_field_t": metadata.get("magnetic_field_t"),
+        "topology": _condition_snapshot_topology(recipe),
         "gate1": _condition_snapshot_gate(metadata, recipe, "gate1"),
         "gate2": _condition_snapshot_gate(metadata, recipe, "gate2"),
         "lockin": {
@@ -3237,6 +3282,22 @@ def _condition_snapshot_row(run_key: str, run_dir: Path, metadata: dict[str, Any
             "readback_available": metadata.get("lockin_settings_readback_available"),
             "readback_matched": metadata.get("lockin_settings_readback_matched"),
         },
+    }
+
+
+def _condition_snapshot_topology(recipe: dict[str, Any]) -> dict[str, Any]:
+    topology = recipe.get("topology") if isinstance(recipe.get("topology"), dict) else {}
+    return {
+        "voltage_probe_role": topology.get("voltage_probe_role"),
+        "lockin_input_contacts": topology.get("lockin_input_contacts"),
+        "excitation_contacts": topology.get("excitation_contacts"),
+        "source_contact": topology.get("source_contact"),
+        "drain_contact": topology.get("drain_contact"),
+        "magnetic_field_t": topology.get("magnetic_field_t"),
+        "channel_length_m": topology.get("channel_length_m"),
+        "channel_width_m": topology.get("channel_width_m"),
+        "bias_resistor_ohm": topology.get("bias_resistor_ohm"),
+        "topology_layout": topology.get("topology_layout"),
     }
 
 
@@ -3593,6 +3654,13 @@ def _fmt_field(value: float | None) -> str:
 
 def _fmt_optional(value: object) -> str:
     return "auto" if value is None else str(value)
+
+
+def _fmt_contact_list(value: object) -> str:
+    if isinstance(value, (list, tuple)):
+        contacts = [str(contact).strip() for contact in value if str(contact).strip()]
+        return ", ".join(contacts) if contacts else "n/a"
+    return "n/a" if value is None else str(value)
 
 
 def _optional_float(value: object) -> float | None:

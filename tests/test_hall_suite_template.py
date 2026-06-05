@@ -740,8 +740,16 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert snapshot["runs"][0]["gate1"]["nplc"] == 1.0
     assert snapshot["runs"][0]["gate2"]["current_compliance_a"] == 1e-8
     assert snapshot["runs"][0]["lockin"]["time_constant_index"] == 10
+    assert snapshot["runs"][0]["topology"]["voltage_probe_role"] == "longitudinal"
+    assert snapshot["runs"][0]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert snapshot["runs"][1]["topology"]["voltage_probe_role"] == "hall"
+    assert snapshot["runs"][1]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
     assert "Hall Suite Run Condition Snapshot" in snapshot_text
     assert "| longitudinal | gate1 |" in snapshot_text
+    assert "## Hall-Bar Topology" in snapshot_text
+    assert "| longitudinal | longitudinal |" in snapshot_text
+    assert "| plus | hall |" in snapshot_text
+    assert "Vxx+, Vxx-" in snapshot_text
     assert "| plus |" in snapshot_text
     drift_json = tmp_path / "condition_drift.json"
     drift_code = main(
@@ -782,6 +790,25 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     analyze_drift_code = main(["dual-gate-lockin-hall-suite-analyze", str(package_dir)])
     assert analyze_drift_code == 2
     plus_metadata["recipe"]["gate1_instrument"]["nplc"] = original_nplc
+    plus_metadata_path.write_text(json.dumps(plus_metadata, indent=2, sort_keys=True), encoding="utf-8")
+    plus_metadata["recipe"]["topology"]["lockin_input_contacts"] = ["VH1", "VH2"]
+    plus_metadata_path.write_text(json.dumps(plus_metadata, indent=2, sort_keys=True), encoding="utf-8")
+    topology_drift_json = tmp_path / "condition_drift_topology_fail.json"
+    topology_drift_code = main(
+        [
+            "dual-gate-lockin-hall-suite-condition-drift",
+            str(package_dir),
+            "--json-output",
+            str(topology_drift_json),
+            "--output",
+            str(tmp_path / "condition_drift_topology_fail.md"),
+        ]
+    )
+    topology_drift = json.loads(topology_drift_json.read_text(encoding="utf-8"))
+    assert topology_drift_code == 2
+    assert topology_drift["accepted"] is False
+    assert any(issue["field"] == "topology.lockin_input_contacts" for issue in topology_drift["issues"])
+    plus_metadata["recipe"]["topology"]["lockin_input_contacts"] = ["Vxx+", "Vxx-"]
     plus_metadata_path.write_text(json.dumps(plus_metadata, indent=2, sort_keys=True), encoding="utf-8")
     default_snapshot_code = main(["dual-gate-lockin-hall-suite-condition-snapshot", str(package_dir)])
     assert default_snapshot_code == 0

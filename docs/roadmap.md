@@ -584,6 +584,11 @@ root.
   - surface condition snapshot existence in lifecycle status
   - make lab handoff/return artifacts point to snapshot, drift, and intake
     reports together
+- [x] Phase 25chb: Hall topology condition audit
+  - include Hall-bar voltage/excitation contact topology in returned-run
+    condition snapshots
+  - flag topology drift before Hall-suite analysis when returned metadata no
+    longer matches the packaged Vxx/Vxy contact roles
 - [x] Phase 25ci: Hall return bundle index
   - write a package-local index that links intake, condition snapshot, drift,
     lab-return manifest, lifecycle status, and analysis artifacts

@@ -670,6 +670,8 @@ remain point-guarded.
   ```
 - [ ] Confirm `condition_snapshot_report.md` shows Vxx/+B/-B/0B Keithley NPLC,
   range, compliance, source-delay, and SR860 settings side by side.
+- [ ] Confirm `condition_snapshot_report.md` includes `Hall-Bar Topology` with
+  the expected excitation contacts and SR860 voltage contacts for each run.
 - [ ] Rerun lifecycle status and confirm the run condition snapshot stage is
   PASS before writing the lab-return manifest.
 - [ ] Run the returned-run acquisition-condition drift guard before analysis.
@@ -678,6 +680,9 @@ remain point-guarded.
   ```
 - [ ] Confirm it prints PASS and `condition_drift_report.md` lists no drift
   issues.
+- [ ] Confirm no `topology.*` drift issue appears; treat any Vxx/Vxy contact,
+  excitation-contact, magnetic-field, or channel-geometry drift as a stop
+  before Hall analysis.
 - [ ] Rerun lifecycle status and confirm the acquisition-condition drift stage
   is PASS and lifecycle state is `ready_for_analysis` before Hall analysis.
   ```powershell
