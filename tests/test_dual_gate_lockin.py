@@ -120,6 +120,7 @@ def test_dual_gate_lockin_recipe_sample_and_plan():
     assert "Lock-in time constant index: 10" in plan
     assert "Topology layout: hall_bar" in plan
     assert "Source/drain contacts: S -> D" in plan
+    assert "Nominal source-drain AC current: 1e-08 A" in plan
     assert "Total points: 25" in plan
 
 
@@ -161,6 +162,8 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert metadata["last_completed_gate2_voltage_v"] == pytest.approx(0.1)
     assert metadata["next_point_index"] is None
     assert metadata["recovery_recommendation"] == "run_completed_no_recovery_needed"
+    assert metadata["source_drain_excitation_v"] == pytest.approx(0.01)
+    assert metadata["source_drain_nominal_current_a"] == pytest.approx(1e-8)
     assert gate1_smu.is_output_on is False
     assert gate2_smu.is_output_on is False
     assert lockin.connected is False
@@ -171,6 +174,10 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert rows[0]["gate1_voltage_v"] == "-0.1"
     assert rows[0]["gate2_voltage_v"] == "-0.1"
     assert float(rows[0]["lockin_r_v"]) > 0
+    assert float(rows[0]["source_drain_excitation_v"]) == pytest.approx(0.01)
+    assert float(rows[0]["source_drain_nominal_current_a"]) == pytest.approx(1e-8)
+    assert float(rows[0]["lockin_resistance_ohm"]) == pytest.approx(float(rows[0]["lockin_r_v"]) / 1e-8)
+    assert float(rows[0]["lockin_conductance_s"]) == pytest.approx(1 / float(rows[0]["lockin_resistance_ohm"]))
     assert saved_metadata["lockin_probe"]["idn"].startswith("FAKE,LOCKIN,DUAL-GATE")
     assert saved_metadata["planned_points"] == 9
     assert saved_metadata["outputs_off_after_run"] is True
@@ -179,11 +186,19 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     assert summary.points == 9
     assert summary.gate1_points == 3
     assert summary.gate2_points == 3
+    assert summary.lockin_resistance_max_ohm is not None
+    assert summary.lockin_conductance_min_s is not None
     assert "Dual-gate lock-in run:" in format_dual_gate_lockin_summary(summary)
-    assert write_dual_gate_lockin_stats_csv(run_dir).name == "dual_gate_lockin_stats.csv"
+    stats_path = write_dual_gate_lockin_stats_csv(run_dir)
+    stats_rows = list(csv.DictReader(stats_path.open(newline="", encoding="utf-8")))
+    assert stats_path.name == "dual_gate_lockin_stats.csv"
+    assert "lockin_resistance_mean_ohm" in stats_rows[0]
+    assert "lockin_conductance_mean_s" in stats_rows[0]
     assert write_dual_gate_lockin_heatmap_svg(run_dir).name == "dual_gate_lockin_heatmap.svg"
     assert write_dual_gate_lockin_report(run_dir).name == "dual_gate_lockin_report.md"
-    assert "## Recovery" in (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
+    report = (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
+    assert "## Recovery" in report
+    assert "Mean Resistance" in report
 
 
 def test_dual_gate_lockin_gate_compliance_stop_saves_partial(tmp_path):

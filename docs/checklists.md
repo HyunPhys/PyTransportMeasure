@@ -315,9 +315,9 @@ hardware output is enabled.
 
 ## Dual-Gate Lock-In Dry-Run Checklist
 
-Use this for the likely two-Keithley-plus-SR860 Hall bar graphene path. Current
-hardware execution is still blocked, but the read-only three-instrument
-preflight is available.
+Use this for the likely two-Keithley-plus-SR860 Hall bar graphene path. A tiny
+guarded active sweep is available after smoke tests; broader hardware scans
+remain point-guarded.
 
 - [ ] Preview the lock-in dual-gate plan.
   ```powershell
@@ -328,6 +328,8 @@ preflight is available.
 - [ ] Confirm the plan shows the Hall-bar topology:
   gate roles, source/drain contacts, lock-in input contacts, excitation source,
   excitation contacts, excitation amplitude, and current-bias resistor if used.
+- [ ] Confirm the plan shows the nominal source-drain AC current when
+  `excitation_amplitude_v` and `current_bias_resistor_ohm` are declared.
 - [ ] Run the three-instrument preflight on the lab laptop.
   ```powershell
   ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
@@ -399,9 +401,14 @@ preflight is available.
   ```
 - [ ] Confirm `points.csv` contains `gate1_voltage_v`, `gate2_voltage_v`,
   `gate1_current_a`, `gate2_current_a`, `lockin_x_v`, `lockin_y_v`,
-  `lockin_r_v`, and `lockin_theta_deg`.
+  `lockin_r_v`, `lockin_theta_deg`, `source_drain_nominal_current_a`,
+  `lockin_resistance_ohm`, and `lockin_conductance_s`.
 - [ ] Confirm `dual_gate_lockin_heatmap.svg`,
   `dual_gate_lockin_stats.csv`, and `dual_gate_lockin_report.md` are written.
+- [ ] Confirm `dual_gate_lockin_stats.csv` includes
+  `lockin_resistance_mean_ohm` and `lockin_conductance_mean_s`.
+- [ ] Confirm `dual_gate_lockin_report.md` lists nominal source-drain current,
+  resistance range, and conductance range.
 - [ ] Confirm generic saved-run commands work.
   ```powershell
   ptm summarize data\raw\<dual_gate_lockin_run_folder>

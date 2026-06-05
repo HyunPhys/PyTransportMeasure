@@ -358,8 +358,9 @@ readout measures the source-drain response.
 
 The dual-gate lock-in workflow is the software path closest to the current
 hardware set: two Keithley 2450 instruments bias gate1 and gate2, while SR860
-readout records the source-drain lock-in response. The current hardware output
-path is still blocked, but the read-only preflight gate is available.
+readout records the source-drain lock-in response. A guarded 2x2 active sweep
+path is available after three-instrument preflight, readout smoke, and
+active-gate smoke.
 
 ```powershell
 ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
@@ -371,10 +372,20 @@ ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --s
 ```
 
 The saved `points.csv` contains one row per `gate1 x gate2` pair, with gate
-leakage currents and SR860 X/Y/R/theta values. Review artifacts include:
+leakage currents, SR860 X/Y/R/theta values, and derived source-drain transport
+columns:
+
+- `source_drain_excitation_v`: recipe excitation amplitude.
+- `source_drain_nominal_current_a`: excitation amplitude divided by the
+  declared current-bias resistor.
+- `lockin_resistance_ohm`: `lockin_r_v / source_drain_nominal_current_a`.
+- `lockin_conductance_s`: inverse of `lockin_resistance_ohm`.
+
+Review artifacts include:
 
 - `dual_gate_lockin_heatmap.svg`: mean lock-in R over the gate1/gate2 grid.
-- `dual_gate_lockin_stats.csv`: per-gate-pair lock-in and leakage statistics.
+- `dual_gate_lockin_stats.csv`: per-gate-pair lock-in, derived transport, and
+  leakage statistics.
 - `dual_gate_lockin_report.md`: human-readable run report.
 
 The `topology` block is required for this method:
@@ -396,7 +407,9 @@ topology:
 
 Edit these labels to match the actual Hall bar device before lab hardware
 preflight. The plan and preflight reports print this topology before any
-hardware output can be considered.
+hardware output can be considered. The nominal source-drain current is an
+analysis value derived from this topology; it assumes the declared bias resistor
+dominates the AC excitation path.
 
 The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
 samples to `lockin_smoke.csv`. It does not configure Keithley source mode and

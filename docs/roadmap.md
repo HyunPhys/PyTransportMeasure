@@ -205,7 +205,14 @@ root.
   - define whether interrupted active sweeps can resume or must restart
   - add operator-visible abort metadata and recovery checklist
   - keep broad scans blocked until this policy exists
-- [ ] Phase 25k: Dual-gate lock-in broader scan gate
+- [x] Phase 25k: Dual-gate lock-in derived transport columns
+  - derive nominal source-drain AC current from excitation amplitude and
+    current-bias resistor
+  - save lock-in resistance and conductance in point CSV, stats CSV, summaries,
+    and reports
+  - keep the derivation explicit as an analysis value rather than a hidden
+    hardware-control behavior
+- [ ] Phase 25l: Dual-gate lock-in broader scan gate
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

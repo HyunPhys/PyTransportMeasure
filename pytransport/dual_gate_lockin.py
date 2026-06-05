@@ -41,6 +41,10 @@ DUAL_GATE_LOCKIN_COLUMNS = [
     "lockin_y_v",
     "lockin_r_v",
     "lockin_theta_deg",
+    "source_drain_excitation_v",
+    "source_drain_nominal_current_a",
+    "lockin_resistance_ohm",
+    "lockin_conductance_s",
 ]
 
 
@@ -60,6 +64,10 @@ class DualGateLockInPoint:
     lockin_y_v: float | None
     lockin_r_v: float | None
     lockin_theta_deg: float | None
+    source_drain_excitation_v: float | None = None
+    source_drain_nominal_current_a: float | None = None
+    lockin_resistance_ohm: float | None = None
+    lockin_conductance_s: float | None = None
 
     def to_dict(self) -> dict[str, float | int | bool | None]:
         return asdict(self)
@@ -170,10 +178,43 @@ def format_topology_settings(topology: dict[str, Any]) -> list[str]:
     bias_resistor = topology.get("current_bias_resistor_ohm")
     if bias_resistor is not None:
         lines.append(f"Current-bias resistor: {bias_resistor} ohm")
+    nominal_current = nominal_source_drain_current_a(topology)
+    if nominal_current is not None:
+        lines.append(f"Nominal source-drain AC current: {nominal_current:.6g} A")
     notes = topology.get("notes")
     if notes:
         lines.append(f"Topology notes: {notes}")
     return lines
+
+
+def nominal_source_drain_current_a(topology: dict[str, Any]) -> float | None:
+    amplitude = topology.get("excitation_amplitude_v")
+    bias_resistor = topology.get("current_bias_resistor_ohm")
+    if amplitude is None or bias_resistor is None:
+        return None
+    if bias_resistor == 0:
+        return None
+    return float(amplitude) / float(bias_resistor)
+
+
+def derive_lockin_transport_values(
+    lockin_r_v: float | None,
+    topology: dict[str, Any],
+) -> dict[str, float | None]:
+    excitation_v = topology.get("excitation_amplitude_v")
+    nominal_current_a = nominal_source_drain_current_a(topology)
+    resistance_ohm = None
+    conductance_s = None
+    if lockin_r_v is not None and nominal_current_a not in {None, 0.0}:
+        resistance_ohm = float(lockin_r_v) / float(nominal_current_a)
+        if resistance_ohm != 0:
+            conductance_s = 1.0 / resistance_ohm
+    return {
+        "source_drain_excitation_v": None if excitation_v is None else float(excitation_v),
+        "source_drain_nominal_current_a": nominal_current_a,
+        "lockin_resistance_ohm": resistance_ohm,
+        "lockin_conductance_s": conductance_s,
+    }
 
 
 def run_dual_gate_lockin_sweep(
@@ -193,6 +234,7 @@ def run_dual_gate_lockin_sweep(
     gate1_voltages = gate_voltages_from_config(recipe.gate1_sweep)
     gate2_voltages = gate_voltages_from_config(recipe.gate2_sweep)
     total_points = len(gate1_voltages) * len(gate2_voltages)
+    topology = recipe.topology.model_dump(mode="json")
     metadata: dict[str, Any] = {
         "measurement_name": recipe.measurement_name,
         "measurement_type": "dual_gate_lockin_sweep",
@@ -216,6 +258,9 @@ def run_dual_gate_lockin_sweep(
         "recovery_recommendation": "run_not_completed_review_metadata_and_restart_from_beginning",
         "gate_outputs_enabled": False,
         "outputs_off_after_run": False,
+        "source_drain_transport_model": "lockin_r_v_divided_by_nominal_excitation_current",
+        "source_drain_excitation_v": recipe.topology.excitation_amplitude_v,
+        "source_drain_nominal_current_a": nominal_source_drain_current_a(topology),
         "recipe": recipe.model_dump(mode="json"),
         "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
         "safety": safety.model_dump(mode="json"),
@@ -277,6 +322,10 @@ def run_dual_gate_lockin_sweep(
                     raise SafetyLimitError("Gate2 instrument compliance was reached", "gate2_instrument_compliance")
                 validate_point_current(gate2_current_a, safety)
                 reading = lockin.read_channels()
+                transport = derive_lockin_transport_values(
+                    reading.r_v,
+                    topology,
+                )
                 point = DualGateLockInPoint(
                     index=point_index,
                     gate1_index=gate1_index,
@@ -292,6 +341,10 @@ def run_dual_gate_lockin_sweep(
                     lockin_y_v=reading.y_v,
                     lockin_r_v=reading.r_v,
                     lockin_theta_deg=reading.theta_deg,
+                    source_drain_excitation_v=transport["source_drain_excitation_v"],
+                    source_drain_nominal_current_a=transport["source_drain_nominal_current_a"],
+                    lockin_resistance_ohm=transport["lockin_resistance_ohm"],
+                    lockin_conductance_s=transport["lockin_conductance_s"],
                 )
                 writer.write_point(point)
                 points_written += 1
