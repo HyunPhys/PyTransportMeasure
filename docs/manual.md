@@ -630,6 +630,19 @@ lifecycle state should move from `condition_snapshot_pending` to
 drift audit, and lab-return manifest all pass. The lab-return manifest records
 the intake, snapshot, and drift artifact paths together.
 
+After analysis/review/proposal, write one package-local return bundle index for
+the lab notebook:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\sampleA_cd1_lab1 --json-output data\hall_packages\sampleA_cd1_lab1\lifecycle_status.json
+ptm dual-gate-lockin-hall-suite-return-bundle-index data\hall_packages\sampleA_cd1_lab1 --overwrite
+```
+
+This writes `return_bundle/return_bundle_index.md` and
+`return_bundle/return_bundle_index.json`, linking intake, condition snapshot,
+condition drift, lab-return manifest, lifecycle status, analysis, review, and
+next-scan proposal artifacts in one table.
+
 When intake passes, the full Hall analysis sequence can be run as one command:
 
 ```powershell

@@ -120,6 +120,7 @@ from .hall_workflow import (
     format_dual_gate_lockin_hall_suite_lab_return_manifest,
     format_dual_gate_lockin_hall_suite_lifecycle_status,
     format_dual_gate_lockin_hall_suite_package_validation,
+    format_dual_gate_lockin_hall_suite_return_bundle_index,
     format_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_lifecycle_status,
@@ -129,6 +130,7 @@ from .hall_workflow import (
     write_dual_gate_lockin_hall_suite_handoff_summary,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
     write_dual_gate_lockin_hall_suite_lab_return_manifest,
+    write_dual_gate_lockin_hall_suite_return_bundle_index,
 )
 from .inspect import inspect_run
 from .instruments.fake import (
@@ -834,6 +836,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_hall_suite_lifecycle_status.add_argument("package_manifest_or_dir", type=Path)
     dual_gate_lockin_hall_suite_lifecycle_status.add_argument("--json-output", type=Path)
+
+    dual_gate_lockin_hall_suite_return_bundle_index = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-return-bundle-index",
+        help="Write a package-local table of contents for returned Hall-suite artifacts.",
+    )
+    dual_gate_lockin_hall_suite_return_bundle_index.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_return_bundle_index.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_suite_return_bundle_index.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2488,6 +2498,22 @@ def command_dual_gate_lockin_hall_suite_lifecycle_status(args: argparse.Namespac
     return 0 if payload["state"] != "package_incomplete" else 1
 
 
+def command_dual_gate_lockin_hall_suite_return_bundle_index(args: argparse.Namespace) -> int:
+    try:
+        payload = write_dual_gate_lockin_hall_suite_return_bundle_index(
+            args.package_manifest_or_dir,
+            output_dir=args.output_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite return bundle index failed: {exc}", file=sys.stderr)
+        return 2
+    print(format_dual_gate_lockin_hall_suite_return_bundle_index(payload))
+    print(f"Index: {payload['report_path']}")
+    print(f"JSON: {payload['json_path']}")
+    return 0 if payload["missing_artifact_count"] == 0 else 1
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3830,6 +3856,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_lab_return_manifest(args)
     if args.command == "dual-gate-lockin-hall-suite-lifecycle-status":
         return command_dual_gate_lockin_hall_suite_lifecycle_status(args)
+    if args.command == "dual-gate-lockin-hall-suite-return-bundle-index":
+        return command_dual_gate_lockin_hall_suite_return_bundle_index(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

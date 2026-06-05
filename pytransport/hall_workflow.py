@@ -828,6 +828,70 @@ def format_dual_gate_lockin_hall_suite_lifecycle_status(payload: dict) -> str:
     return "\n".join(lines)
 
 
+def write_dual_gate_lockin_hall_suite_return_bundle_index(
+    package_manifest_or_dir: Path,
+    *,
+    output_dir: Path | None = None,
+    overwrite: bool = False,
+) -> dict:
+    lifecycle = inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir)
+    package_dir = Path(lifecycle["package_dir"])
+    out = output_dir or package_dir / "return_bundle"
+    if out.exists() and not overwrite:
+        raise FileExistsError(f"Hall return bundle index already exists: {out}")
+    out.mkdir(parents=True, exist_ok=True)
+    artifacts = _hall_return_bundle_artifacts(package_dir, lifecycle)
+    payload = {
+        "created_at": datetime.now().isoformat(timespec="seconds"),
+        "package_dir": str(package_dir),
+        "package_manifest": lifecycle.get("package_manifest"),
+        "package_name": lifecycle.get("package_name"),
+        "lifecycle_state": lifecycle.get("state"),
+        "ready_for_analysis": lifecycle.get("ready_for_analysis"),
+        "ready_for_next_scan_decision": lifecycle.get("ready_for_next_scan_decision"),
+        "artifact_count": len(artifacts),
+        "missing_artifact_count": sum(1 for artifact in artifacts if not artifact["exists"]),
+        "artifacts": artifacts,
+    }
+    json_path = out / "return_bundle_index.json"
+    report_path = out / "return_bundle_index.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_return_bundle_index(payload), encoding="utf-8")
+    payload["json_path"] = str(json_path)
+    payload["report_path"] = str(report_path)
+    return payload
+
+
+def format_dual_gate_lockin_hall_suite_return_bundle_index(payload: dict) -> str:
+    lines = [
+        "# Hall Suite Return Bundle Index",
+        "",
+        f"- Package: `{payload.get('package_dir')}`",
+        f"- Lifecycle state: {payload.get('lifecycle_state')}",
+        f"- Ready for analysis: {payload.get('ready_for_analysis')}",
+        f"- Ready for next-scan decision: {payload.get('ready_for_next_scan_decision')}",
+        f"- Missing artifacts: {payload.get('missing_artifact_count')}/{payload.get('artifact_count')}",
+        "",
+        "| Artifact | Status | Path | Purpose |",
+        "| --- | --- | --- | --- |",
+    ]
+    for artifact in payload.get("artifacts", []):
+        status = "PRESENT" if artifact.get("exists") else "MISSING"
+        lines.append(
+            f"| {artifact.get('label')} | {status} | `{artifact.get('path')}` | {artifact.get('purpose')} |"
+        )
+    lines.extend(
+        [
+            "",
+            "## Lab Use",
+            "",
+            "Attach this index to the lab notebook after returned runs are intaked. It is the table of contents for the returned Hall package.",
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
 def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
     manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
     package_dir = manifest_path.parent
@@ -1534,6 +1598,48 @@ def _load_optional_json_object(path: Path) -> dict | None:
         return _load_json_object(path)
     except ValueError:
         return None
+
+
+def _hall_return_bundle_artifacts(package_dir: Path, lifecycle: dict) -> list[dict]:
+    items = [
+        ("Package manifest", package_dir / "package_manifest.json", "package contract and copied recipe index"),
+        ("Acquisition runbook", package_dir / "acquisition_runbook.md", "lab-laptop acquisition commands"),
+        ("Handoff summary", package_dir / "handoff_summary" / "handoff_summary.md", "pre-lab handoff PASS/REVIEW summary"),
+        ("Result intake report", package_dir / "result_intake_report.md", "returned run acceptance report"),
+        ("Result intake JSON", package_dir / "result_intake.json", "machine-readable returned run intake"),
+        ("Condition snapshot report", package_dir / "condition_snapshot_report.md", "Vxx/+B/-B/0B measurement-condition table"),
+        ("Condition snapshot JSON", package_dir / "condition_snapshot.json", "machine-readable condition snapshot"),
+        ("Condition drift report", package_dir / "condition_drift_report.md", "returned-run measurement-condition drift audit"),
+        ("Condition drift JSON", package_dir / "condition_drift.json", "machine-readable condition drift audit"),
+        ("Lab return manifest", package_dir / "lab_return" / "lab_return_manifest.md", "returned package manifest for analysis handoff"),
+        ("Lab return manifest JSON", package_dir / "lab_return" / "lab_return_manifest.json", "machine-readable lab return manifest"),
+        ("Lifecycle status JSON", package_dir / "lifecycle_status.json", "optional saved lifecycle state"),
+        ("Hall analysis report", package_dir / "hall_analysis" / "hall_suite_analysis_report.md", "analysis artifact index"),
+        ("Hall analysis manifest", package_dir / "hall_analysis" / "hall_suite_analysis_manifest.json", "machine-readable analysis provenance"),
+        ("Hall analysis review", package_dir / "hall_analysis" / "hall_suite_analysis_review.md", "next-scan readiness review"),
+        ("Next-scan proposal", package_dir / "hall_analysis" / "hall_suite_next_scan_proposal.md", "advisory next gate scan proposal"),
+    ]
+    artifacts = [
+        {
+            "label": label,
+            "path": str(path),
+            "exists": path.exists(),
+            "purpose": purpose,
+        }
+        for label, path, purpose in items
+    ]
+    for stage in lifecycle.get("stages", []):
+        path = Path(str(stage.get("path"))) if stage.get("path") else package_dir
+        artifacts.append(
+            {
+                "label": f"Lifecycle stage: {stage.get('label')}",
+                "path": str(path),
+                "exists": path.exists(),
+                "ok": bool(stage.get("ok")),
+                "purpose": f"stage status: {'PASS' if stage.get('ok') else 'REVIEW/MISSING'}; {stage.get('details') or ''}",
+            }
+        )
+    return artifacts
 
 
 def _stage_ok(stages: list[dict], key: str) -> bool:

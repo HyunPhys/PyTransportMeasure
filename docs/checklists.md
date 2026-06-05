@@ -636,6 +636,15 @@ remain point-guarded.
 - [ ] If a zero-field run was supplied, confirm
   `hall_analysis/zero_corrected/hall_zero_corrected.csv` is written.
 - [ ] Confirm `hall_analysis/mobility/hall_mobility.csv` is written.
+- [ ] After analysis/review/proposal, save lifecycle status and write the return
+  bundle index.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package> --json-output data\hall_packages\<sample_lab_package>\lifecycle_status.json
+  ptm dual-gate-lockin-hall-suite-return-bundle-index data\hall_packages\<sample_lab_package> --overwrite
+  ```
+- [ ] Confirm `return_bundle/return_bundle_index.md` links intake, condition
+  snapshot, drift, lab-return, lifecycle, analysis, review, and proposal
+  artifacts.
 - [ ] Confirm `hall_analysis/hall_suite_analysis_manifest.json` records the
   intake JSON, run folders, value column, and chosen Hall density source.
 - [ ] Review the suite-level Hall analysis before choosing the next gate scan.

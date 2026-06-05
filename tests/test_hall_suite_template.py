@@ -614,6 +614,14 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     )
     assert package_code == 0
     package_dir = tmp_path / "packages" / "intake_graphene_package"
+    handoff_code = main(
+        [
+            "dual-gate-lockin-hall-suite-handoff-summary",
+            str(package_dir),
+            "--overwrite",
+        ]
+    )
+    assert handoff_code == 0
     recipe_dir = package_dir / "recipes"
     long_run = run_hall_suite_recipe_dry(recipe_dir / result.longitudinal_recipe.name)
     plus_run = run_hall_suite_recipe_dry(recipe_dir / result.plus_hall_recipe.name)
@@ -792,6 +800,24 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert proposal_payload["requires_lab_approval"] is True
     assert proposal_payload["strategy"] == "refine_charge_neutrality_region"
     assert "NPLC" in proposal_text
+    lifecycle_saved_code = main(
+        [
+            "dual-gate-lockin-hall-suite-lifecycle-status",
+            str(package_dir),
+            "--json-output",
+            str(package_dir / "lifecycle_status.json"),
+        ]
+    )
+    assert lifecycle_saved_code == 0
+    return_index_code = main(["dual-gate-lockin-hall-suite-return-bundle-index", str(package_dir)])
+    return_index = json.loads((package_dir / "return_bundle" / "return_bundle_index.json").read_text(encoding="utf-8"))
+    return_index_text = (package_dir / "return_bundle" / "return_bundle_index.md").read_text(encoding="utf-8")
+    assert return_index_code == 0
+    assert return_index["lifecycle_state"] == "next_scan_proposed"
+    assert return_index["missing_artifact_count"] == 0
+    assert any(artifact["label"] == "Condition snapshot report" for artifact in return_index["artifacts"])
+    assert any(artifact["label"] == "Next-scan proposal" for artifact in return_index["artifacts"])
+    assert "Hall Suite Return Bundle Index" in return_index_text
 
     code = main(
         [

@@ -584,10 +584,14 @@ root.
   - surface condition snapshot existence in lifecycle status
   - make lab handoff/return artifacts point to snapshot, drift, and intake
     reports together
-- [ ] Phase 25ci: Hall return bundle index
+- [x] Phase 25ci: Hall return bundle index
   - write a package-local index that links intake, condition snapshot, drift,
     lab-return manifest, lifecycle status, and analysis artifacts
   - give lab notebook entries one compact return artifact table
+- [ ] Phase 25cj: Hall return bundle index lifecycle integration
+  - surface return bundle index existence in lifecycle status
+  - let package lifecycle mark post-analysis return bundles as archived for lab
+    notebook handoff
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
