@@ -178,10 +178,14 @@ root.
   - decide DC three-source path vs AC source/readout plus two Keithley gates
   - define Hall-bar graphene dual-gate wiring and safety checklist
   - add preflight for the selected real hardware topology before enabling output
-- [ ] Phase 25e: Dual-gate lock-in hardware preflight
+- [x] Phase 25e: Dual-gate lock-in hardware preflight
   - validate two gate Keithley addresses and one SR860 address
   - require distinct resources and successful read-only probes
   - print SR860 excitation/readout assumptions before output can be enabled
+- [ ] Phase 25f: Dual-gate lock-in hardware topology smoke
+  - define SR860 excitation path and Hall-bar source-drain wiring
+  - verify gate leakage and lock-in readout on a safe test device
+  - keep active gate sweep disabled until the smoke test passes
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

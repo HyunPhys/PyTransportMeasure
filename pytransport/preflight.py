@@ -11,13 +11,19 @@ from .instruments.srs_sr860 import probe_srs_sr860
 from .recipes import (
     AcLockInRecipe,
     DrainIVRecipe,
+    DualGateLockInRecipe,
     SingleGateRecipe,
     load_ac_lockin_recipe,
+    load_dual_gate_lockin_recipe,
     load_named_safety_preset,
     load_recipe,
     load_single_gate_recipe,
 )
-from .safety import validate_ac_lockin_recipe_against_safety, validate_single_gate_recipe_against_safety
+from .safety import (
+    validate_ac_lockin_recipe_against_safety,
+    validate_dual_gate_lockin_recipe_against_safety,
+    validate_single_gate_recipe_against_safety,
+)
 from .validation import RecipeValidationReport, format_validation_report, validate_recipe
 from .visa_utils import list_resources
 
@@ -76,6 +82,28 @@ class AcLockInPreflightReport:
     @property
     def ok(self) -> bool:
         return self.validation_ok and self.distinct_addresses and self.source.ok and self.lockin.ok
+
+
+@dataclass(frozen=True)
+class DualGateLockInPreflightReport:
+    recipe_path: str
+    validation_ok: bool
+    validation_error: str | None
+    visa_resources: tuple[str, ...]
+    distinct_addresses: bool
+    gate1: InstrumentPreflight
+    gate2: InstrumentPreflight
+    lockin: InstrumentPreflight
+
+    @property
+    def ok(self) -> bool:
+        return (
+            self.validation_ok
+            and self.distinct_addresses
+            and self.gate1.ok
+            and self.gate2.ok
+            and self.lockin.ok
+        )
 
 
 def run_preflight(
@@ -232,6 +260,77 @@ def run_ac_lockin_preflight_for_recipe(
     )
 
 
+def run_dual_gate_lockin_preflight(
+    recipe_path: str | Path,
+    safety_dir: str | Path = "configs/safety",
+    resource_lister: Callable[[], tuple[str, ...]] = list_resources,
+    gate_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+) -> DualGateLockInPreflightReport:
+    recipe = load_dual_gate_lockin_recipe(recipe_path)
+    return run_dual_gate_lockin_preflight_for_recipe(
+        recipe,
+        recipe_path,
+        safety_dir,
+        resource_lister,
+        gate_probe_factory,
+        lockin_probe_factory,
+    )
+
+
+def run_dual_gate_lockin_preflight_for_recipe(
+    recipe: DualGateLockInRecipe,
+    recipe_path: str | Path,
+    safety_dir: str | Path = "configs/safety",
+    resource_lister: Callable[[], tuple[str, ...]] = list_resources,
+    gate_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+    lockin_probe_factory: Callable[[str, int], dict[str, str]] | None = None,
+) -> DualGateLockInPreflightReport:
+    validation_ok = True
+    validation_error = None
+    try:
+        safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+        validate_dual_gate_lockin_recipe_against_safety(recipe, safety)
+    except Exception as exc:
+        validation_ok = False
+        validation_error = f"{type(exc).__name__}: {exc}"
+    resources = resource_lister()
+    lockin_address = recipe.lockin.address or ""
+    addresses = [recipe.gate1_instrument.address, recipe.gate2_instrument.address, lockin_address]
+    distinct_addresses = len(set(addresses)) == len(addresses)
+    gate1 = run_instrument_preflight(
+        "gate1",
+        recipe.gate1_instrument.address,
+        recipe.gate1_instrument.timeout_ms,
+        resources,
+        gate_probe_factory,
+    )
+    gate2 = run_instrument_preflight(
+        "gate2",
+        recipe.gate2_instrument.address,
+        recipe.gate2_instrument.timeout_ms,
+        resources,
+        gate_probe_factory,
+    )
+    lockin = run_instrument_preflight(
+        "lock-in",
+        lockin_address,
+        recipe.lockin.timeout_ms,
+        resources,
+        lockin_probe_factory or probe_srs_sr860,
+    )
+    return DualGateLockInPreflightReport(
+        recipe_path=str(recipe_path),
+        validation_ok=validation_ok,
+        validation_error=validation_error,
+        visa_resources=resources,
+        distinct_addresses=distinct_addresses,
+        gate1=gate1,
+        gate2=gate2,
+        lockin=lockin,
+    )
+
+
 def run_instrument_preflight(
     label: str,
     address: str,
@@ -366,4 +465,40 @@ def format_ac_lockin_preflight_report(report: AcLockInPreflightReport) -> str:
             lines.append("  - skipped")
         lines.append(f"- ok: {instrument.ok}")
     lines.extend(["", f"AC lock-in preflight OK: {report.ok}"])
+    return "\n".join(lines)
+
+
+def format_dual_gate_lockin_preflight_report(report: DualGateLockInPreflightReport) -> str:
+    lines = [
+        "Dual-Gate Lock-In Preflight",
+        "",
+        f"Recipe: {report.recipe_path}",
+        f"Validation OK: {report.validation_ok}",
+    ]
+    if report.validation_error is not None:
+        lines.append(f"Validation error: {report.validation_error}")
+    lines.extend(["", "VISA resources:"])
+    if report.visa_resources:
+        lines.extend(f"- {resource}" for resource in report.visa_resources)
+    else:
+        lines.append("- none")
+    lines.extend(["", f"Gate1/gate2/lock-in addresses distinct: {report.distinct_addresses}"])
+    for instrument in [report.gate1, report.gate2, report.lockin]:
+        lines.extend(
+            [
+                "",
+                f"{instrument.label.capitalize()} instrument:",
+                f"- address: {instrument.address}",
+                f"- address found: {instrument.address_found}",
+                "- probe:",
+            ]
+        )
+        if instrument.probe is not None:
+            lines.extend(f"  - {key}: {value}" for key, value in instrument.probe.items())
+        elif instrument.probe_error is not None:
+            lines.append(f"  - error: {instrument.probe_error}")
+        else:
+            lines.append("  - skipped")
+        lines.append(f"- ok: {instrument.ok}")
+    lines.extend(["", f"Dual-gate lock-in preflight OK: {report.ok}"])
     return "\n".join(lines)

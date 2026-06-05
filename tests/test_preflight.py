@@ -1,8 +1,10 @@
 from pytransport.preflight import (
     format_ac_lockin_preflight_report,
+    format_dual_gate_lockin_preflight_report,
     format_preflight_report,
     format_single_gate_preflight_report,
     run_ac_lockin_preflight,
+    run_dual_gate_lockin_preflight,
     run_preflight,
     run_single_gate_preflight,
 )
@@ -153,3 +155,68 @@ def test_run_ac_lockin_preflight_fails_when_lockin_address_missing():
     assert "Lock-in instrument:" in text
     assert "- address found: False" in text
     assert "AC lock-in preflight OK: False" in text
+
+
+def test_run_dual_gate_lockin_preflight_ok():
+    gate_probed = []
+    lockin_probed = []
+
+    def gate_probe(address, timeout):
+        gate_probed.append((address, timeout))
+        return {
+            "address": address,
+            "idn": f"KEITHLEY INSTRUMENTS,MODEL 2450,{address},1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        }
+
+    def lockin_probe(address, timeout):
+        lockin_probed.append((address, timeout))
+        return {
+            "address": address,
+            "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
+            "error_status": "0",
+            "lia_status": "0",
+        }
+
+    report = run_dual_gate_lockin_preflight(
+        "configs/recipes/dual_gate_lockin_dry_run.yaml",
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
+        gate_probe_factory=gate_probe,
+        lockin_probe_factory=lockin_probe,
+    )
+
+    text = format_dual_gate_lockin_preflight_report(report)
+
+    assert report.ok is True
+    assert report.gate1.ok is True
+    assert report.gate2.ok is True
+    assert report.lockin.ok is True
+    assert gate_probed == [("GPIB0::2::INSTR", 10000), ("GPIB0::3::INSTR", 10000)]
+    assert lockin_probed == [("GPIB0::4::INSTR", 10000)]
+    assert "Gate1/gate2/lock-in addresses distinct: True" in text
+    assert "Dual-gate lock-in preflight OK: True" in text
+
+
+def test_run_dual_gate_lockin_preflight_fails_when_lockin_address_missing():
+    report = run_dual_gate_lockin_preflight(
+        "configs/recipes/dual_gate_lockin_dry_run.yaml",
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::3::INSTR"),
+        gate_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        lockin_probe_factory=lambda address, timeout: {},
+    )
+
+    text = format_dual_gate_lockin_preflight_report(report)
+
+    assert report.ok is False
+    assert report.gate1.ok is True
+    assert report.gate2.ok is True
+    assert report.lockin.ok is False
+    assert "Lock-in instrument:" in text
+    assert "- address found: False" in text
+    assert "Dual-gate lock-in preflight OK: False" in text

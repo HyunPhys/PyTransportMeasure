@@ -40,5 +40,6 @@ implemented and smoke-tested.
 
 ## Next Step
 
-Add dual-gate lock-in hardware preflight that checks two Keithley resources and
-one SR860 resource before any gate output can be enabled.
+The follow-up preflight phase is complete. The next hardware step is a topology
+smoke test that explicitly checks SR860 excitation, Hall-bar source-drain wiring,
+and safe gate leakage before any active dual-gate lock-in sweep is enabled.

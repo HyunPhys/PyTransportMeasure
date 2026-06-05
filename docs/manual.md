@@ -358,12 +358,12 @@ readout measures the source-drain response.
 
 The dual-gate lock-in workflow is the software path closest to the current
 hardware set: two Keithley 2450 instruments bias gate1 and gate2, while SR860
-readout records the source-drain lock-in response. The current phase is dry-run
-only, because SR860 excitation and Hall bar wiring assumptions still need a
-hardware preflight gate.
+readout records the source-drain lock-in response. The current hardware output
+path is still blocked, but the read-only preflight gate is available.
 
 ```powershell
 ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
+ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
 ```
 
@@ -380,9 +380,9 @@ Hardware output is intentionally blocked:
 ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml
 ```
 
-The next phase should add a read-only preflight for two Keithleys and one SR860,
-then explicitly state how SR860 excitation and device wiring are configured
-before any gate output can be enabled.
+The blocked hardware command prints the same preflight report before returning.
+Before this becomes an active hardware sweep, SR860 excitation and Hall bar
+wiring assumptions still need to be explicitly smoke-tested.
 
 ## Campaign
 

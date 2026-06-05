@@ -10,12 +10,12 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] Batch, scheme, and campaign review flows are available.
 - [x] Single-gate workflow is dry-run verified.
 - [x] Dual-gate workflow is dry-run verified and hardware-blocked.
-- [x] Dual-gate lock-in workflow is dry-run verified and hardware-blocked.
+- [x] Dual-gate lock-in workflow is dry-run verified and preflight-gated.
 - [x] SR860 / AC lock-in workflow is dry-run verified.
 - [x] Two-terminal AC lock-in hardware smoke path is available after preflight.
 - [ ] Single-gate two-SMU hardware smoke test still needs lab confirmation.
 - [ ] Dual-gate hardware topology still needs design before output is enabled.
-- [ ] Dual-gate lock-in hardware preflight still needs implementation.
+- [x] Dual-gate lock-in hardware preflight checks two gate Keithleys and SR860.
 - [x] Keithley/SR860 AC lock-in preflight checks both resources before hardware
   output is enabled.
 - [x] Pulse measurement is dry-run verified; hardware output is intentionally
@@ -312,8 +312,8 @@ hardware output is enabled.
 ## Dual-Gate Lock-In Dry-Run Checklist
 
 Use this for the likely two-Keithley-plus-SR860 Hall bar graphene path. Current
-hardware execution is blocked until preflight and SR860 excitation/readout
-assumptions are explicit.
+hardware execution is still blocked, but the read-only three-instrument
+preflight is available.
 
 - [ ] Preview the lock-in dual-gate plan.
   ```powershell
@@ -321,6 +321,13 @@ assumptions are explicit.
   ```
 - [ ] Confirm the plan shows gate1 Keithley, gate2 Keithley, SR860 address,
   NPLC values, lock-in channels, and `after_dc_settle` timing.
+- [ ] Run the three-instrument preflight on the lab laptop.
+  ```powershell
+  ptm dual-gate-lockin-preflight configs/recipes/dual_gate_lockin_dry_run.yaml
+  ```
+- [ ] Confirm `Gate1/gate2/lock-in addresses distinct: True`, all three
+  addresses are found, both gate probes identify Keithley 2450 instruments, the
+  lock-in probe identifies SR860, and `Dual-gate lock-in preflight OK: True`.
 - [ ] Run the dry-run artifact path.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0

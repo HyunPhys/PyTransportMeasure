@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from pytransport import cli
+from pytransport.preflight import DualGateLockInPreflightReport, InstrumentPreflight
 
 
 def write_dual_gate_lockin_cli_recipe(tmp_path: Path) -> Path:
@@ -84,10 +85,47 @@ def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
     assert (run_dirs[0] / "dual_gate_lockin_stats.csv").exists()
 
 
-def test_cli_dual_gate_lockin_hardware_run_is_blocked(tmp_path):
+def test_cli_dual_gate_lockin_hardware_run_is_blocked(tmp_path, monkeypatch):
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    monkeypatch.setattr(
+        cli,
+        "run_dual_gate_lockin_preflight",
+        lambda recipe_path, safety_dir: DualGateLockInPreflightReport(
+            recipe_path=str(recipe_path),
+            validation_ok=True,
+            validation_error=None,
+            visa_resources=("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
+            distinct_addresses=True,
+            gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", True, {"idn": "SRS,SR860"}, None),
+        ),
+    )
 
     code = cli.main(["dual-gate-lockin", str(recipe)])
 
     assert code == 2
     assert not (tmp_path / "raw").exists()
+
+
+def test_cli_dual_gate_lockin_preflight_command(tmp_path, monkeypatch):
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    def fake_preflight(recipe_path, safety_dir):
+        return DualGateLockInPreflightReport(
+            recipe_path=str(recipe_path),
+            validation_ok=True,
+            validation_error=None,
+            visa_resources=("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
+            distinct_addresses=True,
+            gate1=InstrumentPreflight("gate1", "GPIB0::2::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            gate2=InstrumentPreflight("gate2", "GPIB0::3::INSTR", True, {"idn": "KEITHLEY,2450"}, None),
+            lockin=InstrumentPreflight("lock-in", "GPIB0::4::INSTR", True, {"idn": "SRS,SR860"}, None),
+        )
+
+    monkeypatch.setattr(cli, "run_dual_gate_lockin_preflight", fake_preflight)
+
+    code = cli.main(["dual-gate-lockin-preflight", str(recipe)])
+
+    assert code == 0

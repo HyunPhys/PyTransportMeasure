@@ -73,9 +73,11 @@ from .model import MeasurementPoint
 from .plot import write_iv_svg
 from .preflight import (
     format_ac_lockin_preflight_report,
+    format_dual_gate_lockin_preflight_report,
     format_preflight_report,
     format_single_gate_preflight_report,
     run_ac_lockin_preflight,
+    run_dual_gate_lockin_preflight,
     run_preflight,
     run_preflight_for_recipe,
     run_single_gate_preflight,
@@ -239,6 +241,13 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_plan.add_argument("recipe", type=Path)
     dual_gate_lockin_plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_plan.add_argument("--preview-points", type=int, default=5)
+
+    dual_gate_lockin_preflight = subparsers.add_parser(
+        "dual-gate-lockin-preflight",
+        help="Validate a dual-gate lock-in recipe, find two gate Keithleys and SR860, and probe all three instruments.",
+    )
+    dual_gate_lockin_preflight.add_argument("recipe", type=Path)
+    dual_gate_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
 
     dual_gate_lockin = subparsers.add_parser("dual-gate-lockin", help="Run a dual-gate lock-in recipe. Current milestone is dry-run only.")
     dual_gate_lockin.add_argument("recipe", type=Path)
@@ -797,6 +806,12 @@ def command_dual_gate_lockin_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_dual_gate_lockin_preflight(args: argparse.Namespace) -> int:
+    report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+    print(format_dual_gate_lockin_preflight_report(report))
+    return 0 if report.ok else 1
+
+
 def command_dual_gate_lockin(args: argparse.Namespace) -> int:
     method = handler_for_measurement_type("dual_gate_lockin_sweep")
     recipe = method.load_recipe(args.recipe)
@@ -805,6 +820,9 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
     print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
     print()
     if not args.dry_run:
+        report = run_dual_gate_lockin_preflight(args.recipe, args.safety_dir)
+        print(format_dual_gate_lockin_preflight_report(report))
+        print()
         print(
             "Dual-gate lock-in hardware runs are not active yet. Use --dry-run until SR860 excitation/readout topology is smoke-tested.",
             file=sys.stderr,
@@ -2032,6 +2050,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate(args)
     if args.command == "dual-gate-lockin-plan":
         return command_dual_gate_lockin_plan(args)
+    if args.command == "dual-gate-lockin-preflight":
+        return command_dual_gate_lockin_preflight(args)
     if args.command == "dual-gate-lockin":
         return command_dual_gate_lockin(args)
     if args.command == "ac-lockin-plan":
