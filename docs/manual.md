@@ -643,6 +643,11 @@ This writes `return_bundle/return_bundle_index.md` and
 condition drift, lab-return manifest, lifecycle status, analysis, review, and
 next-scan proposal artifacts in one table.
 
+After the index is written, rerun lifecycle status. A fully analyzed and indexed
+package should report `Lifecycle state: return_bundle_archived`, with the
+`Return bundle index` stage marked `PASS`. This is the handoff point for
+attaching the package summary to the lab notebook.
+
 When intake passes, the full Hall analysis sequence can be run as one command:
 
 ```powershell

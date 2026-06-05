@@ -818,6 +818,22 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert any(artifact["label"] == "Condition snapshot report" for artifact in return_index["artifacts"])
     assert any(artifact["label"] == "Next-scan proposal" for artifact in return_index["artifacts"])
     assert "Hall Suite Return Bundle Index" in return_index_text
+    archived_lifecycle_code = main(
+        [
+            "dual-gate-lockin-hall-suite-lifecycle-status",
+            str(package_dir),
+            "--json-output",
+            str(package_dir / "lifecycle_status_after_return_bundle.json"),
+        ]
+    )
+    archived_lifecycle = json.loads(
+        (package_dir / "lifecycle_status_after_return_bundle.json").read_text(encoding="utf-8")
+    )
+    archived_stage_by_key = {stage["key"]: stage for stage in archived_lifecycle["stages"]}
+    assert archived_lifecycle_code == 0
+    assert archived_lifecycle["state"] == "return_bundle_archived"
+    assert archived_lifecycle["return_bundle_archived"] is True
+    assert archived_stage_by_key["return_bundle_index"]["ok"] is True
 
     code = main(
         [

@@ -645,6 +645,8 @@ remain point-guarded.
 - [ ] Confirm `return_bundle/return_bundle_index.md` links intake, condition
   snapshot, drift, lab-return, lifecycle, analysis, review, and proposal
   artifacts.
+- [ ] Rerun lifecycle status and confirm the `Return bundle index` stage is
+  `PASS` and lifecycle state is `return_bundle_archived`.
 - [ ] Confirm `hall_analysis/hall_suite_analysis_manifest.json` records the
   intake JSON, run folders, value column, and chosen Hall density source.
 - [ ] Review the suite-level Hall analysis before choosing the next gate scan.

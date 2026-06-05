@@ -588,10 +588,15 @@ root.
   - write a package-local index that links intake, condition snapshot, drift,
     lab-return manifest, lifecycle status, and analysis artifacts
   - give lab notebook entries one compact return artifact table
-- [ ] Phase 25cj: Hall return bundle index lifecycle integration
+- [x] Phase 25cj: Hall return bundle index lifecycle integration
   - surface return bundle index existence in lifecycle status
   - let package lifecycle mark post-analysis return bundles as archived for lab
     notebook handoff
+- [ ] Phase 25ck: Hall measurement-mode execution matrix
+  - define the next measurement-focused implementation matrix for two-terminal
+    DC, four-terminal DC, two-terminal AC, four-terminal AC, and Hall-suite
+    dual-gate runs
+  - keep convenience/UI work secondary to hardware-facing measurement paths
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

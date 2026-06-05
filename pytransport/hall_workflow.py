@@ -780,6 +780,22 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
         ok=proposal is not None,
         details=str(proposal.get("strategy") or "proposal written") if proposal else "not written",
     )
+    return_bundle_json = package_dir / "return_bundle" / "return_bundle_index.json"
+    return_bundle = _load_optional_json_object(return_bundle_json)
+    missing_return_bundle_artifacts = (
+        return_bundle.get("missing_artifact_count") if isinstance(return_bundle, dict) else None
+    )
+    add_stage(
+        "return_bundle_index",
+        "Return bundle index",
+        return_bundle_json,
+        ok=bool(return_bundle and missing_return_bundle_artifacts == 0),
+        details=(
+            f"missing_artifact_count={missing_return_bundle_artifacts}"
+            if return_bundle
+            else "not written"
+        ),
+    )
     state = _hall_suite_lifecycle_state(stages)
     measurement_conditions_ready = _lifecycle_measurement_conditions_ready(stages)
     return {
@@ -802,6 +818,7 @@ def inspect_dual_gate_lockin_hall_suite_lifecycle_status(package_manifest_or_dir
             and _stage_ok(stages, "analysis_review")
             and _stage_ok(stages, "next_scan_proposal")
         ),
+        "return_bundle_archived": _stage_ok(stages, "return_bundle_index"),
         "stages": stages,
     }
 
@@ -1629,6 +1646,8 @@ def _hall_return_bundle_artifacts(package_dir: Path, lifecycle: dict) -> list[di
         for label, path, purpose in items
     ]
     for stage in lifecycle.get("stages", []):
+        if stage.get("key") == "return_bundle_index":
+            continue
         path = Path(str(stage.get("path"))) if stage.get("path") else package_dir
         artifacts.append(
             {
@@ -1656,6 +1675,8 @@ def _lifecycle_measurement_conditions_ready(stages: list[dict]) -> bool:
 
 def _hall_suite_lifecycle_state(stages: list[dict]) -> str:
     measurement_conditions_ready = _lifecycle_measurement_conditions_ready(stages)
+    if _stage_ok(stages, "return_bundle_index"):
+        return "return_bundle_archived"
     if not measurement_conditions_ready:
         if (
             _stage_ok(stages, "handoff_summary")
