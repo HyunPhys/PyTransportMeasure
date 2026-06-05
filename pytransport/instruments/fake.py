@@ -66,6 +66,20 @@ class CoupledFakeDeviceState:
     noise_std_a: float = 1e-10
 
 
+@dataclass
+class DualGateFakeDeviceState:
+    drain_voltage_v: float = 0.0
+    gate1_voltage_v: float = 0.0
+    gate2_voltage_v: float = 0.0
+    channel_resistance_ohm: float = 10_000.0
+    gate1_leak_resistance_ohm: float = 1_000_000_000.0
+    gate2_leak_resistance_ohm: float = 1_000_000_000.0
+    gate1_modulation_per_v: float = 0.0
+    gate2_modulation_per_v: float = 0.0
+    cross_term_per_v2: float = 0.0
+    noise_std_a: float = 1e-10
+
+
 class CoupledFakeSMU:
     def __init__(self, role: str, state: CoupledFakeDeviceState):
         if role not in {"drain", "gate"}:
@@ -108,6 +122,76 @@ class CoupledFakeSMU:
             ideal_current = self.state.gate_voltage_v / self.state.gate_leak_resistance_ohm
         else:
             conductance_scale = max(0.0, 1.0 + self.state.gate_modulation_per_v * self.state.gate_voltage_v)
+            ideal_current = self.state.drain_voltage_v / self.state.channel_resistance_ohm * conductance_scale
+        measured = ideal_current + random.gauss(0.0, self.state.noise_std_a)
+        compliance_hit = abs(measured) >= self.current_compliance_a
+        return measured, compliance_hit
+
+    def output_on(self) -> None:
+        self.is_output_on = True
+
+    def output_off(self) -> None:
+        self.is_output_on = False
+
+    def close(self) -> None:
+        self.connected = False
+
+
+class DualGateFakeSMU:
+    def __init__(self, role: str, state: DualGateFakeDeviceState):
+        if role not in {"drain", "gate1", "gate2"}:
+            raise ValueError("role must be 'drain', 'gate1', or 'gate2'")
+        self.role = role
+        self.state = state
+        self.current_compliance_a = 1e-6
+        self.is_output_on = False
+        self.connected = False
+
+    def connect(self) -> None:
+        self.connected = True
+
+    def identify(self) -> str:
+        return f"FAKE,{self.role.upper()}-SMU,DRY-RUN,0"
+
+    def probe(self) -> dict[str, str]:
+        return {
+            "address": f"FAKE::{self.role.upper()}",
+            "idn": self.identify(),
+            "language": "SIM",
+            "system_error": '0,"No error"',
+            "channel_resistance_ohm": f"{self.state.channel_resistance_ohm:.12g}",
+            "gate1_leak_resistance_ohm": f"{self.state.gate1_leak_resistance_ohm:.12g}",
+            "gate2_leak_resistance_ohm": f"{self.state.gate2_leak_resistance_ohm:.12g}",
+            "gate1_modulation_per_v": f"{self.state.gate1_modulation_per_v:.12g}",
+            "gate2_modulation_per_v": f"{self.state.gate2_modulation_per_v:.12g}",
+            "cross_term_per_v2": f"{self.state.cross_term_per_v2:.12g}",
+            "noise_std_a": f"{self.state.noise_std_a:.12g}",
+        }
+
+    def configure_voltage_source(self, config: SMUVoltageSourceConfig) -> None:
+        self.current_compliance_a = config.current_compliance_a
+
+    def set_voltage(self, voltage_v: float) -> None:
+        if self.role == "drain":
+            self.state.drain_voltage_v = voltage_v
+        elif self.role == "gate1":
+            self.state.gate1_voltage_v = voltage_v
+        else:
+            self.state.gate2_voltage_v = voltage_v
+
+    def measure_current(self) -> tuple[float, bool]:
+        if self.role == "gate1":
+            ideal_current = self.state.gate1_voltage_v / self.state.gate1_leak_resistance_ohm
+        elif self.role == "gate2":
+            ideal_current = self.state.gate2_voltage_v / self.state.gate2_leak_resistance_ohm
+        else:
+            conductance_scale = max(
+                0.0,
+                1.0
+                + self.state.gate1_modulation_per_v * self.state.gate1_voltage_v
+                + self.state.gate2_modulation_per_v * self.state.gate2_voltage_v
+                + self.state.cross_term_per_v2 * self.state.gate1_voltage_v * self.state.gate2_voltage_v,
+            )
             ideal_current = self.state.drain_voltage_v / self.state.channel_resistance_ohm * conductance_scale
         measured = ideal_current + random.gauss(0.0, self.state.noise_std_a)
         compliance_hit = abs(measured) >= self.current_compliance_a

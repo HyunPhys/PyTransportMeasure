@@ -142,6 +142,11 @@ root.
   - enable `ptm ac-lockin` hardware execution after preflight and confirmation
   - use Keithley source plus SR860 lock-in driver
   - write standard AC lock-in CSV, metadata, plot, and report artifacts
+- [x] Phase 25a: Dual-gate dry-run foundation
+  - add dual-gate recipe schema with drain, gate1, and gate2 instrument blocks
+  - add dry-run runner over gate1 x gate2 x drain sweep points
+  - add dual-gate CSV, metadata, heatmap, stats, report, and registry support
+  - keep hardware execution blocked until topology and smoke tests are defined
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -159,10 +164,10 @@ root.
   - represent 2-terminal and 4-terminal geometry in recipes and metadata
   - add 2450 4-wire/remote-sense TODO implementation hook
   - keep SCPI selection explicit in plan/preflight before enabling output
-- [ ] Phase 25b: Dual-gate scan composition
-  - compose verified inner measurement methods under gate sweeps
-  - support Hall-bar graphene dual-gate scan recipes
-  - keep DC/AC and 2-terminal/4-terminal method selection explicit
+- [ ] Phase 25b: Dual-gate hardware topology design
+  - decide DC three-source path vs AC source/readout plus two Keithley gates
+  - define Hall-bar graphene dual-gate wiring and safety checklist
+  - add preflight for the selected real hardware topology before enabling output
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

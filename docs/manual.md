@@ -70,6 +70,7 @@ Important modules:
 | Campaign analysis | Offline artifact analysis | `ptm campaign`, `ptm campaign-bundle` |
 | Lab feedback bundle | Offline debugging/review | `ptm feedback-bundle` |
 | Single-gate sweep | Dry-run verified; hardware smoke-test recipe prepared | `ptm single-gate-plan`, `ptm single-gate` |
+| Dual-gate sweep | Dry-run verified; hardware intentionally blocked | `ptm dual-gate-plan`, `ptm dual-gate --dry-run` |
 | SR860 / AC lock-in | Conservative two-terminal hardware smoke path available | `ptm ac-lockin-plan`, `ptm ac-lockin-preflight`, `ptm ac-lockin` |
 | 4-probe / remote sense | Designed and deferred | No active command |
 | Pulse measurement | Dry-run verified; hardware run intentionally blocked | `ptm pulse-plan`, `ptm pulse --dry-run` |
@@ -321,6 +322,36 @@ Before the hardware command, edit the recipe so `drain_instrument.address` and
 `gate_instrument.address` match the two actual Keithleys and are not identical.
 The preflight must report `Drain/gate addresses distinct: True`, both
 instrument addresses found, and `Single-gate preflight OK: True`.
+
+## Dual-Gate Sweep
+
+The current dual-gate workflow is dry-run verified and hardware-blocked. It is
+the first software step toward Hall bar graphene dual-gate scans. The recipe has
+separate blocks for drain, gate1, and gate2 instruments, plus separate gate1,
+gate2, and drain sweeps.
+
+```powershell
+ptm dual-gate-plan configs/recipes/dual_gate_dry_run.yaml
+ptm dual-gate configs/recipes/dual_gate_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std-a 0
+```
+
+The saved `points.csv` contains one row for each
+`gate1 x gate2 x drain` point. Review artifacts include:
+
+- `dual_gate_heatmap.svg`: mean drain current over the gate1/gate2 grid.
+- `dual_gate_stats.csv`: per-gate-pair drain current and leakage statistics.
+- `dual_gate_report.md`: human-readable run report.
+
+Hardware dual-gate output is intentionally blocked for now:
+
+```powershell
+ptm dual-gate configs/recipes/dual_gate_dry_run.yaml
+```
+
+This should return a blocking message before any instrument output is enabled.
+The next hardware design step is to choose between a DC three-source topology
+and an AC topology where the two Keithleys bias the gates while SR860/lock-in
+readout measures the source-drain response.
 
 ## Campaign
 

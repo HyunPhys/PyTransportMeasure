@@ -69,7 +69,7 @@ from .single_gate_review import write_single_gate_stats_csv
 from .visa_utils import list_resources
 
 
-GuiMethod = Literal["drain_iv", "single_gate_sweep", "ac_lockin_sweep", "pulse_measurement"]
+GuiMethod = Literal["drain_iv", "single_gate_sweep", "dual_gate_sweep", "ac_lockin_sweep", "pulse_measurement"]
 GuiProgressCallback = Callable[[Any, int], None]
 
 
@@ -190,6 +190,7 @@ def available_gui_methods() -> dict[str, str]:
     return {
         "drain_iv": "Drain I-V",
         "single_gate_sweep": "Single-gate sweep",
+        "dual_gate_sweep": "Dual-gate sweep",
         "ac_lockin_sweep": "AC lock-in sweep",
         "pulse_measurement": "Pulse measurement",
     }
@@ -199,6 +200,7 @@ def default_recipe_path(measurement_type: GuiMethod) -> Path:
     paths = {
         "drain_iv": Path("configs/recipes/drain_iv_1k_resistor.yaml"),
         "single_gate_sweep": Path("configs/recipes/single_gate_dry_run.yaml"),
+        "dual_gate_sweep": Path("configs/recipes/dual_gate_dry_run.yaml"),
         "ac_lockin_sweep": Path("configs/recipes/ac_lockin_dry_run.yaml"),
         "pulse_measurement": Path("configs/recipes/pulse_dry_run.yaml"),
     }
@@ -1852,6 +1854,9 @@ def artifact_paths_from_metadata(metadata: dict[str, Any]) -> dict[str, str]:
         "single_gate_heatmap_path",
         "single_gate_report_path",
         "single_gate_stats_path",
+        "dual_gate_heatmap_path",
+        "dual_gate_report_path",
+        "dual_gate_stats_path",
         "ac_lockin_plot_path",
         "ac_lockin_report_path",
         "pulse_plot_path",
@@ -1866,14 +1871,14 @@ def artifact_paths_from_metadata(metadata: dict[str, Any]) -> dict[str, str]:
 def primary_plot_path(metadata: dict[str, Any]) -> Path | None:
     return primary_existing_path(
         metadata,
-        ["plot_path", "single_gate_heatmap_path", "ac_lockin_plot_path", "pulse_plot_path"],
+        ["plot_path", "single_gate_heatmap_path", "dual_gate_heatmap_path", "ac_lockin_plot_path", "pulse_plot_path"],
     )
 
 
 def primary_report_path(metadata: dict[str, Any]) -> Path | None:
     return primary_existing_path(
         metadata,
-        ["report_path", "single_gate_report_path", "ac_lockin_report_path", "pulse_report_path"],
+        ["report_path", "single_gate_report_path", "dual_gate_report_path", "ac_lockin_report_path", "pulse_report_path"],
     )
 
 
@@ -1891,6 +1896,8 @@ def path_metadata_key(filename: str) -> str:
         "report.md": "report_path",
         "single_gate_heatmap.svg": "single_gate_heatmap_path",
         "single_gate_report.md": "single_gate_report_path",
+        "dual_gate_heatmap.svg": "dual_gate_heatmap_path",
+        "dual_gate_report.md": "dual_gate_report_path",
         "ac_lockin_plot.svg": "ac_lockin_plot_path",
         "ac_lockin_report.md": "ac_lockin_report_path",
         "pulse_plot.svg": "pulse_plot_path",

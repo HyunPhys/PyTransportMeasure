@@ -1,0 +1,67 @@
+measurement_name: dual_gate_dry_run
+safety_preset: nano_device_safe
+experiment:
+  sample_id: simulated_graphene
+  device_id: hall_bar_dual_gate
+  cooldown_id: dry_run
+  contact_geometry: Hall bar, simulated dual-gate device
+  contact_notes: Dry-run only; hardware topology is not enabled yet.
+  lab_notebook_ref: ''
+  operator: ''
+  notes: Dual-gate dry-run foundation for Hall bar graphene workflows.
+  tags:
+    - dry-run
+    - dual-gate
+    - graphene
+measurement_geometry:
+  terminal_count: 2
+  method: two_terminal
+  notes: Simulated two-terminal drain current while sweeping two gate axes.
+drain_instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  timeout_ms: 10000
+  terminal: FRONT
+  voltage_range_v: 0.1
+  current_range_a: 1.0e-6
+  nplc: 1.0
+gate1_instrument:
+  id: keithley_2450
+  address: GPIB0::3::INSTR
+  timeout_ms: 10000
+  terminal: FRONT
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+gate2_instrument:
+  id: keithley_2450
+  address: GPIB0::4::INSTR
+  timeout_ms: 10000
+  terminal: FRONT
+  voltage_range_v: 0.2
+  current_range_a: 1.0e-9
+  nplc: 1.0
+gate1_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 5
+  settle_s: 0.0
+  current_compliance_a: 1.0e-8
+gate2_sweep:
+  start_v: -0.1
+  stop_v: 0.1
+  points: 5
+  settle_s: 0.0
+  current_compliance_a: 1.0e-8
+drain_sweep:
+  mode: linear_one_way
+  start_v: -0.02
+  stop_v: 0.02
+  points: 5
+  delay_s: 0.0
+  current_compliance_a: 1.0e-7
+output:
+  directory: data/raw
+checks:
+  require_completed: true
+  min_points: 125

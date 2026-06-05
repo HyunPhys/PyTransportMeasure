@@ -243,6 +243,49 @@ class SingleGateRecipe(BaseModel):
         return self
 
 
+class DualGateRecipe(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    measurement_name: str = Field(min_length=1)
+    experiment: ExperimentMetadata = ExperimentMetadata()
+    measurement_geometry: MeasurementGeometry = MeasurementGeometry()
+    drain_instrument: InstrumentConfig
+    gate1_instrument: InstrumentConfig
+    gate2_instrument: InstrumentConfig
+    drain_sweep: SweepConfig
+    gate1_sweep: GateSweepConfig
+    gate2_sweep: GateSweepConfig
+    safety_preset: str = "nano_device_safe"
+    output: OutputConfig = OutputConfig()
+    checks: QualityChecks | None = None
+
+    @field_validator("measurement_name")
+    @classmethod
+    def measurement_name_is_file_friendly(cls, value: str) -> str:
+        forbidden = '<>:"/\\|?*'
+        if any(char in value for char in forbidden):
+            raise ValueError(f"measurement_name cannot contain any of {forbidden}")
+        return value
+
+    @model_validator(mode="after")
+    def voltage_ranges_must_cover_sweeps(self) -> "DualGateRecipe":
+        if self.drain_instrument.voltage_range_v is not None:
+            drain_voltages = sweep_voltages(self.drain_sweep)
+            max_drain_voltage = max(abs(voltage) for voltage in drain_voltages)
+            if self.drain_instrument.voltage_range_v < max_drain_voltage:
+                raise ValueError("drain_instrument.voltage_range_v must cover drain_sweep")
+        for label, instrument, sweep in [
+            ("gate1", self.gate1_instrument, self.gate1_sweep),
+            ("gate2", self.gate2_instrument, self.gate2_sweep),
+        ]:
+            if instrument.voltage_range_v is not None:
+                gate_voltages = gate_voltages_from_config(sweep)
+                max_gate_voltage = max(abs(voltage) for voltage in gate_voltages)
+                if instrument.voltage_range_v < max_gate_voltage:
+                    raise ValueError(f"{label}_instrument.voltage_range_v must cover {label}_sweep")
+        return self
+
+
 class AcLockInRecipe(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -393,6 +436,10 @@ def load_recipe(path: str | Path) -> DrainIVRecipe:
 
 def load_single_gate_recipe(path: str | Path) -> SingleGateRecipe:
     return SingleGateRecipe.model_validate(load_yaml(Path(path)))
+
+
+def load_dual_gate_recipe(path: str | Path) -> DualGateRecipe:
+    return DualGateRecipe.model_validate(load_yaml(Path(path)))
 
 
 def load_ac_lockin_recipe(path: str | Path) -> AcLockInRecipe:

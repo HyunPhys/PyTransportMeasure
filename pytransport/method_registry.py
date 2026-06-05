@@ -67,6 +67,29 @@ def single_gate_campaign_summary_fields(summary: Any) -> dict[str, Any]:
     }
 
 
+def dual_gate_campaign_summary_fields(summary: Any) -> dict[str, Any]:
+    return {
+        "points": summary.points,
+        "gate1_points": summary.gate1_points,
+        "gate2_points": summary.gate2_points,
+        "drain_points": summary.drain_points,
+        "gate1_voltage_min_v": summary.gate1_voltage_min_v,
+        "gate1_voltage_max_v": summary.gate1_voltage_max_v,
+        "gate2_voltage_min_v": summary.gate2_voltage_min_v,
+        "gate2_voltage_max_v": summary.gate2_voltage_max_v,
+        "drain_voltage_min_v": summary.drain_voltage_min_v,
+        "drain_voltage_max_v": summary.drain_voltage_max_v,
+        "drain_current_min_a": summary.drain_current_min_a,
+        "drain_current_max_a": summary.drain_current_max_a,
+        "gate1_leakage_abs_max_a": summary.gate1_leakage_abs_max_a,
+        "gate2_leakage_abs_max_a": summary.gate2_leakage_abs_max_a,
+        "voltage_min_v": summary.drain_voltage_min_v,
+        "voltage_max_v": summary.drain_voltage_max_v,
+        "current_min_a": summary.drain_current_min_a,
+        "current_max_a": summary.drain_current_max_a,
+    }
+
+
 def ac_lockin_campaign_summary_fields(summary: Any) -> dict[str, Any]:
     return {
         "points": summary.points,
@@ -143,6 +166,30 @@ def write_single_gate_method_report(run_dir: str | Path, output_path: str | Path
     return write_single_gate_report(run_dir, output_path)
 
 
+def summarize_dual_gate(run_dir: str | Path) -> Any:
+    from .dual_gate_review import summarize_dual_gate_run
+
+    return summarize_dual_gate_run(run_dir)
+
+
+def format_dual_gate(summary: Any) -> str:
+    from .dual_gate_review import format_dual_gate_summary
+
+    return format_dual_gate_summary(summary)
+
+
+def write_dual_gate_plot(run_dir: str | Path, output_path: str | Path | None = None) -> Path:
+    from .dual_gate_review import write_dual_gate_heatmap_svg
+
+    return write_dual_gate_heatmap_svg(run_dir, output_path)
+
+
+def write_dual_gate_method_report(run_dir: str | Path, output_path: str | Path | None = None) -> Path:
+    from .dual_gate_review import write_dual_gate_report
+
+    return write_dual_gate_report(run_dir, output_path)
+
+
 def summarize_ac_lockin(run_dir: str | Path) -> Any:
     from .ac_lockin_review import summarize_ac_lockin_run
 
@@ -203,6 +250,12 @@ def load_single_gate_method_recipe(recipe_path: str | Path) -> Any:
     return load_single_gate_recipe(recipe_path)
 
 
+def load_dual_gate_method_recipe(recipe_path: str | Path) -> Any:
+    from .recipes import load_dual_gate_recipe
+
+    return load_dual_gate_recipe(recipe_path)
+
+
 def load_ac_lockin_method_recipe(recipe_path: str | Path) -> Any:
     from .recipes import load_ac_lockin_recipe
 
@@ -229,6 +282,14 @@ def format_single_gate_method_plan(recipe: Any, recipe_path: str | Path, safety_
 
     safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
     return format_single_gate_plan(recipe, safety, recipe_path, preview_points)
+
+
+def format_dual_gate_method_plan(recipe: Any, recipe_path: str | Path, safety_dir: str | Path, preview_points: int) -> str:
+    from .dual_gate import format_dual_gate_plan
+    from .recipes import load_named_safety_preset
+
+    safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+    return format_dual_gate_plan(recipe, safety, recipe_path, preview_points)
 
 
 def format_ac_lockin_method_plan(recipe: Any, recipe_path: str | Path, safety_dir: str | Path, preview_points: int) -> str:
@@ -277,6 +338,21 @@ METHOD_HANDLERS: dict[str, MethodHandler] = {
         campaign_summary_fields=single_gate_campaign_summary_fields,
         load_recipe=load_single_gate_method_recipe,
         format_plan=format_single_gate_method_plan,
+    ),
+    "dual_gate_sweep": MethodHandler(
+        measurement_type="dual_gate_sweep",
+        scheme_step_type="dual_gate",
+        display_name="Dual-gate sweep",
+        plot_filename="dual_gate_heatmap.svg",
+        report_filename="dual_gate_report.md",
+        extra_artifact_filenames=("dual_gate_stats.csv",),
+        summarize=summarize_dual_gate,
+        format_summary=format_dual_gate,
+        write_plot=write_dual_gate_plot,
+        write_report=write_dual_gate_method_report,
+        campaign_summary_fields=dual_gate_campaign_summary_fields,
+        load_recipe=load_dual_gate_method_recipe,
+        format_plan=format_dual_gate_method_plan,
     ),
     "ac_lockin_sweep": MethodHandler(
         measurement_type="ac_lockin_sweep",
