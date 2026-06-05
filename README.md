@@ -94,6 +94,7 @@ ptm-gui
 - GUI workspace reorganization and live plot: [docs/phase38_gui_workspace_reorg_and_live_plot.md](docs/phase38_gui_workspace_reorg_and_live_plot.md)
 - GUI instrument refresh and communication test: [docs/phase39_gui_instrument_refresh.md](docs/phase39_gui_instrument_refresh.md)
 - GUI recipe sync status: [docs/phase40_gui_recipe_sync_status.md](docs/phase40_gui_recipe_sync_status.md)
+- GUI workflow guide: [docs/phase41_gui_workflow_guide.md](docs/phase41_gui_workflow_guide.md)
 
 ## Hardware Smoke Test
 

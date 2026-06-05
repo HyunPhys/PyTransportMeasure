@@ -324,6 +324,15 @@ class MainWindow(QMainWindow):
         self.hardware_worker: HardwareRunWorker | None = None
         self.last_result: Any | None = None
         self._syncing_recipe_widgets = False
+        self.workflow_state: dict[str, bool] = {
+            "yaml_checked": False,
+            "instrument_refreshed": False,
+            "communication_tested": False,
+            "plan_ready": False,
+            "dry_run_completed": False,
+            "preflight_passed": False,
+            "hardware_completed": False,
+        }
         self.session_logger = GuiSessionLogger.create()
 
         self.method_combo = QComboBox()
@@ -403,6 +412,8 @@ class MainWindow(QMainWindow):
 
         self.plan_text = QPlainTextEdit()
         self.plan_text.setReadOnly(True)
+        self.workflow_text = QPlainTextEdit()
+        self.workflow_text.setReadOnly(True)
         self.editor_text = QPlainTextEdit()
         self.form_fields: dict[str, Any] = {}
         self.form_status = QLabel("Drain I-V form builder")
@@ -446,6 +457,7 @@ class MainWindow(QMainWindow):
         self.build_menu()
         self.connect_recipe_sync_signals()
         self.apply_default_recipe()
+        self.update_workflow_guide("Start by checking YAML, then confirm instruments before hardware.")
         self.log_session(f"Session log path: {self.session_logger.path}")
 
     def build_controls(self) -> QWidget:
@@ -514,6 +526,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(container)
         layout.addWidget(self.build_controls())
         measurement_tabs = QTabWidget()
+        measurement_tabs.addTab(self.workflow_text, "Workflow")
         measurement_tabs.addTab(self.plan_text, "Plan")
         measurement_tabs.addTab(self.build_drain_iv_form(), "Drain I-V Form")
         measurement_tabs.addTab(self.editor_text, "Recipe YAML")
@@ -656,6 +669,7 @@ class MainWindow(QMainWindow):
         self.recipe_sync_status.setText(
             "YAML edited. YAML is the execution source. Use YAML -> Form if the form should mirror these edits."
         )
+        self.reset_workflow_after_recipe_change("YAML edited. Click Check YAML before running.")
 
     def handle_form_value_changed(self) -> None:
         if self._syncing_recipe_widgets:
@@ -663,6 +677,52 @@ class MainWindow(QMainWindow):
         self.recipe_sync_status.setText(
             "Form edited. These values are not used until you click Form -> YAML."
         )
+        self.reset_workflow_after_recipe_change("Form edited. Click Form -> YAML, then Check YAML.")
+
+    def reset_workflow_after_recipe_change(self, note: str) -> None:
+        for key in ["yaml_checked", "plan_ready", "dry_run_completed", "preflight_passed", "hardware_completed"]:
+            self.workflow_state[key] = False
+        self.update_workflow_guide(note)
+
+    def mark_workflow(self, key: str, value: bool, note: str) -> None:
+        self.workflow_state[key] = value
+        self.update_workflow_guide(note)
+
+    def update_workflow_guide(self, note: str = "") -> None:
+        lines = [
+            "PyTransportMeasure GUI Workflow",
+            "",
+            f"{workflow_mark(self.workflow_state['yaml_checked'])} Check YAML: validate the recipe that will actually run.",
+            f"{workflow_mark(self.workflow_state['instrument_refreshed'])} Refresh Instruments: list currently visible VISA resources.",
+            f"{workflow_mark(self.workflow_state['communication_tested'])} Test Selected Address: verify communication before output.",
+            f"{workflow_mark(self.workflow_state['plan_ready'])} Plan: inspect sweep points and safety context.",
+            f"{workflow_mark(self.workflow_state['dry_run_completed'])} Dry Run: verify artifacts and live plot without hardware.",
+            f"{workflow_mark(self.workflow_state['preflight_passed'])} Preflight: final hardware-readiness gate.",
+            f"{workflow_mark(self.workflow_state['hardware_completed'])} Hardware Run: guarded real measurement.",
+            "",
+            "Current note:",
+            f"- {note or self.next_workflow_hint()}",
+            "",
+            "Execution source:",
+            "- Recipe YAML is what Plan, Dry Run, Preflight, and Hardware Run use.",
+            "- Form edits must be applied with Form -> YAML before they affect runs.",
+        ]
+        self.workflow_text.setPlainText("\n".join(lines))
+
+    def next_workflow_hint(self) -> str:
+        if not self.workflow_state["yaml_checked"]:
+            return "Click Check YAML."
+        if not self.workflow_state["instrument_refreshed"]:
+            return "Open Instruments and click Refresh Instruments."
+        if not self.workflow_state["communication_tested"]:
+            return "Select the intended address and click Test Selected Address."
+        if not self.workflow_state["plan_ready"]:
+            return "Click Plan and inspect the sweep."
+        if not self.workflow_state["dry_run_completed"]:
+            return "Run a Dry Run before touching hardware."
+        if not self.workflow_state["preflight_passed"]:
+            return "Click Preflight immediately before hardware."
+        return "Ready for guarded Hardware Run."
 
     def build_menu(self) -> None:
         file_menu = self.menuBar().addMenu("File")
@@ -715,6 +775,8 @@ class MainWindow(QMainWindow):
             self.hardware_run_button.setEnabled(is_drain_iv)
             if not is_drain_iv and hasattr(self, "form_status"):
                 self.form_status.setText("Structured form is available for Drain I-V recipes in this phase.")
+        if hasattr(self, "workflow_text"):
+            self.reset_workflow_after_recipe_change("Default recipe loaded. Click Check YAML.")
 
     def browse_recipe(self) -> None:
         selected, _ = QFileDialog.getOpenFileName(self, "Open Recipe", str(Path("configs/recipes").resolve()), "YAML (*.yaml *.yml)")
@@ -733,6 +795,7 @@ class MainWindow(QMainWindow):
             return
         self.plan_text.setPlainText(plan)
         self.status_label.setText("Plan ready from editor YAML")
+        self.mark_workflow("plan_ready", True, "Plan generated. Inspect sweep points before running.")
         self.log_session(f"Plan generated for {self.current_method()}")
 
     def load_recipe_into_editor(self) -> None:
@@ -748,6 +811,7 @@ class MainWindow(QMainWindow):
         self.load_form_from_editor(silent=True)
         self.sync_recipe_address_to_instrument_combo()
         self.recipe_sync_status.setText("Recipe file loaded. YAML is the execution source; form is synced from YAML.")
+        self.reset_workflow_after_recipe_change("Recipe file loaded. Click Check YAML.")
         self.status_label.setText("Recipe loaded into editor")
         self.log_session(f"Recipe loaded into editor: {self.recipe_path()}")
 
@@ -792,6 +856,7 @@ class MainWindow(QMainWindow):
         self.sync_recipe_address_to_instrument_combo()
         self.form_status.setText("Drain I-V YAML updated from form")
         self.recipe_sync_status.setText("YAML regenerated from form. YAML is now the execution source for runs.")
+        self.reset_workflow_after_recipe_change("YAML regenerated from form. Click Check YAML next.")
         self.status_label.setText("YAML updated from form")
         self.log_session("Drain I-V form applied to YAML editor")
         return True
@@ -827,6 +892,11 @@ class MainWindow(QMainWindow):
         )
         self.validation_text.setPlainText(message)
         self.status_label.setText("Recipe validation passed" if ok else "Recipe validation failed")
+        self.mark_workflow(
+            "yaml_checked",
+            ok,
+            "YAML check passed." if ok else "YAML check failed. Fix recipe before continuing.",
+        )
         self.log_session(f"Recipe validation {'passed' if ok else 'failed'} for {self.current_method()}")
         return ok
 
@@ -913,11 +983,13 @@ class MainWindow(QMainWindow):
         self.populate_instrument_addresses(resources)
         self.instrument_status_text.setPlainText(text)
         self.status_label.setText(f"Detected {len(resources)} VISA resource(s)")
+        self.mark_workflow("instrument_refreshed", True, f"Detected {len(resources)} VISA resource(s).")
         self.log_session(f"Instrument refresh finished: {len(resources)} resource(s)")
 
     def handle_instrument_refresh_failure(self, message: str) -> None:
         self.instrument_status_text.setPlainText(f"Instrument refresh failed\n\n{message}")
         self.status_label.setText("Instrument refresh failed")
+        self.mark_workflow("instrument_refreshed", False, "Instrument refresh failed.")
         self.log_session(f"Instrument refresh failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
@@ -940,14 +1012,21 @@ class MainWindow(QMainWindow):
         self.communication_test_worker.start()
 
     def handle_communication_test_result(self, text: str) -> None:
+        passed = "OK: True" in text
         self.instrument_status_text.setPlainText(text)
-        self.status_label.setText("Communication test passed" if "OK: True" in text else "Communication test found an issue")
+        self.status_label.setText("Communication test passed" if passed else "Communication test found an issue")
+        self.mark_workflow(
+            "communication_tested",
+            passed,
+            "Communication test passed." if passed else "Communication test found an issue.",
+        )
         self.log_session("Communication test finished")
         self.log_session(text)
 
     def handle_communication_test_failure(self, message: str) -> None:
         self.instrument_status_text.setPlainText(f"Communication test failed\n\n{message}")
         self.status_label.setText("Communication test failed")
+        self.mark_workflow("communication_tested", False, "Communication test failed.")
         self.log_session(f"Communication test failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
@@ -1004,12 +1083,19 @@ class MainWindow(QMainWindow):
     def handle_hardware_result(self, result) -> None:
         self.display_result(result, add_to_table=True)
         self.status_label.setText(f"Hardware run completed: {result.metadata.get('completed')} | {result.run_dir}")
+        completed = bool(result.metadata.get("completed"))
+        self.mark_workflow(
+            "hardware_completed",
+            completed,
+            "Hardware run completed." if completed else "Hardware run finished incomplete.",
+        )
         self.log_session(f"Hardware run finished: completed={result.metadata.get('completed')} | {result.run_dir}")
 
     def handle_hardware_failure(self, message: str) -> None:
         self.preflight_text.setPlainText(message)
         self.progress_text.appendPlainText(f"Hardware run failed or blocked: {message}")
         self.status_label.setText("Hardware run failed or blocked")
+        self.mark_workflow("hardware_completed", False, "Hardware run failed or was blocked.")
         self.log_session(f"Hardware run failed or blocked: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
@@ -1023,19 +1109,32 @@ class MainWindow(QMainWindow):
 
     def handle_preflight_result(self, text: str) -> None:
         self.preflight_text.setPlainText(text)
-        status = "Preflight passed" if "Preflight OK: True" in text else "Preflight failed"
+        passed = "Preflight OK: True" in text
+        status = "Preflight passed" if passed else "Preflight failed"
         self.status_label.setText(status)
+        self.mark_workflow(
+            "preflight_passed",
+            passed,
+            "Preflight passed." if passed else "Preflight failed. Fix readiness issues before hardware.",
+        )
         self.log_session(status)
         self.log_session(text)
 
     def handle_preflight_failure(self, message: str) -> None:
         self.preflight_text.setPlainText(f"Preflight failed\n\n{message}")
         self.status_label.setText("Preflight failed")
+        self.mark_workflow("preflight_passed", False, "Preflight failed.")
         self.log_session(f"Preflight failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
     def handle_result(self, result) -> None:
         self.display_result(result, add_to_table=True)
+        completed = bool(result.metadata.get("completed"))
+        self.mark_workflow(
+            "dry_run_completed",
+            completed,
+            "Dry-run completed." if completed else "Dry-run finished incomplete.",
+        )
         self.log_session(f"Dry-run finished: completed={result.metadata.get('completed')} | {result.run_dir}")
 
     def display_result(self, result, add_to_table: bool) -> None:
@@ -1058,6 +1157,7 @@ class MainWindow(QMainWindow):
     def handle_failure(self, message: str) -> None:
         self.progress_text.appendPlainText(f"Run failed: {message}")
         self.status_label.setText("Failed")
+        self.mark_workflow("dry_run_completed", False, "Run failed.")
         self.log_session(f"Run failed: {message}")
         QMessageBox.critical(self, "PyTransportMeasure", message)
 
@@ -1339,6 +1439,10 @@ def padded_range(minimum: float, maximum: float) -> tuple[float, float]:
         return minimum - padding, maximum + padding
     padding = (maximum - minimum) * 0.05
     return minimum - padding, maximum + padding
+
+
+def workflow_mark(value: bool) -> str:
+    return "[x]" if value else "[ ]"
 
 
 def open_path(path: Path) -> None:

@@ -36,6 +36,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI Instruments workspace can refresh VISA resources and test selected
   address communication.
 - [x] GUI Recipe Tools show YAML/Form sync status and execution-source guidance.
+- [x] GUI Workflow tab tracks the major run-preparation steps and next action.
 - [x] GUI plot preview uses a non-stretched points-based plot and live Drain I-V
   plot updates during measurement progress.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
@@ -150,6 +151,10 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [ ] Confirm `Dry-run Model` starts collapsed and can be opened when fake
   settings need editing.
 - [ ] Confirm workspace tabs are `Measurement`, `Instruments`, and `Analysis`.
+- [ ] Open `Measurement > Workflow` and confirm the major steps are listed.
+- [ ] Click `Check YAML`, `Refresh Instruments`, `Test Selected Address`,
+  `Plan`, and a dry-run; confirm each successful step changes to `[x]`.
+- [ ] Edit YAML or the form and confirm recipe-dependent workflow steps reset.
 - [ ] Run `Doctor`, `Preflight`, or `Dry Run`.
 - [ ] Confirm `Doctor` lives under `Instruments`.
 - [ ] Confirm prior runs, plot preview, reports, and feedback bundle controls

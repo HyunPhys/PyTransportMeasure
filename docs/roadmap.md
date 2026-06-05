@@ -193,6 +193,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - show that Recipe YAML is the execution source
   - warn when form edits have not yet been applied back to YAML
   - warn when YAML edits may need YAML -> Form sync
+- [x] Phase 24r: GUI workflow guide
+  - track Check YAML, instrument refresh/test, Plan, Dry Run, Preflight, and
+    Hardware Run state
+  - show the next safe GUI action from one workflow tab
 
 ## Next GUI
 

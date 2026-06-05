@@ -373,7 +373,24 @@ run browsing, opening generated run artifacts, structured Drain I-V recipe
 editing, editor-backed plan/dry-run, lab doctor, Drain I-V preflight, and
 guarded Drain I-V hardware runs with progress streaming and persistent GUI
 session logs. The GUI is organized into `Measurement`, `Instruments`, and
-`Analysis` workspaces.
+`Analysis` workspaces. `Measurement > Workflow` shows the major preparation
+steps and the next recommended action.
+
+Recommended GUI workflow:
+
+1. Open `Measurement > Workflow`.
+2. Click `Check YAML`.
+3. Open `Instruments`, click `Refresh Instruments`, select the intended VISA
+   address, and click `Test Selected Address`.
+4. Return to `Measurement`, click `Plan`, and inspect the sweep.
+5. Run `Dry Run` and inspect the live plot and generated artifacts.
+6. On the lab laptop, click `Preflight` immediately before hardware.
+7. Click `Hardware Run` only after the confirmation dialog matches the wiring
+   and recipe.
+
+The workflow guide marks completed steps with `[x]`. Editing YAML or the
+structured form resets recipe-dependent steps, while instrument refresh and
+communication-test state remain visible for the current session.
 
 Drain I-V form workflow:
 

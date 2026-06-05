@@ -68,6 +68,7 @@ def test_gui_recipe_sync_status_tracks_yaml_and_form_edits(app):
 
     window.editor_text.appendPlainText("# user note")
     assert "YAML edited" in window.recipe_sync_status.text()
+    assert "[ ] Check YAML" in window.workflow_text.toPlainText()
 
     field = window.form_fields["measurement_name"]
     field.setText(field.text() + "_edited")
@@ -75,6 +76,32 @@ def test_gui_recipe_sync_status_tracks_yaml_and_form_edits(app):
 
     assert window.apply_form_to_editor()
     assert "YAML regenerated from form" in window.recipe_sync_status.text()
+    window.close()
+
+
+def test_gui_workflow_guide_tracks_steps_and_recipe_resets(app):
+    window = MainWindow()
+
+    text = window.workflow_text.toPlainText()
+    assert "PyTransportMeasure GUI Workflow" in text
+    assert "[ ] Check YAML" in text
+    assert "Recipe YAML is what Plan, Dry Run, Preflight, and Hardware Run use." in text
+
+    window.mark_workflow("yaml_checked", True, "ok")
+    window.mark_workflow("instrument_refreshed", True, "resources")
+    window.mark_workflow("communication_tested", True, "idn ok")
+
+    text = window.workflow_text.toPlainText()
+    assert "[x] Check YAML" in text
+    assert "[x] Refresh Instruments" in text
+    assert "[x] Test Selected Address" in text
+
+    window.reset_workflow_after_recipe_change("changed")
+    text = window.workflow_text.toPlainText()
+    assert "[ ] Check YAML" in text
+    assert "[x] Refresh Instruments" in text
+    assert "[x] Test Selected Address" in text
+    assert "changed" in text
     window.close()
 
 
