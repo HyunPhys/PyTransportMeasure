@@ -165,6 +165,13 @@ class ReadbackCliFakeLockIn(FakeLockIn):
         return probe
 
 
+class DifferentialReadbackCliFakeLockIn(ReadbackCliFakeLockIn):
+    def probe(self):
+        probe = super().probe()
+        probe["setting_voltage_input"] = "1"
+        return probe
+
+
 def test_cli_ac_lockin_hardware_run_uses_real_instrument_factories_after_preflight(tmp_path, monkeypatch):
     recipe = write_ac_lockin_cli_recipe(tmp_path)
     source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
@@ -335,6 +342,126 @@ def test_cli_ac_lockin_lab_smoke_intake_outputs_text_and_json(tmp_path, monkeypa
     assert cli.main(["ac-lockin-lab-smoke-intake", str(run_dir), "--json"]) == 0
     printed = json.loads(capsys.readouterr().out)
     assert printed["lockin_readback_available"] is True
+
+
+def test_cli_ac_lockin_lab_smoke_intake_accepts_four_terminal_guarded_run(tmp_path, monkeypatch, capsys):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+    lockin = DifferentialReadbackCliFakeLockIn(signal_r_v=2e-6, phase_deg=30, noise_std_v=0)
+    output = tmp_path / "four_terminal_intake.json"
+
+    monkeypatch.setattr(cli, "run_ac_lockin_preflight", passing_ac_preflight)
+    monkeypatch.setattr(cli, "Keithley2450", lambda address, timeout_ms: FakeSMU(resistance_ohm=1_000_000, noise_std_a=0))
+    monkeypatch.setattr(cli, "SRS_SR860", lambda address, timeout_ms: lockin)
+
+    assert cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--allow-four-terminal-ac",
+            "--hardware-approval-note",
+            "fixture checked; SR860 A-B contacts verified",
+            "--max-hardware-points",
+            "3",
+            "--yes",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    ) == 0
+    capsys.readouterr()
+    run_dir = list((tmp_path / "raw").glob("*ac_lockin_four_terminal_cli_hardware"))[0]
+
+    assert cli.main(
+        [
+            "ac-lockin-lab-smoke-intake",
+            str(run_dir),
+            "--min-points",
+            "3",
+            "--min-abs-lockin-r-v",
+            "1e-6",
+            "--max-abs-lockin-r-v",
+            "3e-6",
+        ]
+    ) == 0
+    text = capsys.readouterr().out
+    assert "AC lock-in lab smoke intake: PASS" in text
+    assert "Hardware guard required: True" in text
+    assert "Hardware guard present: True" in text
+    assert "Topology SR860 voltage contacts: Vxx+, Vxx-" in text
+
+    assert cli.main(
+        [
+            "ac-lockin-lab-smoke-intake",
+            str(run_dir),
+            "--min-points",
+            "3",
+            "--min-abs-lockin-r-v",
+            "1e-6",
+            "--max-abs-lockin-r-v",
+            "3e-6",
+            "--json-output",
+            str(output),
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    saved = json.loads(output.read_text(encoding="utf-8"))
+    assert saved["accepted"] is True
+    assert saved["hardware_guard_required"] is True
+    assert saved["hardware_guard_present"] is True
+    assert saved["hardware_guard_accepted"] is True
+    assert saved["hardware_guard_approval_note"] == "fixture checked; SR860 A-B contacts verified"
+    assert saved["topology_excitation_contacts"] == ["S", "D"]
+    assert saved["topology_lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert saved["source_nplc"] == 1.0
+
+
+def test_cli_ac_lockin_lab_smoke_intake_rejects_four_terminal_missing_guard(tmp_path, monkeypatch, capsys):
+    recipe = write_four_terminal_ac_lockin_cli_recipe(tmp_path)
+
+    assert cli.main(
+        [
+            "ac-lockin",
+            str(recipe),
+            "--dry-run",
+            "--fake-noise-std",
+            "0",
+            "--index-path",
+            str(tmp_path / "index.jsonl"),
+        ]
+    ) == 0
+    capsys.readouterr()
+    run_dir = list((tmp_path / "raw").glob("*ac_lockin_four_terminal_cli_hardware"))[0]
+    metadata_path = run_dir / "metadata.json"
+    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    metadata.update(
+        {
+            "completed": True,
+            "lockin_settings_readback_available": True,
+            "lockin_settings_readback_matched": True,
+            "configured_source_smu_readback_check": {"matched": True, "checks": []},
+            "output_state": {
+                "source": {
+                    "off_after_run": True,
+                    "zero_before_off_succeeded": True,
+                }
+            },
+        }
+    )
+    metadata_path.write_text(json.dumps(metadata, indent=2, sort_keys=True), encoding="utf-8")
+
+    code = cli.main(
+        [
+            "ac-lockin-lab-smoke-intake",
+            str(run_dir),
+            "--min-points",
+            "3",
+        ]
+    )
+
+    assert code == 2
+    text = capsys.readouterr().out
+    assert "AC lock-in lab smoke intake: FAIL" in text
+    assert "four_terminal_hardware_guard" in text
 
 
 def test_cli_ac_lockin_hardware_run_blocks_when_preflight_fails(tmp_path, monkeypatch):

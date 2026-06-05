@@ -1301,6 +1301,13 @@ Use this checklist before pulse hardware work begins.
   ```powershell
   ptm ac-lockin-lab-smoke-intake data\raw\<run> --min-points 3 --min-abs-lockin-r-v <low> --max-abs-lockin-r-v <high>
   ```
+- [ ] Confirm the intake prints `Hardware guard required: True`.
+- [ ] Confirm `Hardware guard present: True` and `Hardware guard accepted: True`.
+- [ ] Confirm the intake point count matches the guard point count and does not
+  exceed the guard limit.
+- [ ] Confirm `Lock-in voltage input: a-b`.
+- [ ] Confirm `Topology excitation contacts` and `Topology SR860 voltage
+  contacts` match the actual lab notebook wiring and do not overlap.
 - [ ] Do not broaden the four-terminal AC point count until the lab smoke intake
   passes and the wiring/noise floor look reasonable.
 

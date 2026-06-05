@@ -655,6 +655,11 @@ root.
   - limit first four-terminal AC active runs by `--max-hardware-points`
   - save the approval note, point guard, contact topology, and Keithley NPLC
     measurement condition in run metadata for lab intake review
+- [x] Phase 25cx: Four-terminal AC lab smoke intake hardening
+  - make `ptm ac-lockin-lab-smoke-intake` geometry-aware for four-terminal AC
+  - require `metadata.hardware_guard`, approval note, point guard, A-B voltage
+    input, and non-overlapping excitation/SR860 voltage contacts
+  - include guard/topology/NPLC fields in text and JSON intake output
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

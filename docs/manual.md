@@ -1080,6 +1080,13 @@ measurement geometry, and contact topology. Check this together with
 `configured_source_smu.nplc`, voltage range, current range, and compliance
 before broadening the scan.
 
+The same lab-smoke intake command is geometry-aware. For four-terminal AC runs,
+`ptm ac-lockin-lab-smoke-intake` also requires `metadata.hardware_guard`, a
+non-empty approval note, guard point count matching the saved CSV rows,
+`lockin.voltage_input: a-b`, and separate excitation and SR860 voltage contacts.
+The text and JSON output include the guard state, contact topology, and Keithley
+NPLC/range/compliance values.
+
 ## Campaign
 
 Use a campaign to collect runs, batches, and schemes into one analysis set.

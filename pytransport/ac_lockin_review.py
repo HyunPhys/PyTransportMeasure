@@ -57,6 +57,15 @@ class AcLockInLabSmokeIntake:
     source_voltage_range_v: float | None
     source_current_range_a: float | None
     source_current_compliance_a: float | None
+    hardware_guard_required: bool
+    hardware_guard_present: bool
+    hardware_guard_accepted: bool | None
+    hardware_guard_approval_note: str | None
+    hardware_guard_point_count: int | None
+    hardware_guard_max_points: int | None
+    lockin_voltage_input: str | None
+    topology_excitation_contacts: tuple[str, ...]
+    topology_lockin_input_contacts: tuple[str, ...]
     source_readback_available: bool
     source_readback_matched: bool | None
     lockin_readback_available: bool | None
@@ -177,7 +186,10 @@ def intake_ac_lockin_lab_smoke(
     summary = summarize_ac_lockin_run(path)
     recipe = metadata.get("recipe") if isinstance(metadata.get("recipe"), dict) else {}
     geometry = recipe.get("measurement_geometry") if isinstance(recipe.get("measurement_geometry"), dict) else {}
+    lockin = recipe.get("lockin") if isinstance(recipe.get("lockin"), dict) else {}
+    topology = recipe.get("topology") if isinstance(recipe.get("topology"), dict) else {}
     source = metadata.get("configured_source_smu") if isinstance(metadata.get("configured_source_smu"), dict) else {}
+    hardware_guard = metadata.get("hardware_guard") if isinstance(metadata.get("hardware_guard"), dict) else None
     source_readback_check = metadata.get("configured_source_smu_readback_check")
     output_state = metadata.get("output_state") if isinstance(metadata.get("output_state"), dict) else {}
     source_output = output_state.get("source") if isinstance(output_state.get("source"), dict) else {}
@@ -199,6 +211,13 @@ def intake_ac_lockin_lab_smoke(
     lockin_readback_available = metadata.get("lockin_settings_readback_available")
     lockin_readback_matched = metadata.get("lockin_settings_readback_matched")
     points_written = metadata.get("points_written")
+    is_four_terminal = geometry.get("method") == "four_terminal"
+    guard_point_count = hardware_guard.get("point_count") if isinstance(hardware_guard, dict) else None
+    guard_max_points = hardware_guard.get("max_hardware_points") if isinstance(hardware_guard, dict) else None
+    guard_note = str(hardware_guard.get("hardware_approval_note") or "").strip() if hardware_guard is not None else ""
+    guard_topology = hardware_guard.get("topology") if isinstance(hardware_guard, dict) else None
+    topology_excitation_contacts = tuple(str(contact) for contact in (topology.get("excitation_contacts") or ()))
+    topology_lockin_contacts = tuple(str(contact) for contact in (topology.get("lockin_input_contacts") or ()))
 
     add_if_failed(metadata.get("measurement_type") == "ac_lockin_sweep", "measurement_type", "metadata is not ac_lockin_sweep")
     add_if_failed(metadata.get("completed") is True, "completed", f"completed={metadata.get('completed')}")
@@ -223,6 +242,52 @@ def intake_ac_lockin_lab_smoke(
         "source_zero_before_off",
         f"output_state.source.zero_before_off_succeeded={source_output.get('zero_before_off_succeeded')}",
     )
+    if is_four_terminal:
+        add_if_failed(isinstance(hardware_guard, dict), "four_terminal_hardware_guard", "metadata.hardware_guard missing")
+        add_if_failed(
+            hardware_guard is not None and hardware_guard.get("four_terminal_ac_allowed") is True,
+            "four_terminal_guard_allowed",
+            f"hardware_guard.four_terminal_ac_allowed={hardware_guard.get('four_terminal_ac_allowed') if hardware_guard else None}",
+        )
+        add_if_failed(bool(guard_note), "four_terminal_guard_approval_note", "hardware_guard.hardware_approval_note missing")
+        add_if_failed(
+            guard_point_count == len(points),
+            "four_terminal_guard_point_count",
+            f"hardware_guard.point_count={guard_point_count}, points.csv rows={len(points)}",
+        )
+        add_if_failed(
+            isinstance(guard_max_points, int) and guard_point_count is not None and guard_point_count <= guard_max_points,
+            "four_terminal_guard_max_points",
+            f"hardware_guard.point_count={guard_point_count}, max_hardware_points={guard_max_points}",
+        )
+        add_if_failed(
+            lockin.get("input_mode") == "voltage" and lockin.get("voltage_input") == "a-b",
+            "four_terminal_lockin_voltage_input",
+            f"lockin.input_mode={lockin.get('input_mode')}, voltage_input={lockin.get('voltage_input')}",
+        )
+        add_if_failed(
+            len(topology_excitation_contacts) == 2 and len(topology_lockin_contacts) == 2,
+            "four_terminal_topology_contacts",
+            (
+                f"excitation_contacts={list(topology_excitation_contacts)}, "
+                f"lockin_input_contacts={list(topology_lockin_contacts)}"
+            ),
+        )
+        add_if_failed(
+            not (set(topology_excitation_contacts) & set(topology_lockin_contacts)),
+            "four_terminal_topology_contact_overlap",
+            (
+                f"excitation_contacts={list(topology_excitation_contacts)}, "
+                f"lockin_input_contacts={list(topology_lockin_contacts)}"
+            ),
+        )
+        add_if_failed(
+            isinstance(guard_topology, dict)
+            and guard_topology.get("excitation_contacts") == list(topology_excitation_contacts)
+            and guard_topology.get("lockin_input_contacts") == list(topology_lockin_contacts),
+            "four_terminal_guard_topology_snapshot",
+            "metadata.hardware_guard.topology does not match recipe topology",
+        )
     if min_abs_lockin_r_v is not None:
         add_if_failed(
             max_abs_r is not None and max_abs_r >= min_abs_lockin_r_v,
@@ -252,6 +317,17 @@ def intake_ac_lockin_lab_smoke(
         source_voltage_range_v=source.get("voltage_range_v"),
         source_current_range_a=source.get("current_range_a"),
         source_current_compliance_a=source.get("current_compliance_a"),
+        hardware_guard_required=is_four_terminal,
+        hardware_guard_present=isinstance(hardware_guard, dict),
+        hardware_guard_accepted=(
+            hardware_guard.get("four_terminal_ac_allowed") is True if isinstance(hardware_guard, dict) else None
+        ),
+        hardware_guard_approval_note=guard_note or None,
+        hardware_guard_point_count=guard_point_count if isinstance(guard_point_count, int) else None,
+        hardware_guard_max_points=guard_max_points if isinstance(guard_max_points, int) else None,
+        lockin_voltage_input=lockin.get("voltage_input") if isinstance(lockin.get("voltage_input"), str) else None,
+        topology_excitation_contacts=topology_excitation_contacts,
+        topology_lockin_input_contacts=topology_lockin_contacts,
         source_readback_available=isinstance(source_readback_check, dict),
         source_readback_matched=source_readback_matched,
         lockin_readback_available=lockin_readback_available if isinstance(lockin_readback_available, bool) else None,
@@ -283,17 +359,34 @@ def format_ac_lockin_lab_smoke_intake(intake: AcLockInLabSmokeIntake) -> str:
         f"Source voltage range: {fmt(intake.source_voltage_range_v, ' V')}",
         f"Source current range: {fmt(intake.source_current_range_a, ' A')}",
         f"Source compliance: {fmt(intake.source_current_compliance_a, ' A')}",
-        f"Source SMU readback available: {intake.source_readback_available}",
-        f"Source SMU readback matched: {intake.source_readback_matched}",
-        f"SR860 readback available: {intake.lockin_readback_available}",
-        f"SR860 readback matched: {intake.lockin_readback_matched}",
-        f"Lock-in R range: {fmt(intake.lockin_r_min_v, ' V')} to {fmt(intake.lockin_r_max_v, ' V')}",
-        f"Lock-in R mean: {fmt(intake.lockin_r_mean_v, ' V')}",
-        f"Accepted |R| window: {fmt(intake.min_abs_lockin_r_v, ' V')} to {fmt(intake.max_abs_lockin_r_v, ' V')}",
-        f"Lock-in theta range: {fmt(intake.lockin_theta_min_deg, ' deg')} to {fmt(intake.lockin_theta_max_deg, ' deg')}",
-        f"Source output off after run OK: {intake.output_off_after_run_ok}",
-        f"Source zero before output off OK: {intake.output_zero_before_off_ok}",
     ]
+    if intake.hardware_guard_required or intake.hardware_guard_present:
+        lines.extend(
+            [
+                f"Hardware guard required: {intake.hardware_guard_required}",
+                f"Hardware guard present: {intake.hardware_guard_present}",
+                f"Hardware guard accepted: {intake.hardware_guard_accepted}",
+                f"Hardware guard point count: {fmt(intake.hardware_guard_point_count)} <= {fmt(intake.hardware_guard_max_points)}",
+                f"Hardware guard approval note: {intake.hardware_guard_approval_note or 'n/a'}",
+                f"Lock-in voltage input: {intake.lockin_voltage_input or 'n/a'}",
+                f"Topology excitation contacts: {', '.join(intake.topology_excitation_contacts) or 'n/a'}",
+                f"Topology SR860 voltage contacts: {', '.join(intake.topology_lockin_input_contacts) or 'n/a'}",
+            ]
+        )
+    lines.extend(
+        [
+            f"Source SMU readback available: {intake.source_readback_available}",
+            f"Source SMU readback matched: {intake.source_readback_matched}",
+            f"SR860 readback available: {intake.lockin_readback_available}",
+            f"SR860 readback matched: {intake.lockin_readback_matched}",
+            f"Lock-in R range: {fmt(intake.lockin_r_min_v, ' V')} to {fmt(intake.lockin_r_max_v, ' V')}",
+            f"Lock-in R mean: {fmt(intake.lockin_r_mean_v, ' V')}",
+            f"Accepted |R| window: {fmt(intake.min_abs_lockin_r_v, ' V')} to {fmt(intake.max_abs_lockin_r_v, ' V')}",
+            f"Lock-in theta range: {fmt(intake.lockin_theta_min_deg, ' deg')} to {fmt(intake.lockin_theta_max_deg, ' deg')}",
+            f"Source output off after run OK: {intake.output_off_after_run_ok}",
+            f"Source zero before output off OK: {intake.output_zero_before_off_ok}",
+        ]
+    )
     if intake.issues:
         lines.extend(["", "Issues:"])
         for issue in intake.issues:
