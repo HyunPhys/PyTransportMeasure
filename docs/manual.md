@@ -504,15 +504,16 @@ ptm dual-gate-lockin-audit data\raw\<dual_gate_lockin_run_folder> --write-report
 ```
 
 The audit requires a completed dual-gate lock-in sweep, complete point count,
-matched gate1/gate2 Keithley configuration readback, explicit Keithley NPLC
-warnings, confirmed 0 V before output-off cleanup, and SR860 setting readback
-that matches the recipe. Newer run metadata also lets the audit verify that
+matched gate1/gate2 Keithley configuration readback, explicit Keithley NPLC,
+confirmed 0 V before output-off cleanup, and SR860 setting readback that
+matches the recipe. Newer run metadata also lets the audit verify that
 `points.csv` follows the saved ordered gate grid and that the grid signature
 matches. The audit also prints gate1/gate2 leakage maxima and each
 leakage/compliance margin. If the margin is below 10x, the run can still pass
-when no compliance was hit, but the warning should be reviewed before making
-the next hardware grid larger. A `PASS` result is the artifact-level checkpoint
-for deciding whether the next hardware grid can be larger.
+when no compliance was hit, but that warning blocks `dual-gate-lockin-scale-up-check`
+and raised-point hardware runs until another limited run has comfortable leakage
+margin. A `PASS` result without scale-up-blocking warnings is the artifact-level
+checkpoint for deciding whether the next hardware grid can be larger.
 
 For dry-run artifact checks only, fake SR860 metadata can be relaxed:
 

@@ -42,6 +42,16 @@ class DualGateLockInAcceptance:
     issues: tuple[DualGateLockInAcceptanceIssue, ...]
 
 
+SCALE_UP_BLOCKING_ACCEPTANCE_WARNING_CHECKS = frozenset(
+    {
+        "gate1_leakage",
+        "gate2_leakage",
+        "gate1_leakage_margin",
+        "gate2_leakage_margin",
+    }
+)
+
+
 @dataclass(frozen=True)
 class DualGateLockInScaleUpIssue:
     severity: str
@@ -273,6 +283,28 @@ def format_dual_gate_lockin_acceptance(audit: DualGateLockInAcceptance) -> str:
             lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
     else:
         lines.append("Issues: none")
+    return "\n".join(lines)
+
+
+def scale_up_blocking_acceptance_issues(
+    audit: DualGateLockInAcceptance,
+) -> tuple[DualGateLockInAcceptanceIssue, ...]:
+    """Warnings that are acceptable for review but unsafe for a broader scan."""
+
+    return tuple(
+        issue
+        for issue in audit.issues
+        if issue.severity == "warning" and issue.check in SCALE_UP_BLOCKING_ACCEPTANCE_WARNING_CHECKS
+    )
+
+
+def format_scale_up_blocking_acceptance_issues(
+    issues: tuple[DualGateLockInAcceptanceIssue, ...],
+) -> str:
+    lines = ["Scale-up blocking acceptance warning(s):"]
+    for issue in issues:
+        lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    lines.append("Repeat a limited run or fix the gate leakage margin before increasing the scan size.")
     return "\n".join(lines)
 
 

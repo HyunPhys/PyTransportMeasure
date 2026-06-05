@@ -61,6 +61,8 @@ from .dual_gate_lockin_review import (
     format_dual_gate_lockin_acceptance,
     format_dual_gate_lockin_scale_up_audit,
     format_dual_gate_lockin_summary,
+    format_scale_up_blocking_acceptance_issues,
+    scale_up_blocking_acceptance_issues,
     summarize_dual_gate_lockin_run,
     write_dual_gate_lockin_acceptance_report,
     write_dual_gate_lockin_heatmap_svg,
@@ -1114,6 +1116,14 @@ def command_dual_gate_lockin(args: argparse.Namespace) -> int:
                     file=sys.stderr,
                 )
                 return 2
+            blocking_warnings = scale_up_blocking_acceptance_issues(accepted_previous_audit)
+            if blocking_warnings:
+                print(format_scale_up_blocking_acceptance_issues(blocking_warnings), file=sys.stderr)
+                print(
+                    "Dual-gate lock-in active sweep blocked: accepted previous run needs leakage-margin review before scale-up.",
+                    file=sys.stderr,
+                )
+                return 2
             scale_up_audit = audit_dual_gate_lockin_scale_up(args.accepted_previous_run, recipe)
             print(format_dual_gate_lockin_scale_up_audit(scale_up_audit))
             print()
@@ -1251,6 +1261,14 @@ def command_dual_gate_lockin_scale_up_check(args: argparse.Namespace) -> int:
     if not acceptance.accepted:
         print(
             "Dual-gate lock-in scale-up check failed: accepted run did not pass strict acceptance audit.",
+            file=sys.stderr,
+        )
+        return 2
+    blocking_warnings = scale_up_blocking_acceptance_issues(acceptance)
+    if blocking_warnings:
+        print(format_scale_up_blocking_acceptance_issues(blocking_warnings), file=sys.stderr)
+        print(
+            "Dual-gate lock-in scale-up check failed: accepted run needs leakage-margin review before scale-up.",
             file=sys.stderr,
         )
         return 2

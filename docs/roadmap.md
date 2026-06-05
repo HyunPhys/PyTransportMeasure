@@ -312,7 +312,13 @@ root.
   - compute gate1/gate2 leakage maxima from accepted `points.csv`
   - report leakage/compliance margin in `dual-gate-lockin-audit`
   - warn when margin is below 10x even if the run otherwise passes
-- [ ] Phase 25af: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25af: Block scale-up on leakage-margin warnings
+  - keep leakage-margin warnings visible in the acceptance audit
+  - block raised-point hardware runs when the accepted previous run has
+    scale-up-blocking leakage warnings
+  - make `dual-gate-lockin-scale-up-check` fail before hardware when the
+    previous limited run needs leakage-margin review
+- [ ] Phase 25ag: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

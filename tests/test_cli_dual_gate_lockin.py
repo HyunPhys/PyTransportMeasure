@@ -1,3 +1,4 @@
+import csv
 import json
 from pathlib import Path
 
@@ -123,6 +124,24 @@ def make_strictly_accepted_previous_run(tmp_path: Path) -> Path:
     audit = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=True)
     assert audit.accepted
     return run_dir
+
+
+def force_gate1_leakage_margin_warning(run_dir: Path) -> None:
+    points_path = run_dir / "points.csv"
+    with points_path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        rows = list(reader)
+        fieldnames = list(reader.fieldnames or [])
+    assert rows
+    for row in rows:
+        row["gate1_current_a"] = "2.0e-9"
+    with points_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(rows)
+    audit = audit_dual_gate_lockin_run(run_dir, require_lockin_settings=True)
+    assert audit.accepted
+    assert any(issue.check == "gate1_leakage_margin" and issue.severity == "warning" for issue in audit.issues)
 
 
 def test_cli_dual_gate_lockin_dry_run_writes_artifacts(tmp_path):
@@ -386,6 +405,30 @@ def test_cli_dual_gate_lockin_blocks_raised_guard_when_previous_grid_not_in_cand
     assert not (tmp_path / "raw").exists()
 
 
+def test_cli_dual_gate_lockin_blocks_raised_guard_when_previous_leakage_margin_is_small(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    force_gate1_leakage_margin_warning(previous_run)
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
+
+    code = cli.main(
+        [
+            "dual-gate-lockin",
+            str(recipe),
+            "--allow-active-sweep",
+            "--max-hardware-points",
+            "12",
+            "--hardware-approval-note",
+            "limited lab feedback ok",
+            "--accepted-previous-run",
+            str(previous_run),
+            "--yes",
+        ]
+    )
+
+    assert code == 2
+    assert not (tmp_path / "raw").exists()
+
+
 def test_cli_dual_gate_lockin_scale_up_check_passes_for_compatible_candidate(tmp_path):
     previous_run = make_strictly_accepted_previous_run(tmp_path)
     recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
@@ -401,6 +444,16 @@ def test_cli_dual_gate_lockin_scale_up_check_fails_for_incompatible_candidate(tm
     text = recipe.read_text(encoding="utf-8")
     text = text.replace("  input_grounding: float\n", "  input_grounding: ground\n")
     recipe.write_text(text, encoding="utf-8")
+
+    code = cli.main(["dual-gate-lockin-scale-up-check", str(previous_run), str(recipe)])
+
+    assert code == 2
+
+
+def test_cli_dual_gate_lockin_scale_up_check_fails_for_leakage_margin_warning(tmp_path):
+    previous_run = make_strictly_accepted_previous_run(tmp_path)
+    force_gate1_leakage_margin_warning(previous_run)
+    recipe = write_dual_gate_lockin_cli_recipe(tmp_path)
 
     code = cli.main(["dual-gate-lockin-scale-up-check", str(previous_run), str(recipe)])
 

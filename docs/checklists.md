@@ -408,8 +408,11 @@ remain point-guarded.
 - [ ] Confirm the audit prints `Dual-gate lock-in acceptance: PASS`.
 - [ ] Confirm the audit prints gate1/gate2 leakage maxima and
   leakage/compliance margins.
-- [ ] If any leakage/compliance margin warning appears, review leakage behavior
-  before increasing gate range or point count.
+- [ ] Confirm no `gate*_leakage_margin` warning appears before using this run
+  as `--accepted-previous-run` for a larger hardware grid.
+- [ ] If any leakage/compliance margin warning appears, repeat a limited run or
+  fix the leakage cause before increasing gate range or point count. The CLI
+  blocks scale-up checks and raised-point hardware runs in this case.
 - [ ] Confirm `dual_gate_lockin_acceptance.md` is written.
 - [ ] If the audit fails, review the listed issue before changing gate range,
   point count, NPLC, compliance, or SR860 settings.
@@ -435,6 +438,9 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-scale-up-check data\raw\<accepted_limited_run_folder> configs/recipes/<candidate_broader_recipe>.yaml
   ```
+- [ ] Confirm `dual-gate-lockin-scale-up-check` fails if the accepted previous
+  run has a leakage-margin warning; do not bypass this by manually raising
+  `--max-hardware-points`.
 - [ ] Prefer generating the candidate recipe from the accepted run to avoid
   copying topology/SR860/SMU settings by hand.
   ```powershell
