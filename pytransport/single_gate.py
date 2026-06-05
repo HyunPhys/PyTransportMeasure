@@ -114,6 +114,8 @@ def format_single_gate_plan(recipe: SingleGateRecipe, safety: SafetyPreset, reci
         f"Drain instrument: {recipe.drain_instrument.id} at {recipe.drain_instrument.address}",
         f"Gate NPLC: {recipe.gate_instrument.nplc if recipe.gate_instrument.nplc is not None else 'auto'}",
         f"Drain NPLC: {recipe.drain_instrument.nplc if recipe.drain_instrument.nplc is not None else 'auto'}",
+        f"Gate source delay: {recipe.gate_instrument.source_delay_s if recipe.gate_instrument.source_delay_s is not None else 'auto'} s",
+        f"Drain source delay: {recipe.drain_instrument.source_delay_s if recipe.drain_instrument.source_delay_s is not None else 'auto'} s",
         f"Gate sweep: {gate_voltages[0]:.6g} V -> {gate_voltages[-1]:.6g} V, {len(gate_voltages)} points, settle {recipe.gate_sweep.settle_s:.6g} s",
         f"Drain sweep: {drain_voltages[0]:.6g} V -> {drain_voltages[-1]:.6g} V, {len(drain_voltages)} points, mode {recipe.drain_sweep.mode}",
         f"Total points: {total_points}",

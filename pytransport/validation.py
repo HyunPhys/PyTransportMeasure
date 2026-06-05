@@ -27,6 +27,7 @@ class RecipeValidationReport:
     voltage_range_v: float | None
     current_range_a: float | None
     nplc: float | None
+    source_delay_s: float | None
     sweep_mode: str
     voltage_min_v: float
     voltage_max_v: float
@@ -74,6 +75,7 @@ def validate_recipe(
         voltage_range_v=recipe.instrument.voltage_range_v,
         current_range_a=recipe.instrument.current_range_a,
         nplc=recipe.instrument.nplc,
+        source_delay_s=recipe.instrument.source_delay_s,
         sweep_mode=recipe.sweep.mode,
         voltage_min_v=min(voltages),
         voltage_max_v=max(voltages),
@@ -111,6 +113,7 @@ def format_validation_report(report: RecipeValidationReport) -> str:
             f"Voltage range: {fmt(report.voltage_range_v, ' V')}",
             f"Current range: {fmt(report.current_range_a, ' A')}",
             f"NPLC: {fmt(report.nplc)}",
+            f"Source delay: {fmt(report.source_delay_s, ' s')}",
             f"Sweep mode: {report.sweep_mode}",
             f"Sweep voltage span: {report.voltage_min_v:.6g} V to {report.voltage_max_v:.6g} V",
             f"Sweep points: {report.points}",

@@ -66,6 +66,7 @@ def format_run_report(run_dir: str | Path) -> str:
         f"- Voltage range: {fmt(instrument.get('voltage_range_v'), ' V')}",
         f"- Current range: {fmt(instrument.get('current_range_a'), ' A')}",
         f"- NPLC: {fmt(instrument.get('nplc'), '')}",
+        f"- Source delay: {fmt(instrument.get('source_delay_s'), ' s')}",
         f"- Sweep: {format_sweep(sweep)}",
         f"- Current compliance: {fmt(sweep.get('current_compliance_a'), ' A')}",
         "",

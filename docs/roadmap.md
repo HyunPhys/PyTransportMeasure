@@ -269,7 +269,11 @@ root.
   - require explicit NPLC before CLI paths enable Keithley hardware output
   - keep dry-run and read-only SR860 smoke paths available without NPLC
   - centralize the policy in a measurement-parameter guard for future methods
-- [ ] Phase 25w: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25w: Keithley source-delay config
+  - add optional `source_delay_s` to Keithley instrument blocks
+  - send/read back `SOUR:VOLT:DEL` through the shared SMU config path
+  - save and compare source delay in `configured_*_smu` metadata/readback
+- [ ] Phase 25x: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard and preflight mandatory

@@ -141,6 +141,8 @@ def format_dual_gate_lockin_plan(
         f"Gate2 instrument: {recipe.gate2_instrument.id} at {recipe.gate2_instrument.address}",
         f"Gate1 NPLC: {recipe.gate1_instrument.nplc if recipe.gate1_instrument.nplc is not None else 'auto'}",
         f"Gate2 NPLC: {recipe.gate2_instrument.nplc if recipe.gate2_instrument.nplc is not None else 'auto'}",
+        f"Gate1 source delay: {recipe.gate1_instrument.source_delay_s if recipe.gate1_instrument.source_delay_s is not None else 'auto'} s",
+        f"Gate2 source delay: {recipe.gate2_instrument.source_delay_s if recipe.gate2_instrument.source_delay_s is not None else 'auto'} s",
         f"Lock-in: {recipe.lockin.id} at {recipe.lockin.address}",
         f"Lock-in channels: {', '.join(recipe.lockin.channels)}",
         f"Lock-in timing: {recipe.lockin.read_timing}",

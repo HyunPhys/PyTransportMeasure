@@ -951,23 +951,40 @@ enabled. Dry-runs remain allowed without NPLC, but real Drain I-V, single-gate,
 AC lock-in, dual-gate lock-in active-gate smoke, and dual-gate lock-in active
 sweeps are blocked until every active Keithley 2450 block has `nplc`.
 
+Keithley source blocks may also set an instrument voltage-source delay:
+
+```yaml
+instrument:
+  id: keithley_2450
+  address: GPIB0::2::INSTR
+  nplc: 1.0
+  source_delay_s: 0.05
+```
+
+This sends `:SOUR:VOLT:DEL <seconds>` and records `source_delay_s` in
+`configured_*_smu`. When the Keithley readback is available,
+`:SOUR:VOLT:DEL?` is compared against the recipe before output is enabled.
+This is separate from Python-side `sweep.delay_s`, `gate_sweep.settle_s`, and
+lock-in read-settle timing.
+
 Run metadata also stores the normalized SMU configuration that was passed to
 the instrument layer. Look for `configured_smu`, `configured_source_smu`,
 `configured_drain_smu`, `configured_gate_smu`, `configured_gate1_smu`, or
 `configured_gate2_smu` in `metadata.json`. These snapshots include compliance,
-voltage range, current range, terminal selection, and NPLC, and are saved even
-for partial or failed runs.
+voltage range, current range, terminal selection, NPLC, and source delay, and
+are saved even for partial or failed runs.
 
 When the instrument supports it, metadata also stores a best-effort readback
 under the matching `configured_*_smu_readback` key. For the Keithley 2450, this
 is collected after source/measure configuration and before output is enabled.
 Use it to compare intended settings against the instrument response for NPLC,
-range/autorange, terminal, voltage readback, and source current limit.
+source delay, range/autorange, terminal, voltage readback, and source current
+limit.
 
 If a readback-capable SMU reports a contradiction, the runner saves
 `configured_*_smu_readback_check`, raises `SafetyLimitError`, and does not enable
 output. This gate protects broader scans from silently running with the wrong
-NPLC, range, terminal, or current limit.
+NPLC, source delay, range, terminal, or current limit.
 
 Every active runner also writes `output_state` in `metadata.json`. It records
 whether each Keithley role attempted output on, whether it was marked enabled,

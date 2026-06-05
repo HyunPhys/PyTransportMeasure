@@ -19,6 +19,7 @@ def fake_voltage_source_config_readback(config: SMUVoltageSourceConfig | None) -
             "current_range": None,
             "current_range_auto": None,
             "voltage_range": None,
+            "source_delay": None,
             "voltage_readback": None,
             "source_current_limit": None,
         }
@@ -30,6 +31,7 @@ def fake_voltage_source_config_readback(config: SMUVoltageSourceConfig | None) -
         "current_range": None if config.current_range_a is None else f"{config.current_range_a:.12g}",
         "current_range_auto": "1" if config.current_range_a is None else "0",
         "voltage_range": None if config.voltage_range_v is None else f"{config.voltage_range_v:.12g}",
+        "source_delay": None if config.source_delay_s is None else f"{config.source_delay_s:.12g}",
         "voltage_readback": "1",
         "source_current_limit": f"{config.current_compliance_a:.12g}",
     }

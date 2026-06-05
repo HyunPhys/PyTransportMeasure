@@ -17,10 +17,12 @@ def test_validate_recipe_file_reports_smoke_test():
     assert report.estimated_duration_s == pytest.approx(1.05)
     assert report.terminal == "FRONT"
     assert report.nplc == 1.0
+    assert report.source_delay_s is None
     assert report.measurement_geometry["terminal_count"] == 2
     assert "Recipe validation: OK" in format_validation_report(report)
     assert "Measurement geometry: two_terminal, 2-terminal" in format_validation_report(report)
     assert "NPLC: 1" in format_validation_report(report)
+    assert "Source delay: auto" in format_validation_report(report)
     assert "Sample: resistor_box" in format_validation_report(report)
 
 

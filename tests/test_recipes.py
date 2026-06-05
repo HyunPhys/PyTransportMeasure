@@ -17,6 +17,7 @@ def test_load_example_recipe():
     assert recipe.instrument.voltage_range_v == 0.2
     assert recipe.instrument.current_range_a == 2.0e-4
     assert recipe.instrument.nplc == 1.0
+    assert recipe.instrument.source_delay_s is None
     assert recipe.measurement_geometry.method == "two_terminal"
     assert recipe.measurement_geometry.terminal_count == 2
     assert recipe.sweep.points == 21
@@ -111,6 +112,39 @@ def test_recipe_rejects_voltage_range_smaller_than_sweep():
                 "sweep": {
                     "start_v": -0.1,
                     "stop_v": 0.1,
+                    "points": 3,
+                    "current_compliance_a": 1e-6,
+                },
+            }
+        )
+
+
+def test_recipe_accepts_nonnegative_source_delay():
+    recipe = DrainIVRecipe.model_validate(
+        {
+            "measurement_name": "source_delay",
+            "instrument": {"address": "FAKE", "source_delay_s": 0.05},
+            "sweep": {
+                "start_v": -0.01,
+                "stop_v": 0.01,
+                "points": 3,
+                "current_compliance_a": 1e-6,
+            },
+        }
+    )
+
+    assert recipe.instrument.source_delay_s == pytest.approx(0.05)
+
+
+def test_recipe_rejects_negative_source_delay():
+    with pytest.raises(ValidationError):
+        DrainIVRecipe.model_validate(
+            {
+                "measurement_name": "bad_source_delay",
+                "instrument": {"address": "FAKE", "source_delay_s": -0.01},
+                "sweep": {
+                    "start_v": -0.01,
+                    "stop_v": 0.01,
                     "points": 3,
                     "current_compliance_a": 1e-6,
                 },

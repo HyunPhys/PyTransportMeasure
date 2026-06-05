@@ -17,6 +17,7 @@ def build_voltage_source_config(instrument: Any, current_compliance_a: float) ->
         current_range_a=_optional_float(_get(instrument, "current_range_a")),
         terminal=_get(instrument, "terminal"),
         nplc=_optional_float(_get(instrument, "nplc")),
+        source_delay_s=_optional_float(_get(instrument, "source_delay_s")),
     )
 
 
@@ -53,6 +54,8 @@ def compare_voltage_source_config_readback(
         checks.append(_check_float("current_nplc", expected.nplc, readback.get("current_nplc")))
     if expected.voltage_range_v is not None:
         checks.append(_check_float("voltage_range", expected.voltage_range_v, readback.get("voltage_range")))
+    if expected.source_delay_s is not None:
+        checks.append(_check_float("source_delay", expected.source_delay_s, readback.get("source_delay")))
     if expected.current_range_a is None:
         checks.append(_check_text("current_range_auto", "1", readback.get("current_range_auto"), mode="bool_on"))
     else:

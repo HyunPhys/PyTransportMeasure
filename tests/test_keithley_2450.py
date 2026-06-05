@@ -32,6 +32,8 @@ class FakeVisaInstrument:
             return "0"
         if command == ":SOUR:VOLT:RANG?":
             return "0.2"
+        if command == ":SOUR:VOLT:DEL?":
+            return "0.05"
         if command == ":SOUR:VOLT:READ:BACK?":
             return "1"
         if command == ":SOUR:VOLT:ILIMIT?":
@@ -53,6 +55,7 @@ def test_keithley_current_limit_falls_back_after_undefined_header():
             current_range_a=2e-4,
             terminal="FRONT",
             nplc=1.0,
+            source_delay_s=0.05,
         )
     )
 
@@ -60,6 +63,7 @@ def test_keithley_current_limit_falls_back_after_undefined_header():
     assert ":ROUT:TERM FRONT" in smu.inst.commands
     assert ":SENS:CURR:NPLC 1.0" in smu.inst.commands
     assert ":SOUR:VOLT:RANG 0.2" in smu.inst.commands
+    assert ":SOUR:VOLT:DEL 0.05" in smu.inst.commands
     assert ":SENS:CURR:RANG 0.0002" in smu.inst.commands
     assert ":SOUR:VOLT:ILIMIT 0.0002" in smu.inst.commands
     assert not any(command.startswith(":FORM:ELEM") for command in smu.inst.commands)
@@ -101,6 +105,7 @@ def test_keithley_voltage_source_config_readback_uses_accepted_current_limit_que
             current_range_a=2e-4,
             terminal="FRONT",
             nplc=1.0,
+            source_delay_s=0.05,
         )
     )
 
@@ -113,6 +118,7 @@ def test_keithley_voltage_source_config_readback_uses_accepted_current_limit_que
     assert readback["current_range"] == "0.0002"
     assert readback["current_range_auto"] == "0"
     assert readback["voltage_range"] == "0.2"
+    assert readback["source_delay"] == "0.05"
     assert readback["voltage_readback"] == "1"
     assert readback["source_current_limit"] == "0.0002"
     assert readback["source_current_limit_query"] == ":SOUR:VOLT:ILIMIT?"

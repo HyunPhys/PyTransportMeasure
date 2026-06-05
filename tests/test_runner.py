@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from pytransport.instruments.fake import FakeSMU
 from pytransport.recipes import DrainIVRecipe, SafetyPreset
 from pytransport.runner import run_drain_iv
@@ -73,6 +75,7 @@ def test_fake_smu_dry_run_writes_csv_and_metadata(tmp_path):
     assert metadata["instrument_probe"]["language"] == "SIM"
     assert metadata["configured_smu"]["current_compliance_a"] == 1e-6
     assert metadata["configured_smu"]["nplc"] is None
+    assert metadata["configured_smu"]["source_delay_s"] is None
     assert metadata["configured_smu_readback"]["source_current_limit"] == "1e-06"
     assert metadata["output_state"]["instrument"]["off_after_run"] is True
     assert metadata["output_state"]["instrument"]["zero_before_off_succeeded"] is True
@@ -152,7 +155,7 @@ def test_stop_request_saves_partial_and_turns_output_off(tmp_path):
 def test_smu_readback_mismatch_stops_before_output_on(tmp_path):
     data = {
         "measurement_name": "readback_mismatch",
-        "instrument": {"address": "FAKE", "nplc": 1.0},
+        "instrument": {"address": "FAKE", "nplc": 1.0, "source_delay_s": 0.05},
         "sweep": {
             "start_v": 0,
             "stop_v": 0.01,
@@ -173,6 +176,8 @@ def test_smu_readback_mismatch_stops_before_output_on(tmp_path):
     assert smu.is_output_on is False
     saved = json.loads((next(tmp_path.iterdir()) / "metadata.json").read_text(encoding="utf-8"))
     assert saved["configured_smu_readback_check"]["matched"] is False
+    assert saved["configured_smu"]["source_delay_s"] == pytest.approx(0.05)
+    assert saved["configured_smu_readback"]["source_delay"] == "0.05"
     assert saved["output_state"]["instrument"]["output_on_attempted"] is False
     assert saved["output_state"]["instrument"]["off_after_run"] is True
     assert saved["output_state"]["instrument"]["zero_before_off_succeeded"] is True

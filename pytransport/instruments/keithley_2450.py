@@ -114,6 +114,8 @@ class Keithley2450:
         self._write_checked(":SOUR:FUNC VOLT", "source function configuration")
         if config.voltage_range_v is not None:
             self._write_checked(f":SOUR:VOLT:RANG {config.voltage_range_v}", "voltage range configuration")
+        if config.source_delay_s is not None:
+            self._write_checked(f":SOUR:VOLT:DEL {config.source_delay_s}", "voltage source delay configuration")
         self._write_checked(":SOUR:VOLT:READ:BACK ON", "voltage readback configuration")
         self._set_current_limit(config.current_compliance_a)
         self._write_checked(":SOUR:VOLT 0", "initial voltage configuration")
@@ -130,6 +132,7 @@ class Keithley2450:
             "current_range": self._query_optional(":SENS:CURR:RANG?"),
             "current_range_auto": self._query_optional(":SENS:CURR:RANG:AUTO?"),
             "voltage_range": self._query_optional(":SOUR:VOLT:RANG?"),
+            "source_delay": self._query_optional(":SOUR:VOLT:DEL?"),
             "voltage_readback": self._query_optional(":SOUR:VOLT:READ:BACK?"),
             "source_current_limit": None if current_limit_query is None else self._query_optional(current_limit_query),
             "source_current_limit_query": current_limit_query,

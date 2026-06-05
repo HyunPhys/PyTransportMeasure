@@ -31,6 +31,7 @@ class MeasurementPlan:
     voltage_range_v: float | None
     current_range_a: float | None
     nplc: float | None
+    source_delay_s: float | None
     output_directory: Path
     sweep_mode: str
     points: int
@@ -89,6 +90,7 @@ def build_measurement_plan_from_objects(
         voltage_range_v=recipe.instrument.voltage_range_v,
         current_range_a=recipe.instrument.current_range_a,
         nplc=recipe.instrument.nplc,
+        source_delay_s=recipe.instrument.source_delay_s,
         output_directory=recipe.output.directory,
         sweep_mode=recipe.sweep.mode,
         points=len(planned_points),
@@ -135,6 +137,7 @@ def format_measurement_plan(plan: MeasurementPlan) -> str:
         f"- Voltage range: {fmt_optional(plan.voltage_range_v, 'V')}",
         f"- Current range: {fmt_optional(plan.current_range_a, 'A')}",
         f"- NPLC: {fmt_optional(plan.nplc, '')}",
+        f"- Source delay: {fmt_optional(plan.source_delay_s, 's')}",
         "",
         "Safety",
         f"- Preset: {plan.safety_preset}",

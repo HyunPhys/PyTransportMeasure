@@ -114,6 +114,7 @@ def format_ac_lockin_plan(
         f"Safety preset: {safety.name}",
         f"Source instrument: {recipe.source_instrument.id} at {recipe.source_instrument.address}",
         f"Source NPLC: {recipe.source_instrument.nplc if recipe.source_instrument.nplc is not None else 'auto'}",
+        f"Source delay: {recipe.source_instrument.source_delay_s if recipe.source_instrument.source_delay_s is not None else 'auto'} s",
         f"Lock-in: {recipe.lockin.id} at {recipe.lockin.address}",
         f"Lock-in channels: {', '.join(recipe.lockin.channels)}",
         f"Lock-in timing: {recipe.lockin.read_timing}",

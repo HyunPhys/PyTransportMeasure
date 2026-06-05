@@ -124,6 +124,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   implemented runners.
 - [ ] Set Keithley `instrument.nplc` intentionally. Hardware runs are blocked
   when active Keithley 2450 NPLC is missing.
+- [ ] If using Keithley source delay, set `instrument.source_delay_s` and
+  remember it is in addition to Python-side sweep delay.
 - [ ] Choose a conservative safety preset.
 - [ ] Validate the recipe.
   ```powershell
@@ -326,7 +328,8 @@ remain point-guarded.
   ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_dry_run.yaml
   ```
 - [ ] Confirm the plan shows gate1 Keithley, gate2 Keithley, SR860 address,
-  NPLC values, lock-in channels, and `after_dc_settle` timing.
+  NPLC values, source-delay values when set, lock-in channels, and
+  `after_dc_settle` timing.
 - [ ] Confirm the plan shows the Hall-bar topology:
   gate roles, source/drain contacts, lock-in input contacts, excitation source,
   excitation contacts, excitation amplitude, and current-bias resistor if used.
@@ -377,8 +380,8 @@ remain point-guarded.
   ```powershell
   ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_limited_active.yaml
   ```
-- [ ] Confirm `Total points: 4`, small gate voltage range, intended NPLC, and
-  topology before hardware output.
+- [ ] Confirm `Total points: 4`, small gate voltage range, intended NPLC,
+  source-delay values when set, and topology before hardware output.
 - [ ] Run the limited active sweep only after the active-gate smoke passes.
   ```powershell
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_limited_active.yaml --allow-active-sweep --max-hardware-points 4 --progress --plot --report --gate-stats
@@ -486,8 +489,9 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
   `voltage_input_range_v`, `sensitivity_index`, `time_constant_index`,
   `settle_time_constants` or `read_settle_s`, `filter_slope_db_per_oct`, and
   `synchronous_filter`.
-- [ ] Confirm the plan output prints the expected Keithley NPLC, SR860 settings,
-  SR860 time constant, and `Lock-in read settle` before any hardware run.
+- [ ] Confirm the plan output prints the expected Keithley NPLC, Keithley source
+  delay when set, SR860 settings, SR860 time constant, and `Lock-in read
+  settle` before any hardware run.
 - [ ] Confirm `ptm probe --instrument srs_sr860` reports `setting_*` fields for
   SR860 reference, excitation, input, range, sensitivity, filter, and sync
   settings.
@@ -523,7 +527,8 @@ path. It uses Keithley source bias plus SR860 X/Y/R/theta readout.
 - [ ] Confirm source instruments still turn off after completion, stop, and
   interrupt.
 - [ ] Open `metadata.json` and confirm the relevant `configured_*_smu`
-  snapshot records the intended compliance, range, terminal, and NPLC values.
+  snapshot records the intended compliance, range, terminal, NPLC, and source
+  delay values.
 - [ ] Confirm the matching `configured_*_smu_readback` exists. If any value is
   `ERROR ...`, keep the run artifacts but review the corresponding Keithley
   query before trusting broader scans.
