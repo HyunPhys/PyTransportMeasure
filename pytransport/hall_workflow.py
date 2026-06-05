@@ -426,6 +426,94 @@ def format_dual_gate_lockin_hall_suite_hardware_command_review(payload: dict) ->
     return "\n".join(lines)
 
 
+def write_dual_gate_lockin_hall_suite_handoff_summary(
+    package_manifest_or_dir: Path,
+    *,
+    output_dir: Path | None = None,
+    safety_dir: Path = Path("configs/safety"),
+    overwrite: bool = False,
+) -> dict:
+    validation = validate_dual_gate_lockin_hall_suite_package_manifest(package_manifest_or_dir)
+    package_dir = Path(validation["package_dir"])
+    out = output_dir or package_dir / "handoff_summary"
+    if out.exists() and not overwrite:
+        raise FileExistsError(f"Hall handoff summary already exists: {out}")
+    out.mkdir(parents=True, exist_ok=True)
+
+    smoke = write_dual_gate_lockin_hall_suite_lab_smoke_bundle(
+        package_dir,
+        output_dir=out / "lab_smoke",
+        safety_dir=safety_dir,
+        overwrite=True,
+    )
+    hardware_review = review_dual_gate_lockin_hall_suite_hardware_commands(package_dir)
+    package_validation_path = out / "package_validation.json"
+    smoke_json_path = out / "lab_smoke_bundle.json"
+    hardware_review_path = out / "hardware_command_review.json"
+    package_validation_path.write_text(json.dumps(validation, indent=2, sort_keys=True), encoding="utf-8")
+    smoke_json_path.write_text(json.dumps(smoke, indent=2, sort_keys=True), encoding="utf-8")
+    hardware_review_path.write_text(json.dumps(hardware_review, indent=2, sort_keys=True), encoding="utf-8")
+
+    pass_state = bool(validation.get("valid")) and bool(smoke.get("completed")) and bool(hardware_review.get("valid"))
+    payload = {
+        "package_dir": str(package_dir),
+        "package_manifest": validation.get("package_manifest"),
+        "package_name": validation.get("package_name"),
+        "output_dir": str(out),
+        "pass": pass_state,
+        "checks": {
+            "package_validation": bool(validation.get("valid")),
+            "lab_smoke_bundle": bool(smoke.get("completed")),
+            "hardware_command_review": bool(hardware_review.get("valid")),
+        },
+        "artifacts": {
+            "package_validation_json": str(package_validation_path),
+            "lab_smoke_bundle_json": str(smoke_json_path),
+            "lab_smoke_checklist": smoke.get("report_path"),
+            "hardware_command_review_json": str(hardware_review_path),
+        },
+        "issue_count": len(validation.get("issues", [])) + len(hardware_review.get("issues", [])),
+    }
+    json_path = out / "handoff_summary.json"
+    report_path = out / "handoff_summary.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(format_dual_gate_lockin_hall_suite_handoff_summary(payload), encoding="utf-8")
+    payload["json_path"] = str(json_path)
+    payload["report_path"] = str(report_path)
+    return payload
+
+
+def format_dual_gate_lockin_hall_suite_handoff_summary(payload: dict) -> str:
+    checks = payload.get("checks", {})
+    artifacts = payload.get("artifacts", {})
+    lines = [
+        "# Hall Suite Lab Handoff Summary",
+        "",
+        f"- Package: `{payload.get('package_dir')}`",
+        f"- Manifest: `{payload.get('package_manifest')}`",
+        f"- Ready for lab handoff: {payload.get('pass')}",
+        "",
+        "| Check | Status |",
+        "| --- | --- |",
+        f"| Package validation | {'PASS' if checks.get('package_validation') else 'REVIEW'} |",
+        f"| Lab smoke bundle | {'PASS' if checks.get('lab_smoke_bundle') else 'REVIEW'} |",
+        f"| Hardware command review | {'PASS' if checks.get('hardware_command_review') else 'REVIEW'} |",
+        "",
+        "## Artifacts",
+        "",
+        f"- Package validation JSON: `{artifacts.get('package_validation_json')}`",
+        f"- Lab smoke checklist: `{artifacts.get('lab_smoke_checklist')}`",
+        f"- Lab smoke bundle JSON: `{artifacts.get('lab_smoke_bundle_json')}`",
+        f"- Hardware command review JSON: `{artifacts.get('hardware_command_review_json')}`",
+        "",
+        "## Lab Use",
+        "",
+        "Attach this summary to the lab notebook entry for the package. Run the lab smoke checklist on the lab laptop before any active hardware command.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
     manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
     package_dir = manifest_path.parent

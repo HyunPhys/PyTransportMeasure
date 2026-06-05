@@ -567,6 +567,12 @@ remain point-guarded.
   ```
 - [ ] Confirm the command prints `Hardware commands guarded: True` and the JSON
   has `"valid": true`.
+- [ ] Write the single handoff summary for the lab notebook.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-handoff-summary data\hall_packages\<sample_lab_package> --overwrite
+  ```
+- [ ] Confirm `handoff_summary/handoff_summary.md` prints
+  `Ready for lab handoff: True`.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.

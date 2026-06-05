@@ -528,6 +528,20 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert command_review_code == 0
     assert command_review["valid"] is True
     assert command_review["command_count"] == 4
+    handoff_code = main(
+        [
+            "dual-gate-lockin-hall-suite-handoff-summary",
+            str(package_dir),
+            "--overwrite",
+        ]
+    )
+    handoff_dir = package_dir / "handoff_summary"
+    handoff = json.loads((handoff_dir / "handoff_summary.json").read_text(encoding="utf-8"))
+    assert handoff_code == 0
+    assert handoff["pass"] is True
+    assert (handoff_dir / "handoff_summary.md").exists()
+    assert (handoff_dir / "package_validation.json").exists()
+    assert (handoff_dir / "hardware_command_review.json").exists()
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):

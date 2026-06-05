@@ -552,6 +552,17 @@ This fails if the runbook loses required active-sweep guards such as
 `--allow-active-sweep`, `--stop-after-new-points`, `--max-hardware-points`,
 `--hardware-approval-note`, or `--accepted-previous-run`.
 
+To collect the package validation, smoke checklist, and hardware command review
+into one lab-notebook attachment, write the handoff summary:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-handoff-summary data\hall_packages\sampleA_cd1_lab1 --overwrite
+```
+
+This writes `handoff_summary/handoff_summary.md`,
+`handoff_summary/handoff_summary.json`, and copies the detailed validation,
+smoke, and hardware-command JSON records into the same folder.
+
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:
 

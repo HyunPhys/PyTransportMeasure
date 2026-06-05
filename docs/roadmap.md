@@ -544,11 +544,16 @@ root.
   - make package handoff checks fail if guarded command templates lose the
     hardware-output safety flags
   - keep the review hardware-free and reusable by GUI package inspection
-- [ ] Phase 25ca: Hall package handoff summary index
+- [x] Phase 25ca: Hall package handoff summary index
   - combine package validation, lab smoke checklist, and hardware command review
     outputs into one package-local handoff summary
   - expose a single PASS/REVIEW state for lab notebook attachment
   - keep individual JSON artifacts as the detailed audit trail
+- [ ] Phase 25cb: Hall package lab-return manifest
+  - create a package-local manifest for files returned from the lab laptop after
+    acquisition
+  - record run folders, operator notes, package hash, and post-run intake status
+  - keep the handoff and return records connected for later analysis
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

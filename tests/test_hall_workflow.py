@@ -13,6 +13,7 @@ from pytransport.hall_workflow import (
     review_dual_gate_lockin_hall_suite_hardware_commands,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
+    write_dual_gate_lockin_hall_suite_handoff_summary,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
 )
 
@@ -227,6 +228,26 @@ def test_hall_hardware_command_review_rejects_missing_approval_note(tmp_path):
 
     assert payload["valid"] is False
     assert any(issue["code"] == "missing_hardware_approval_note" for issue in payload["issues"])
+
+
+def test_hall_handoff_summary_writes_single_pass_index(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+
+    payload = write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
+
+    summary_dir = package.package_dir / "handoff_summary"
+    summary = json.loads((summary_dir / "handoff_summary.json").read_text(encoding="utf-8"))
+    report = (summary_dir / "handoff_summary.md").read_text(encoding="utf-8")
+    assert payload["pass"] is True
+    assert summary["checks"] == {
+        "hardware_command_review": True,
+        "lab_smoke_bundle": True,
+        "package_validation": True,
+    }
+    assert (summary_dir / "package_validation.json").exists()
+    assert (summary_dir / "hardware_command_review.json").exists()
+    assert (summary_dir / "lab_smoke_bundle.json").exists()
+    assert "Ready for lab handoff: True" in report
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

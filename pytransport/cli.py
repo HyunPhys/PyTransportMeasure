@@ -111,6 +111,7 @@ from .hall_analysis import (
     write_dual_gate_lockin_hall_zero_corrected,
 )
 from .hall_workflow import (
+    format_dual_gate_lockin_hall_suite_handoff_summary,
     format_dual_gate_lockin_hall_suite_hardware_command_review,
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
@@ -118,6 +119,7 @@ from .hall_workflow import (
     review_dual_gate_lockin_hall_suite_hardware_commands,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
+    write_dual_gate_lockin_hall_suite_handoff_summary,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
 )
 from .inspect import inspect_run
@@ -778,6 +780,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     dual_gate_lockin_hall_suite_hardware_command_review.add_argument("package_manifest_or_dir", type=Path)
     dual_gate_lockin_hall_suite_hardware_command_review.add_argument("--json-output", type=Path)
+
+    dual_gate_lockin_hall_suite_handoff_summary = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-handoff-summary",
+        help="Write a package-local PASS/REVIEW handoff summary from Hall package checks.",
+    )
+    dual_gate_lockin_hall_suite_handoff_summary.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_handoff_summary.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_suite_handoff_summary.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_handoff_summary.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2341,6 +2352,23 @@ def command_dual_gate_lockin_hall_suite_hardware_command_review(args: argparse.N
     return 0 if payload["valid"] else 1
 
 
+def command_dual_gate_lockin_hall_suite_handoff_summary(args: argparse.Namespace) -> int:
+    try:
+        payload = write_dual_gate_lockin_hall_suite_handoff_summary(
+            args.package_manifest_or_dir,
+            output_dir=args.output_dir,
+            safety_dir=args.safety_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite handoff summary failed: {exc}", file=sys.stderr)
+        return 2
+    print(format_dual_gate_lockin_hall_suite_handoff_summary(payload))
+    print(f"Summary: {payload['report_path']}")
+    print(f"JSON: {payload['json_path']}")
+    return 0 if payload["pass"] else 1
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3673,6 +3701,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_lab_smoke_bundle(args)
     if args.command == "dual-gate-lockin-hall-suite-hardware-command-review":
         return command_dual_gate_lockin_hall_suite_hardware_command_review(args)
+    if args.command == "dual-gate-lockin-hall-suite-handoff-summary":
+        return command_dual_gate_lockin_hall_suite_handoff_summary(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":
