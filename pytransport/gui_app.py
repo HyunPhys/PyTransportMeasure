@@ -173,6 +173,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("PyTransportMeasure")
         self.resize(1180, 760)
+        self.setMinimumSize(760, 520)
         self.worker: DryRunWorker | None = None
         self.doctor_worker: DoctorWorker | None = None
         self.preflight_worker: PreflightWorker | None = None
@@ -186,7 +187,7 @@ class MainWindow(QMainWindow):
         self.method_combo.currentIndexChanged.connect(self.apply_default_recipe)
 
         self.recipe_edit = QLineEdit()
-        self.recipe_edit.setMinimumWidth(360)
+        self.recipe_edit.setMinimumWidth(220)
         self.browse_button = QPushButton("Browse")
         self.browse_button.clicked.connect(self.browse_recipe)
 
@@ -268,7 +269,7 @@ class MainWindow(QMainWindow):
         self.report_text = QPlainTextEdit()
         self.report_text.setReadOnly(True)
         self.plot_widget = QSvgWidget()
-        self.plot_widget.setMinimumSize(760, 480)
+        self.plot_widget.setMinimumSize(320, 240)
         self.plot_scroll = QScrollArea()
         self.plot_scroll.setWidgetResizable(True)
         self.plot_scroll.setWidget(self.plot_widget)
@@ -317,8 +318,12 @@ class MainWindow(QMainWindow):
         layout.addWidget(QLabel("Preview"), 0, 6)
         layout.addWidget(self.preview_spin, 0, 7)
 
-        fake_box = QGroupBox("Dry-run Model")
-        fake_layout = QFormLayout(fake_box)
+        self.fake_box = QGroupBox("Dry-run Model")
+        self.fake_box.setCheckable(True)
+        self.fake_box.setChecked(False)
+        fake_content = QWidget()
+        self.fake_content = fake_content
+        fake_layout = QFormLayout(fake_content)
         fake_layout.addRow("R source", self.fake_resistance)
         fake_layout.addRow("Noise A", self.fake_noise)
         fake_layout.addRow("R channel", self.fake_channel_resistance)
@@ -327,28 +332,36 @@ class MainWindow(QMainWindow):
         fake_layout.addRow("Lock-in R", self.fake_lockin_r)
         fake_layout.addRow("Lock-in phase", self.fake_lockin_phase)
         fake_layout.addRow("Lock-in noise", self.fake_lockin_noise)
-        layout.addWidget(fake_box, 1, 0, 1, 8)
+        fake_box_layout = QVBoxLayout(self.fake_box)
+        fake_box_layout.addWidget(fake_content)
+        fake_content.setVisible(False)
+        self.fake_box.toggled.connect(fake_content.setVisible)
+        layout.addWidget(self.fake_box, 1, 0, 1, 8)
 
-        button_row = QHBoxLayout()
-        button_row.addWidget(self.plan_button)
-        button_row.addWidget(self.run_button)
-        button_row.addWidget(self.doctor_button)
-        button_row.addWidget(self.preflight_button)
-        button_row.addWidget(self.hardware_run_button)
-        button_row.addWidget(self.load_editor_button)
-        button_row.addWidget(self.validate_editor_button)
-        button_row.addWidget(self.save_editor_button)
-        button_row.addWidget(self.load_form_button)
-        button_row.addWidget(self.apply_form_button)
-        button_row.addStretch(1)
-        button_row.addWidget(self.refresh_runs_button)
-        button_row.addWidget(self.load_run_button)
-        button_row.addWidget(self.open_run_button)
-        button_row.addWidget(self.open_plot_button)
-        button_row.addWidget(self.open_report_button)
-        button_row.addWidget(self.feedback_bundle_button)
-        button_row.addWidget(self.open_log_button)
-        layout.addLayout(button_row, 2, 0, 1, 8)
+        run_button_row = QHBoxLayout()
+        run_button_row.addWidget(self.plan_button)
+        run_button_row.addWidget(self.run_button)
+        run_button_row.addWidget(self.doctor_button)
+        run_button_row.addWidget(self.preflight_button)
+        run_button_row.addWidget(self.hardware_run_button)
+        run_button_row.addStretch(1)
+        run_button_row.addWidget(self.load_editor_button)
+        run_button_row.addWidget(self.validate_editor_button)
+        run_button_row.addWidget(self.save_editor_button)
+        layout.addLayout(run_button_row, 2, 0, 1, 8)
+
+        artifact_button_row = QHBoxLayout()
+        artifact_button_row.addWidget(self.load_form_button)
+        artifact_button_row.addWidget(self.apply_form_button)
+        artifact_button_row.addStretch(1)
+        artifact_button_row.addWidget(self.refresh_runs_button)
+        artifact_button_row.addWidget(self.load_run_button)
+        artifact_button_row.addWidget(self.open_run_button)
+        artifact_button_row.addWidget(self.open_plot_button)
+        artifact_button_row.addWidget(self.open_report_button)
+        artifact_button_row.addWidget(self.feedback_bundle_button)
+        artifact_button_row.addWidget(self.open_log_button)
+        layout.addLayout(artifact_button_row, 3, 0, 1, 8)
         return box
 
     def build_plot_preview(self) -> QWidget:
@@ -894,11 +907,22 @@ class MainWindow(QMainWindow):
     def log_session(self, message: str) -> None:
         self.session_logger.write(message)
         if hasattr(self, "session_log_text"):
-            self.session_log_text.setPlainText(self.session_logger.read_text())
+            update_plain_text_preserving_scroll(self.session_log_text, self.session_logger.read_text())
 
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+def update_plain_text_preserving_scroll(text_edit: Any, text: str) -> None:
+    scrollbar = text_edit.verticalScrollBar()
+    previous_value = scrollbar.value()
+    was_at_bottom = previous_value >= scrollbar.maximum() - 2
+    text_edit.setPlainText(text)
+    if was_at_bottom:
+        scrollbar.setValue(scrollbar.maximum())
+    else:
+        scrollbar.setValue(min(previous_value, scrollbar.maximum()))
 
 
 def open_path(path: Path) -> None:

@@ -174,6 +174,10 @@ This roadmap tracks the large development phases. Completed items are checked.
   - show the current session log in the GUI
   - include the GUI session log in feedback bundles
   - allow CLI feedback bundles to include extra diagnostic files
+- [x] Phase 24n: GUI usability pass
+  - collapse dry-run settings by default
+  - reduce unnecessary GUI minimum-size pressure
+  - preserve Session Log scroll position unless the user is already at the bottom
 
 ## Next GUI
 

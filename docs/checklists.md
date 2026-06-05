@@ -30,6 +30,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   updates.
 - [x] GUI Session Log records diagnostics/progress and is included in feedback
   bundles.
+- [x] GUI usability pass collapsed dry-run settings, relaxed resize constraints,
+  and fixed Session Log scroll behavior.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -59,6 +61,7 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ```
 - [ ] When using the GUI, confirm the Session Log tab is updating before a
   hardware run.
+- [ ] Confirm the GUI window can be resized comfortably on the current display.
 
 ## New Drain I-V Recipe
 
@@ -138,9 +141,14 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   ptm-gui
   ```
 - [ ] Confirm `Session Log` shows `GUI session started`.
+- [ ] Confirm `Dry-run Model` starts collapsed and can be opened when fake
+  settings need editing.
 - [ ] Run `Doctor`, `Preflight`, or `Dry Run`.
 - [ ] Confirm the Session Log tab accumulates the same major events and progress
   lines.
+- [ ] Keep Session Log at the bottom and confirm new lines stay visible.
+- [ ] Scroll Session Log upward and confirm new lines do not force it back to
+  the top or bottom.
 - [ ] After a saved run is loaded or completed, press `Feedback Bundle`.
 - [ ] Confirm the ZIP contains the run artifacts and `extras/<gui_session_log>.log`.
 
