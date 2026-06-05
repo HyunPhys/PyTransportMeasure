@@ -38,6 +38,8 @@ from .measurement_parameters import (
     format_smu_hardware_parameter_audit,
     smu_hardware_parameter_audit_to_dict,
 )
+from .lockin_settings import expected_lockin_settings
+from .lockin_timing import lockin_read_settle_s, lockin_time_constant_s
 from .recipes import DualGateLockInRecipe, SafetyPreset, load_named_safety_preset, load_yaml
 
 
@@ -383,6 +385,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
     recipes_dir.mkdir()
     copied_recipes = _copy_suite_recipes(audit, recipes_dir)
     keithley_audits = _write_hall_suite_keithley_audits(copied_recipes, package_dir)
+    lockin_audits = _write_hall_suite_lockin_audits(copied_recipes, package_dir)
     extras = []
     extras.extend(_copy_labeled_files(chunk_feedback_files or [], package_dir / "chunk_feedback", "chunk_feedback"))
     extras.extend(_copy_labeled_files(preflight_files or [], package_dir / "preflight", "preflight"))
@@ -402,6 +405,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
             acquisition_note=acquisition_note,
             extras=extras,
             keithley_audits=keithley_audits,
+            lockin_audits=lockin_audits,
         ),
         encoding="utf-8",
     )
@@ -417,6 +421,7 @@ def write_dual_gate_lockin_hall_suite_acquisition_package(
         },
         "copied_recipes": {key: path.relative_to(package_dir).as_posix() for key, path in copied_recipes.items()},
         "keithley_parameter_audits": keithley_audits,
+        "lockin_setting_audits": lockin_audits,
         "compatible": audit.compatible,
         "point_count": audit.point_count,
         "chunk_size": chunk_size,
@@ -1196,6 +1201,7 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
     acquisition_note: str | None,
     extras: list[dict[str, str]],
     keithley_audits: dict[str, dict[str, Any]],
+    lockin_audits: dict[str, dict[str, Any]],
 ) -> str:
     copied_audit = audit_dual_gate_lockin_hall_suite(
         copied_recipes["longitudinal"],
@@ -1249,6 +1255,17 @@ def format_dual_gate_lockin_hall_suite_acquisition_package_runbook(
                 for label, record in keithley_audits.items()
             ],
             *([] if keithley_audits else ["- none"]),
+            "",
+            "## SR860 Setting Audits",
+            "",
+            *[
+                (
+                    f"- {label}: {'PASS' if record.get('ok_for_hardware') else 'REVIEW'}; "
+                    f"JSON `{record.get('json')}`, Markdown `{record.get('markdown')}`"
+                )
+                for label, record in lockin_audits.items()
+            ],
+            *([] if lockin_audits else ["- none"]),
             "",
             "## Guarded Chunk Acquisition Template",
             "",
@@ -1899,6 +1916,81 @@ def _write_hall_suite_keithley_audits(copied_recipes: dict[str, Path], package_d
             ],
         }
     return records
+
+
+def _write_hall_suite_lockin_audits(copied_recipes: dict[str, Path], package_dir: Path) -> dict[str, dict[str, Any]]:
+    audit_dir = package_dir / "lockin_audit"
+    audit_dir.mkdir()
+    records: dict[str, dict[str, Any]] = {}
+    for key, recipe_path in copied_recipes.items():
+        recipe = DualGateLockInRecipe.model_validate(load_yaml(recipe_path))
+        payload = _lockin_setting_audit_payload(key, recipe_path.relative_to(package_dir).as_posix(), recipe)
+        json_path = audit_dir / f"{key}_sr860_audit.json"
+        markdown_path = audit_dir / f"{key}_sr860_audit.md"
+        json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        markdown_path.write_text(_format_lockin_setting_audit_markdown(payload), encoding="utf-8")
+        records[key] = {
+            "json": json_path.relative_to(package_dir).as_posix(),
+            "markdown": markdown_path.relative_to(package_dir).as_posix(),
+            "ok_for_hardware": bool(payload["ok_for_hardware"]),
+            "declared_expected_setting_count": len(payload["expected_settings"]),
+            "read_settle_s": payload["read_settle_s"],
+        }
+    return records
+
+
+def _lockin_setting_audit_payload(key: str, recipe_path: str, recipe: DualGateLockInRecipe) -> dict[str, Any]:
+    lockin = recipe.lockin.model_dump(mode="json")
+    expected = expected_lockin_settings(lockin)
+    required_review_fields = ["sensitivity_index", "time_constant_index"]
+    missing_review_fields = [field for field in required_review_fields if lockin.get(field) is None]
+    return {
+        "recipe_key": key,
+        "recipe_path": recipe_path,
+        "lockin_id": recipe.lockin.id,
+        "address": recipe.lockin.address,
+        "enabled": recipe.lockin.enabled,
+        "channels": recipe.lockin.channels,
+        "read_timing": recipe.lockin.read_timing,
+        "expected_settings": expected,
+        "expected_setting_count": len(expected),
+        "time_constant_s": lockin_time_constant_s(lockin),
+        "settle_time_constants": recipe.lockin.settle_time_constants,
+        "read_settle_s": lockin_read_settle_s(lockin),
+        "missing_review_fields": missing_review_fields,
+        "ok_for_hardware": recipe.lockin.enabled and not missing_review_fields,
+    }
+
+
+def _format_lockin_setting_audit_markdown(payload: dict[str, Any]) -> str:
+    expected = payload.get("expected_settings") or {}
+    lines = [
+        f"# {_suite_key_label(str(payload['recipe_key']))} SR860 Setting Audit",
+        "",
+        f"- Recipe: `{payload['recipe_path']}`",
+        f"- Lock-in: {payload['lockin_id']} @ `{payload['address']}`",
+        f"- Enabled: {payload['enabled']}",
+        f"- Channels: {', '.join(payload.get('channels') or [])}",
+        f"- Read timing: {payload['read_timing']}",
+        f"- Time constant: {_fmt_optional(payload.get('time_constant_s'))} s",
+        f"- Read settle: {_fmt_optional(payload.get('read_settle_s'))} s",
+        f"- Hardware-ready: {payload['ok_for_hardware']}",
+        "",
+        "## Expected SR860 Settings",
+        "",
+    ]
+    if expected:
+        lines.extend(f"- {key}: {value}" for key, value in expected.items())
+    else:
+        lines.append("- none declared")
+    missing = payload.get("missing_review_fields") or []
+    lines.extend(["", "## Review Fields", ""])
+    if missing:
+        lines.append(f"- Missing review fields: {', '.join(missing)}")
+    else:
+        lines.append("- sensitivity_index and time_constant_index are declared")
+    lines.append("")
+    return "\n".join(lines)
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: str | Path) -> Path:

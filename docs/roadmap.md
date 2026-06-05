@@ -516,10 +516,14 @@ root.
     packages
   - include per-recipe PASS/MISSING status in the Hall workflow status summary
   - make lab handoff packages carry measurement-parameter audit provenance
-- [ ] Phase 25bu: Hall package SR860 audit integration
+- [x] Phase 25bu: Hall package SR860 audit integration
   - write declared SR860 setting summaries into Hall-suite acquisition packages
   - expose SR860 setting audit status in workflow handoff summaries
   - keep Keithley and lock-in measurement-condition provenance side by side
+- [ ] Phase 25bv: Hall package manifest schema cleanup
+  - normalize Hall package audit manifest records for Keithley and SR860
+  - add direct tests for manifest backward compatibility
+  - document package manifest fields for external lab notebooks and scripts
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

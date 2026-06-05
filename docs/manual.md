@@ -496,7 +496,8 @@ ptm dual-gate-lockin-hall-suite-package configs\recipes\hall_suite_sampleA\sampl
 
 The package is hardware-free. It copies the suite recipes, writes
 `acquisition_runbook.md`, writes `package_manifest.json`, writes per-recipe
-Keithley audit files under `keithley_audit/`, and creates a ZIP.
+Keithley audit files under `keithley_audit/`, writes per-recipe SR860 setting
+audits under `lockin_audit/`, and creates a ZIP.
 You can attach chunk feedback, saved preflight text, or lab notes:
 
 ```powershell
@@ -509,6 +510,9 @@ sequence to use, but it does not enable any output or talk to VISA.
 Before hardware preflight, inspect the runbook's Keithley Parameter Audits
 section or the package manifest's `keithley_parameter_audits` block. Every
 copied recipe should report `ok_for_hardware: true`.
+Also inspect the SR860 Setting Audits section or `lockin_setting_audits`.
+These records preserve the expected lock-in settings that preflight/readback
+must match on the lab laptop.
 
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:

@@ -100,6 +100,34 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         ok=audit_ok,
         details=audit_details,
     )
+    lockin_audits = manifest.get("lockin_setting_audits")
+    lockin_audit_paths: list[Path] = []
+    lockin_audit_ok = False
+    lockin_audit_details = "not present"
+    if isinstance(lockin_audits, dict):
+        for record in lockin_audits.values():
+            if not isinstance(record, dict):
+                continue
+            for field in ["json", "markdown"]:
+                value = record.get(field)
+                if value:
+                    path = Path(str(value))
+                    if not path.is_absolute():
+                        path = package_dir / path
+                    lockin_audit_paths.append(path)
+        lockin_audit_ok = bool(lockin_audit_paths) and all(path.exists() for path in lockin_audit_paths) and all(
+            bool(record.get("ok_for_hardware"))
+            for record in lockin_audits.values()
+            if isinstance(record, dict)
+        )
+        lockin_audit_details = f"{len(lockin_audits)} recipe audits"
+    add_stage(
+        "lockin_setting_audits",
+        "SR860 setting audits",
+        package_dir / "lockin_audit",
+        ok=lockin_audit_ok,
+        details=lockin_audit_details,
+    )
 
     intake_json = package_dir / "result_intake.json"
     intake_ok = False
@@ -132,7 +160,14 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         except ValueError:
             rehearsal_ok = False
     add_stage("dry_run_rehearsal", "Dry-run rehearsal", rehearsal_json, ok=rehearsal_ok if rehearsal_json.exists() else False)
-    ready_stage_keys = {"package_manifest", "runbook", "zip", "recipes", "keithley_parameter_audits"}
+    ready_stage_keys = {
+        "package_manifest",
+        "runbook",
+        "zip",
+        "recipes",
+        "keithley_parameter_audits",
+        "lockin_setting_audits",
+    }
     ready_for_lab_review = all(stage["ok"] for stage in stages if stage["key"] in ready_stage_keys)
     return {
         "package_dir": str(package_dir),

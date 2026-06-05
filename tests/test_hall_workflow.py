@@ -35,12 +35,26 @@ def test_hall_workflow_status_reports_package_stage_readiness(tmp_path):
             "markdown": f"keithley_audit/{markdown_path.name}",
             "ok_for_hardware": True,
         }
+    lockin_audit_dir = package_dir / "lockin_audit"
+    lockin_audit_dir.mkdir()
+    lockin_audits = {}
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        json_path = lockin_audit_dir / f"{key}_sr860_audit.json"
+        markdown_path = lockin_audit_dir / f"{key}_sr860_audit.md"
+        json_path.write_text(json.dumps({"ok_for_hardware": True}), encoding="utf-8")
+        markdown_path.write_text("# audit\n", encoding="utf-8")
+        lockin_audits[key] = {
+            "json": f"lockin_audit/{json_path.name}",
+            "markdown": f"lockin_audit/{markdown_path.name}",
+            "ok_for_hardware": True,
+        }
     (package_dir / "acquisition_runbook.md").write_text("# runbook\n", encoding="utf-8")
     package_dir.with_suffix(".zip").write_bytes(b"fake zip placeholder")
     manifest = {
         "package_name": "fake_package",
         "copied_recipes": recipe_paths,
         "keithley_parameter_audits": keithley_audits,
+        "lockin_setting_audits": lockin_audits,
         "approved_next_scan": {"strategy": "refine_charge_neutrality_region"},
     }
     (package_dir / "package_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
@@ -54,9 +68,12 @@ def test_hall_workflow_status_reports_package_stage_readiness(tmp_path):
     assert stage_by_key["recipes"]["details"] == "4 recipes"
     assert stage_by_key["keithley_parameter_audits"]["ok"] is True
     assert stage_by_key["keithley_parameter_audits"]["details"] == "4 recipe audits"
+    assert stage_by_key["lockin_setting_audits"]["ok"] is True
+    assert stage_by_key["lockin_setting_audits"]["details"] == "4 recipe audits"
     assert stage_by_key["dry_run_rehearsal"]["ok"] is False
     assert "Ready for lab review: True" in text
     assert "| Keithley parameter audits | PASS |" in text
+    assert "| SR860 setting audits | PASS |" in text
     assert "| Dry-run rehearsal | MISSING |" in text
 
 
@@ -120,6 +137,7 @@ def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):
     status = inspect_dual_gate_lockin_hall_suite_workflow_status(package.manifest_path)
     stage_by_key = {stage["key"]: stage for stage in status["stages"]}
     assert stage_by_key["keithley_parameter_audits"]["ok"] is True
+    assert stage_by_key["lockin_setting_audits"]["ok"] is True
     assert stage_by_key["dry_run_rehearsal"]["ok"] is True
 
 
