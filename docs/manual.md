@@ -1392,6 +1392,20 @@ without these values, but real Drain I-V, single-gate, AC lock-in, dual-gate
 lock-in active-gate smoke, and dual-gate lock-in active sweeps are blocked
 until every active Keithley 2450 block has them.
 
+Before preflight or hardware acquisition, run the hardware-free Keithley
+parameter audit to print and optionally save the intended measurement
+conditions:
+
+```powershell
+ptm keithley-parameter-audit drain_iv configs\recipes\drain_iv.yaml
+ptm keithley-parameter-audit dual_gate_lockin_sweep configs\recipes\dual_gate_lockin_four_terminal_dry_run.yaml --json-output docs\dual_gate_lockin_keithley_audit.json
+```
+
+The audit reports each active Keithley role, VISA address, terminal, voltage
+range, current range, NPLC, source delay, current compliance, and PASS/MISSING
+status. Treat the JSON output as a lab-notebook artifact when comparing
+repeated Hall-bar scans.
+
 Keithley source blocks may also set an instrument voltage-source delay:
 
 ```yaml

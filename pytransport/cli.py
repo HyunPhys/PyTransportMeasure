@@ -129,9 +129,12 @@ from .instruments.keithley_2450 import Keithley2450
 from .instruments.srs_sr860 import SRS_SR860, probe_srs_sr860
 from .method_registry import handler_for_measurement_type, handler_for_metadata, known_measurement_types
 from .measurement_parameters import (
+    audit_smu_hardware_parameters,
     assert_explicit_nplc_for_hardware,
     assert_required_smu_parameters_for_hardware,
+    format_smu_hardware_parameter_audit,
     missing_required_smu_hardware_parameters,
+    smu_hardware_parameter_audit_to_dict,
 )
 from .model import MeasurementPoint
 from .plot import write_iv_svg
@@ -839,6 +842,14 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("recipe", type=Path)
     plan.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     plan.add_argument("--preview-points", type=int, default=5, help="Number of leading/trailing planned points to show.")
+
+    keithley_parameter_audit = subparsers.add_parser(
+        "keithley-parameter-audit",
+        help="Audit Keithley source-block NPLC/range/compliance settings in a recipe without hardware.",
+    )
+    keithley_parameter_audit.add_argument("measurement_type", choices=known_measurement_types())
+    keithley_parameter_audit.add_argument("recipe", type=Path)
+    keithley_parameter_audit.add_argument("--json-output", type=Path)
 
     scheme_plan = subparsers.add_parser("scheme-plan", help="Show a measurement scheme plan without touching hardware.")
     scheme_plan.add_argument("scheme", type=Path)
@@ -2745,6 +2756,23 @@ def command_plan(args: argparse.Namespace) -> int:
     return 0
 
 
+def command_keithley_parameter_audit(args: argparse.Namespace) -> int:
+    method = handler_for_measurement_type(args.measurement_type)
+    recipe = method.load_recipe(args.recipe)
+    audits = audit_smu_hardware_parameters(recipe)
+    payload = {
+        "measurement_type": method.measurement_type,
+        "recipe": str(args.recipe),
+        **smu_hardware_parameter_audit_to_dict(audits),
+    }
+    if args.json_output:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        print(f"Keithley parameter audit JSON: {args.json_output}")
+    print(format_smu_hardware_parameter_audit(audits))
+    return 0 if payload["ok_for_hardware"] else 2
+
+
 def command_scheme_plan(args: argparse.Namespace) -> int:
     scheme = load_scheme(args.scheme)
     print(format_scheme_plan(scheme, args.scheme, args.safety_dir, args.preview_points))
@@ -3586,6 +3614,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_validate(args)
     if args.command == "plan":
         return command_plan(args)
+    if args.command == "keithley-parameter-audit":
+        return command_keithley_parameter_audit(args)
     if args.command == "scheme-plan":
         return command_scheme_plan(args)
     if args.command == "scheme":

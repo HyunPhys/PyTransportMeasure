@@ -506,11 +506,16 @@ root.
   - keep CLI tests focused on argument wiring and exit codes
   - verify status and rehearsal helpers without relying only on CLI end-to-end
     coverage
-- [ ] Phase 25bs: Measurement parameter audit expansion
+- [x] Phase 25bs: Measurement parameter audit expansion
   - add reusable audit output for all active Keithley source blocks
   - surface NPLC/range/compliance/terminal/source-delay consistency in one
     machine-readable artifact
   - prepare the audit for two-SMU gate plus SR860 Hall-bar workflows
+- [ ] Phase 25bt: Hall package Keithley audit integration
+  - write Keithley parameter audit JSON/Markdown into Hall-suite acquisition
+    packages
+  - include per-recipe PASS/MISSING status in the Hall workflow status summary
+  - make lab handoff packages carry measurement-parameter audit provenance
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
