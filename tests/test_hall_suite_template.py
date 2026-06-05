@@ -1,7 +1,10 @@
 import yaml
 
 from pytransport.cli import main
-from pytransport.dual_gate_lockin_hall_suite import write_dual_gate_lockin_hall_suite_template
+from pytransport.dual_gate_lockin_hall_suite import (
+    audit_dual_gate_lockin_hall_suite,
+    write_dual_gate_lockin_hall_suite_template,
+)
 from pytransport.recipes import load_dual_gate_lockin_recipe
 
 
@@ -37,8 +40,18 @@ def test_write_hall_suite_template_creates_valid_recipe_set(tmp_path):
     assert minus.topology.magnetic_field_t == -1.5
     assert zero.topology.magnetic_field_t == 0.0
     review = result.review_path.read_text(encoding="utf-8")
+    assert "dual-gate-lockin-hall-suite-check" in review
     assert "dual-gate-lockin-hall-antisym" in review
     assert "dual-gate-lockin-hall-mobility" in review
+
+    audit = audit_dual_gate_lockin_hall_suite(
+        result.longitudinal_recipe,
+        result.plus_hall_recipe,
+        result.minus_hall_recipe,
+        zero_hall_recipe=result.zero_hall_recipe,
+    )
+    assert audit.compatible is True
+    assert audit.point_count == 25
 
 
 def test_hall_suite_template_can_skip_zero_field(tmp_path):
@@ -86,3 +99,37 @@ def test_cli_dual_gate_lockin_hall_suite_template(tmp_path):
     assert (output / "cli_graphene_vxy_zero_b.yaml").exists()
     data = yaml.safe_load((output / "cli_graphene_vxy_plus_b.yaml").read_text(encoding="utf-8"))
     assert data["topology"]["lockin_input_contacts"] == ["VH1", "VH2"]
+
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-check",
+            str(output / "cli_graphene_vxx.yaml"),
+            str(output / "cli_graphene_vxy_plus_b.yaml"),
+            str(output / "cli_graphene_vxy_minus_b.yaml"),
+            "--zero-field-recipe",
+            str(output / "cli_graphene_vxy_zero_b.yaml"),
+        ]
+    )
+    assert code == 0
+
+
+def test_hall_suite_check_fails_for_mismatched_field(tmp_path):
+    result = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="bad_field",
+        magnetic_field_t=1.0,
+    )
+    minus_data = yaml.safe_load(result.minus_hall_recipe.read_text(encoding="utf-8"))
+    minus_data["topology"]["magnetic_field_t"] = -2.0
+    result.minus_hall_recipe.write_text(yaml.safe_dump(minus_data, sort_keys=False), encoding="utf-8")
+
+    audit = audit_dual_gate_lockin_hall_suite(
+        result.longitudinal_recipe,
+        result.plus_hall_recipe,
+        result.minus_hall_recipe,
+        zero_hall_recipe=result.zero_hall_recipe,
+    )
+
+    assert audit.compatible is False
+    assert any(issue.check == "magnetic_field_t" for issue in audit.issues)

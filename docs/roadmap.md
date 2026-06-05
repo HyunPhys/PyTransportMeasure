@@ -378,7 +378,13 @@ root.
     base dual-gate lock-in recipe
   - write a review markdown with plan, preflight, guarded hardware, and analysis
     command templates
-- [ ] Phase 25at: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25at: Hall-bar recipe suite consistency check
+  - add `ptm dual-gate-lockin-hall-suite-check`
+  - verify shared gate sweeps, SMU/SR860 settings, safety preset, topology, and
+    point counts across generated Vxx/Vxy recipes
+  - verify Vxx/Hall roles and `+B`/`-B`/`0B` magnetic-field metadata before
+    hardware use
+- [ ] Phase 25au: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

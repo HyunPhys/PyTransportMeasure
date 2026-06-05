@@ -22,6 +22,24 @@ class HallSuiteTemplateResult:
     review_path: Path
 
 
+@dataclass(frozen=True)
+class HallSuiteIssue:
+    severity: str
+    check: str
+    message: str
+
+
+@dataclass(frozen=True)
+class HallSuiteAudit:
+    longitudinal_recipe: Path
+    plus_hall_recipe: Path
+    minus_hall_recipe: Path
+    zero_hall_recipe: Path | None
+    compatible: bool
+    point_count: int | None
+    issues: tuple[HallSuiteIssue, ...]
+
+
 def write_dual_gate_lockin_hall_suite_template(
     base_recipe_path: str | Path,
     output_dir: str | Path,
@@ -153,6 +171,8 @@ def format_hall_suite_review(
             "## Hardware-Free Checks",
             "",
             "```powershell",
+            f"ptm dual-gate-lockin-hall-suite-check {longitudinal_recipe} {plus_hall_recipe} {minus_hall_recipe}"
+            + (f" --zero-field-recipe {zero_hall_recipe}" if zero_hall_recipe is not None else ""),
             f"ptm dual-gate-lockin-plan {longitudinal_recipe}",
             f"ptm dual-gate-lockin-plan {plus_hall_recipe}",
             f"ptm dual-gate-lockin-plan {minus_hall_recipe}",
@@ -198,6 +218,92 @@ def format_hall_suite_review(
     )
 
 
+def audit_dual_gate_lockin_hall_suite(
+    longitudinal_recipe: str | Path,
+    plus_hall_recipe: str | Path,
+    minus_hall_recipe: str | Path,
+    zero_hall_recipe: str | Path | None = None,
+) -> HallSuiteAudit:
+    longitudinal_path = Path(longitudinal_recipe)
+    plus_path = Path(plus_hall_recipe)
+    minus_path = Path(minus_hall_recipe)
+    zero_path = Path(zero_hall_recipe) if zero_hall_recipe is not None else None
+    recipes: dict[str, DualGateLockInRecipe] = {}
+    issues: list[HallSuiteIssue] = []
+    for label, path in [
+        ("longitudinal", longitudinal_path),
+        ("plus", plus_path),
+        ("minus", minus_path),
+        *([("zero", zero_path)] if zero_path is not None else []),
+    ]:
+        try:
+            recipes[label] = DualGateLockInRecipe.model_validate(load_yaml(path))
+        except Exception as exc:
+            issues.append(HallSuiteIssue("error", f"{label}_recipe", f"{type(exc).__name__}: {exc}"))
+    if issues:
+        return HallSuiteAudit(longitudinal_path, plus_path, minus_path, zero_path, False, None, tuple(issues))
+
+    longitudinal = recipes["longitudinal"]
+    plus = recipes["plus"]
+    minus = recipes["minus"]
+    zero = recipes.get("zero")
+    _check_role("longitudinal", longitudinal, "longitudinal", issues)
+    _check_role("plus", plus, "hall", issues)
+    _check_role("minus", minus, "hall", issues)
+    if zero is not None:
+        _check_role("zero", zero, "hall", issues)
+    _check_magnetic_fields(plus, minus, zero, issues)
+    _check_longitudinal_geometry(longitudinal, issues)
+    for label, recipe in [("plus", plus), ("minus", minus), *([("zero", zero)] if zero is not None else [])]:
+        _check_hall_geometry(label, recipe, issues)
+
+    for section in ["measurement_geometry", "gate1_instrument", "gate2_instrument", "lockin", "gate1_sweep", "gate2_sweep"]:
+        reference = getattr(longitudinal, section).model_dump(mode="json")
+        for label, recipe in [("plus", plus), ("minus", minus), *([("zero", zero)] if zero is not None else [])]:
+            candidate = getattr(recipe, section).model_dump(mode="json")
+            if candidate != reference:
+                issues.append(HallSuiteIssue("error", section, f"{label} recipe differs from longitudinal recipe"))
+    for label, recipe in [("plus", plus), ("minus", minus), *([("zero", zero)] if zero is not None else [])]:
+        if recipe.safety_preset != longitudinal.safety_preset:
+            issues.append(HallSuiteIssue("error", "safety_preset", f"{label} recipe safety_preset differs"))
+        _compare_topology_shared_fields(label, longitudinal, recipe, issues)
+
+    point_count = dual_gate_lockin_point_count(longitudinal)
+    for label, recipe in [("plus", plus), ("minus", minus), *([("zero", zero)] if zero is not None else [])]:
+        candidate_points = dual_gate_lockin_point_count(recipe)
+        if candidate_points != point_count:
+            issues.append(HallSuiteIssue("error", "point_count", f"{label} recipe has {candidate_points} points, expected {point_count}"))
+    if longitudinal.topology.lockin_input_contacts == plus.topology.lockin_input_contacts:
+        issues.append(
+            HallSuiteIssue(
+                "warning",
+                "voltage_contacts",
+                "longitudinal and Hall recipes use the same lock-in voltage contacts; confirm this is intentional",
+            )
+        )
+    errors = [issue for issue in issues if issue.severity == "error"]
+    return HallSuiteAudit(longitudinal_path, plus_path, minus_path, zero_path, not errors, point_count, tuple(issues))
+
+
+def format_hall_suite_audit(audit: HallSuiteAudit) -> str:
+    status = "PASS" if audit.compatible else "FAIL"
+    lines = [
+        f"Dual-gate lock-in Hall suite consistency: {status}",
+        f"Longitudinal recipe: {audit.longitudinal_recipe}",
+        f"Positive-field Hall recipe: {audit.plus_hall_recipe}",
+        f"Negative-field Hall recipe: {audit.minus_hall_recipe}",
+        f"Zero-field Hall recipe: {audit.zero_hall_recipe if audit.zero_hall_recipe is not None else 'not supplied'}",
+        f"Point count: {audit.point_count if audit.point_count is not None else 'n/a'}",
+    ]
+    if audit.issues:
+        lines.append("Issues:")
+        for issue in audit.issues:
+            lines.append(f"- [{issue.severity}] {issue.check}: {issue.message}")
+    else:
+        lines.append("Issues: none")
+    return "\n".join(lines)
+
+
 def _recipe_variant(
     base_data: dict[str, Any],
     *,
@@ -240,3 +346,81 @@ def _write_recipe(path: Path, data: dict[str, Any], *, overwrite: bool) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as handle:
         yaml.safe_dump(data, handle, sort_keys=False)
+
+
+def _check_role(label: str, recipe: DualGateLockInRecipe, expected: str, issues: list[HallSuiteIssue]) -> None:
+    if recipe.topology.voltage_probe_role != expected:
+        issues.append(
+            HallSuiteIssue(
+                "error",
+                f"{label}.voltage_probe_role",
+                f"expected {expected}, got {recipe.topology.voltage_probe_role}",
+            )
+        )
+
+
+def _check_magnetic_fields(
+    plus: DualGateLockInRecipe,
+    minus: DualGateLockInRecipe,
+    zero: DualGateLockInRecipe | None,
+    issues: list[HallSuiteIssue],
+) -> None:
+    plus_b = plus.topology.magnetic_field_t
+    minus_b = minus.topology.magnetic_field_t
+    if plus_b is None or plus_b <= 0:
+        issues.append(HallSuiteIssue("error", "plus.magnetic_field_t", "positive-field Hall recipe must have B > 0"))
+    if minus_b is None or minus_b >= 0:
+        issues.append(HallSuiteIssue("error", "minus.magnetic_field_t", "negative-field Hall recipe must have B < 0"))
+    if plus_b is not None and minus_b is not None and abs(plus_b + minus_b) > max(1e-12, abs(plus_b) * 1e-9):
+        issues.append(HallSuiteIssue("error", "magnetic_field_t", "+B and -B recipes must use equal magnitude fields"))
+    if zero is not None:
+        zero_b = zero.topology.magnetic_field_t
+        if zero_b is None or abs(zero_b) > 1e-12:
+            issues.append(HallSuiteIssue("error", "zero.magnetic_field_t", "zero-field Hall recipe must have B = 0"))
+
+
+def _check_longitudinal_geometry(recipe: DualGateLockInRecipe, issues: list[HallSuiteIssue]) -> None:
+    if recipe.topology.channel_length_m is None or recipe.topology.channel_width_m is None:
+        issues.append(
+            HallSuiteIssue(
+                "error",
+                "longitudinal.channel_geometry",
+                "longitudinal recipe must declare channel_length_m and channel_width_m",
+            )
+        )
+
+
+def _check_hall_geometry(label: str, recipe: DualGateLockInRecipe, issues: list[HallSuiteIssue]) -> None:
+    if recipe.topology.channel_length_m is not None or recipe.topology.channel_width_m is not None:
+        issues.append(HallSuiteIssue("error", f"{label}.channel_geometry", "Hall recipes must not declare channel L/W"))
+
+
+def _compare_topology_shared_fields(
+    label: str,
+    reference: DualGateLockInRecipe,
+    candidate: DualGateLockInRecipe,
+    issues: list[HallSuiteIssue],
+) -> None:
+    ignored = {
+        "voltage_probe_role",
+        "lockin_input_contacts",
+        "magnetic_field_t",
+        "channel_length_m",
+        "channel_width_m",
+        "notes",
+    }
+    reference_topology = reference.topology.model_dump(mode="json")
+    candidate_topology = candidate.topology.model_dump(mode="json")
+    mismatches = [
+        key
+        for key, value in reference_topology.items()
+        if key not in ignored and candidate_topology.get(key) != value
+    ]
+    if mismatches:
+        issues.append(
+            HallSuiteIssue(
+                "error",
+                "topology",
+                f"{label} recipe differs from longitudinal recipe in {', '.join(mismatches)}",
+            )
+        )

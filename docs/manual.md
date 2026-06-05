@@ -462,6 +462,17 @@ metadata, voltage contacts, and longitudinal channel dimensions for each run.
 The review markdown includes plan/preflight commands, guarded hardware command
 templates, and the downstream Hall analysis command sequence.
 
+Before running the generated suite, check that the recipes still agree where
+they should:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-check configs\recipes\hall_suite_sampleA\sampleA_cd1_vxx.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_plus_b.yaml configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_minus_b.yaml --zero-field-recipe configs\recipes\hall_suite_sampleA\sampleA_cd1_vxy_zero_b.yaml
+```
+
+The check verifies shared gate sweeps, Keithley settings, SR860 settings,
+safety preset, excitation topology, point count, Hall probe roles, and magnetic
+field signs/magnitudes. It does not touch hardware.
+
 When matched `+B` and `-B` Hall runs are available, use:
 
 ```powershell

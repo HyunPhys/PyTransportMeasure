@@ -53,7 +53,11 @@ from .dual_gate_lockin_scaleup import (
     write_dual_gate_lockin_scale_up_recipe,
     write_dual_gate_lockin_scale_up_review,
 )
-from .dual_gate_lockin_hall_suite import write_dual_gate_lockin_hall_suite_template
+from .dual_gate_lockin_hall_suite import (
+    audit_dual_gate_lockin_hall_suite,
+    format_hall_suite_audit,
+    write_dual_gate_lockin_hall_suite_template,
+)
 from .dual_gate_lockin_smoke import (
     format_dual_gate_lockin_active_smoke_plan,
     format_dual_gate_lockin_smoke_plan,
@@ -408,6 +412,15 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_template.add_argument("--run-output-directory", type=Path)
     dual_gate_lockin_hall_suite_template.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_template.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_check = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-check",
+        help="Check Vxx/+B/-B/0B Hall-bar recipe consistency without hardware.",
+    )
+    dual_gate_lockin_hall_suite_check.add_argument("longitudinal_recipe", type=Path)
+    dual_gate_lockin_hall_suite_check.add_argument("plus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_check.add_argument("minus_hall_recipe", type=Path)
+    dual_gate_lockin_hall_suite_check.add_argument("--zero-field-recipe", type=Path)
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -1408,6 +1421,17 @@ def command_dual_gate_lockin_hall_suite_template(args: argparse.Namespace) -> in
     print(f"Zero-field Vxy recipe: {result.zero_hall_recipe if result.zero_hall_recipe is not None else 'not generated'}")
     print(f"Review: {result.review_path}")
     return 0
+
+
+def command_dual_gate_lockin_hall_suite_check(args: argparse.Namespace) -> int:
+    audit = audit_dual_gate_lockin_hall_suite(
+        args.longitudinal_recipe,
+        args.plus_hall_recipe,
+        args.minus_hall_recipe,
+        zero_hall_recipe=args.zero_field_recipe,
+    )
+    print(format_hall_suite_audit(audit))
+    return 0 if audit.compatible else 2
 
 
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
@@ -2679,6 +2703,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_template(args)
     if args.command == "dual-gate-lockin-hall-suite-template":
         return command_dual_gate_lockin_hall_suite_template(args)
+    if args.command == "dual-gate-lockin-hall-suite-check":
+        return command_dual_gate_lockin_hall_suite_check(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

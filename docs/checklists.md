@@ -498,6 +498,11 @@ remain point-guarded.
 - [ ] Confirm the generated suite contains Vxx, `+B` Vxy, `-B` Vxy, optional
   `0B` Vxy recipes, and a review markdown with plan/preflight/hardware/analysis
   command templates.
+- [ ] Run the suite consistency check before hardware use.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-check configs\recipes\<suite>\<prefix>_vxx.yaml configs\recipes\<suite>\<prefix>_vxy_plus_b.yaml configs\recipes\<suite>\<prefix>_vxy_minus_b.yaml --zero-field-recipe configs\recipes\<suite>\<prefix>_vxy_zero_b.yaml
+  ```
+- [ ] Confirm it prints `Dual-gate lock-in Hall suite consistency: PASS`.
 - [ ] When matched `+B` and `-B` Hall runs are available, run
   `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
   --output-dir data\analysis\<hall_antisym_folder>` and confirm
