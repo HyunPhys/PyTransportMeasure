@@ -11,9 +11,11 @@ from pytransport.four_terminal_dc import (
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
     review_four_terminal_dc_active_run_commands,
+    run_four_terminal_dc_active,
     run_four_terminal_dc_dry_run,
     run_four_terminal_dc_preflight,
 )
+from pytransport.instruments.fake import FakeSMU
 from pytransport.recipes import FourTerminalDCRecipe, load_four_terminal_dc_recipe, load_named_safety_preset
 
 
@@ -125,6 +127,27 @@ class FakeKeithleyFourTerminalPreflight:
 
     def close(self):
         self.closed = True
+
+
+class FourTerminalActiveFakeSMU(FakeSMU):
+    def __init__(self, address="FAKE::2450", timeout_ms=10000):
+        super().__init__(resistance_ohm=1_000_000, noise_std_a=0)
+        self.address = address
+        self.timeout_ms = timeout_ms
+        self.remote_sense_enabled = False
+        self.remote_sense_history = []
+
+    def probe(self):
+        payload = super().probe()
+        payload.update({"address": self.address, "language": "SCPI"})
+        return payload
+
+    def configure_current_remote_sense(self, enabled):
+        self.remote_sense_enabled = bool(enabled)
+        self.remote_sense_history.append(bool(enabled))
+
+    def read_current_remote_sense(self):
+        return "1" if self.remote_sense_enabled else "0"
 
 
 def test_four_terminal_dc_schema_draft_sample_loads():
@@ -334,6 +357,73 @@ def test_four_terminal_dc_command_review_accepts_preflight_and_dry_run_evidence(
     assert all(check.ok for check in report.evidence_checks)
 
 
+def write_passing_command_review_json(tmp_path, recipe_path):
+    preflight = run_four_terminal_dc_preflight(
+        recipe_path,
+        instrument_factory=FakeKeithleyFourTerminalPreflight,
+    )
+    preflight_path = tmp_path / "preflight.json"
+    preflight_path.write_text(json.dumps(preflight.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    metadata = run_four_terminal_dc_dry_run(recipe, safety, recipe_path=recipe_path, fake_noise_std_a=0)
+    review = review_four_terminal_dc_active_run_commands(
+        recipe_path,
+        preflight_json=preflight_path,
+        dry_run_metadata=metadata["metadata_path"],
+    )
+    review_path = tmp_path / "command_review.json"
+    review_path.write_text(json.dumps(review.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return review_path
+
+
+def test_four_terminal_dc_active_runner_uses_remote_sense_and_cleanup(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    review_path = write_passing_command_review_json(tmp_path, recipe_path)
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    smu = FourTerminalActiveFakeSMU()
+
+    metadata = run_four_terminal_dc_active(
+        recipe,
+        safety,
+        smu,
+        recipe_path=recipe_path,
+        command_review_json=review_path,
+        hardware_approval_note="lab fixture reviewed; fake active test",
+    )
+    saved = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+
+    assert metadata["completed"] is True
+    assert metadata["dry_run"] is False
+    assert metadata["remote_sense"]["enabled_readback_ok"] is True
+    assert metadata["remote_sense"]["disabled_after_run_readback"] == "0"
+    assert smu.remote_sense_history == [True, False]
+    assert metadata["output_state"]["instrument"]["off_after_run"] is True
+    assert saved["hardware_guard"]["command_review_evidence_passed"] is True
+
+
+def test_four_terminal_dc_active_runner_rejects_nonpassing_command_review(tmp_path):
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    bad_review = review_four_terminal_dc_active_run_commands(recipe_path)
+    bad_review_path = tmp_path / "bad_command_review.json"
+    bad_review_path.write_text(json.dumps(bad_review.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    recipe = load_four_terminal_dc_recipe(recipe_path)
+    safety = load_named_safety_preset(recipe.safety_preset)
+
+    with pytest.raises(ValueError, match="evidence_passed=true"):
+        run_four_terminal_dc_active(
+            recipe,
+            safety,
+            FourTerminalActiveFakeSMU(),
+            recipe_path=recipe_path,
+            command_review_json=bad_review_path,
+            hardware_approval_note="should fail before connecting",
+        )
+
+
 def test_cli_four_terminal_dc_design_gate_outputs_text_and_json(tmp_path, capsys):
     recipe = tmp_path / "four_terminal_dc.yaml"
     output = tmp_path / "design_gate.json"
@@ -392,7 +482,7 @@ def test_cli_four_terminal_dc_requires_dry_run(capsys):
     recipe = "configs/recipes/four_terminal_dc_schema_draft.yaml"
 
     assert main(["four-terminal-dc", recipe]) == 2
-    assert "hardware output is not implemented" in capsys.readouterr().err
+    assert "hardware output is guarded" in capsys.readouterr().err
 
 
 def test_cli_four_terminal_dc_dry_run_writes_artifacts(tmp_path, capsys):
@@ -429,3 +519,46 @@ def test_cli_four_terminal_dc_command_review_outputs_text_and_json(tmp_path, cap
     assert main(["four-terminal-dc-command-review", recipe, "--json"]) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload["active_runner_ready"] is False
+
+
+def test_cli_four_terminal_dc_active_run_requires_command_review(capsys):
+    recipe = "configs/recipes/four_terminal_dc_schema_draft.yaml"
+
+    assert main(["four-terminal-dc", recipe, "--allow-active-run", "--hardware-approval-note", "fixture checked"]) == 2
+    assert "--command-review-json is required" in capsys.readouterr().err
+
+
+def test_cli_four_terminal_dc_active_run_with_fakes_writes_metadata(tmp_path, monkeypatch, capsys):
+    import pytransport.cli as cli_module
+
+    recipe_path = tmp_path / "four_terminal_dc.yaml"
+    write_schema_draft_recipe(recipe_path, output_dir=tmp_path.as_posix())
+    review_path = write_passing_command_review_json(tmp_path, recipe_path)
+    preflight = run_four_terminal_dc_preflight(
+        recipe_path,
+        instrument_factory=FakeKeithleyFourTerminalPreflight,
+    )
+    monkeypatch.setattr(cli_module, "run_four_terminal_dc_preflight", lambda recipe: preflight)
+    monkeypatch.setattr(cli_module, "Keithley2450", FourTerminalActiveFakeSMU)
+
+    assert main(
+        [
+            "four-terminal-dc",
+            str(recipe_path),
+            "--allow-active-run",
+            "--command-review-json",
+            str(review_path),
+            "--hardware-approval-note",
+            "fixture checked in fake test",
+            "--max-hardware-points",
+            "3",
+            "--yes",
+        ]
+    ) == 0
+    text = capsys.readouterr().out
+    metadata_line = next(line for line in text.splitlines() if line.startswith("Metadata: "))
+    metadata = json.loads(Path(metadata_line.split(": ", maxsplit=1)[1]).read_text(encoding="utf-8"))
+
+    assert "command-review evidence accepted" in text
+    assert metadata["completed"] is True
+    assert metadata["remote_sense"]["enabled_readback_ok"] is True

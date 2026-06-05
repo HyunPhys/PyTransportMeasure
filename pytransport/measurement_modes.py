@@ -71,7 +71,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
     MeasurementMode(
         key="four_terminal_dc",
         label="Four-terminal DC",
-        status="dry_run_ready",
+        status="hardware_smoke_ready",
         measurement_type="dc_four_terminal",
         geometry="four_terminal, 4-terminal",
         primary_instruments=("Keithley 2450 source", "Keithley 2450 voltage-sense or sense terminals"),
@@ -84,6 +84,7 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
         ),
         run_commands=(
             "ptm four-terminal-dc configs/recipes/four_terminal_dc_schema_draft.yaml --dry-run --fake-resistance-ohm 1000000 --progress",
+            "ptm four-terminal-dc configs/recipes/four_terminal_dc_schema_draft.yaml --allow-active-run --command-review-json docs/four_terminal_dc_command_review.json --hardware-approval-note \"fixture contacts checked; preflight passed\" --max-hardware-points 3 --yes --progress",
         ),
         guarded_parameters=(
             "source Keithley NPLC/range/compliance",
@@ -96,8 +97,8 @@ MEASUREMENT_MODES: tuple[MeasurementMode, ...] = (
             "read :SENS:CURR:RSEN? before any future output path",
             "keep active hardware run disabled while preflight is being verified",
         ),
-        current_limitations=("Dry-run artifacts exist; no active Keithley remote-sense output path yet.",),
-        next_step="Use command-review evidence before implementing the guarded active remote-sense runner.",
+        current_limitations=("Guarded active runner draft exists; first lab smoke feedback is still required.",),
+        next_step="Run the guarded four-terminal DC lab smoke and ingest returned metadata before broadening.",
     ),
     MeasurementMode(
         key="two_terminal_ac",

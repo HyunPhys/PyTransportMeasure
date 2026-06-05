@@ -1609,6 +1609,18 @@ blocking readbacks, `:SENS:CURR:RSEN ON`, `:OUTP ON`, acquisition, zero-before
 off, output-off, and `:SENS:CURR:RSEN OFF` cleanup order while keeping
 `Active hardware run allowed: False`.
 
+The guarded active draft is available only behind explicit evidence and approval
+flags:
+
+```powershell
+ptm four-terminal-dc configs\recipes\four_terminal_dc_schema_draft.yaml --allow-active-run --command-review-json docs\four_terminal_dc_command_review.json --hardware-approval-note "fixture contacts checked; preflight passed" --max-hardware-points 3 --yes --progress
+```
+
+This path still runs a live hardware preflight before opening the active runner.
+It blocks missing command-review evidence, missing approval notes, and recipes
+whose point count exceeds `--max-hardware-points`. Metadata records
+`hardware_guard`, remote-sense readback, SMU readback, and output cleanup state.
+
 Keithley source blocks may also set an instrument voltage-source delay:
 
 ```yaml

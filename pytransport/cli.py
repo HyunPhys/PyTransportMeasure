@@ -117,8 +117,10 @@ from .four_terminal_dc import (
     format_four_terminal_dc_design_gate,
     inspect_four_terminal_dc_design_gate,
     review_four_terminal_dc_active_run_commands,
+    run_four_terminal_dc_active,
     run_four_terminal_dc_dry_run,
     run_four_terminal_dc_preflight,
+    validate_four_terminal_dc_command_review_for_active_run,
     validate_four_terminal_dc_recipe_file,
     write_four_terminal_dc_command_review_json,
     write_four_terminal_dc_design_gate_json,
@@ -190,7 +192,7 @@ from .preflight import (
 from .pulse import run_pulse_measurement
 from .pulse_review import write_pulse_plot_svg, write_pulse_report
 from .quality import evaluate_run_quality, format_quality_report, quality_report_to_dict
-from .recipes import load_named_safety_preset, load_recipe
+from .recipes import load_named_safety_preset, load_recipe, sweep_voltages
 from .report import write_run_report
 from .run_index import append_run_index, filter_run_index, format_run_index, read_run_index, rebuild_run_index
 from .runner import run_drain_iv
@@ -325,6 +327,11 @@ def build_parser() -> argparse.ArgumentParser:
     four_terminal_dc.add_argument("--fake-noise-std-a", type=float, default=0.0)
     four_terminal_dc.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     four_terminal_dc.add_argument("--progress", action="store_true")
+    four_terminal_dc.add_argument("--allow-active-run", action="store_true", help="Enable guarded four-terminal DC hardware output.")
+    four_terminal_dc.add_argument("--command-review-json", type=Path, help="Passing four-terminal DC command-review JSON.")
+    four_terminal_dc.add_argument("--hardware-approval-note", help="Required lab approval note for active hardware output.")
+    four_terminal_dc.add_argument("--max-hardware-points", type=int, default=5)
+    four_terminal_dc.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
 
     four_terminal_dc_command_review = subparsers.add_parser(
         "four-terminal-dc-command-review",
@@ -1377,31 +1384,82 @@ def command_four_terminal_dc_preflight(args: argparse.Namespace) -> int:
 
 
 def command_four_terminal_dc(args: argparse.Namespace) -> int:
-    if not args.dry_run:
+    recipe = validate_four_terminal_dc_recipe_file(args.recipe)
+    safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
+    if args.dry_run:
+        try:
+            metadata = run_four_terminal_dc_dry_run(
+                recipe,
+                safety,
+                recipe_path=args.recipe,
+                fake_resistance_ohm=args.fake_resistance_ohm,
+                fake_noise_std_a=args.fake_noise_std_a,
+                progress_callback=print_progress if args.progress else None,
+            )
+        except Exception as exc:
+            print(f"Four-terminal DC dry-run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+            return 2
+        print(format_four_terminal_dc_dry_run_result(metadata))
+        if metadata.get("error_type"):
+            print(f"Error: {metadata['error_type']}: {metadata['error_message']}")
+            return 2
+        return 0 if metadata.get("completed") else 2
+    if not args.allow_active_run:
         print(
-            "four-terminal-dc hardware output is not implemented yet; rerun with --dry-run for artifact validation.",
+            "four-terminal-dc hardware output is guarded. Use --dry-run for artifact validation or --allow-active-run with command-review evidence.",
             file=sys.stderr,
         )
         return 2
-    try:
-        recipe = validate_four_terminal_dc_recipe_file(args.recipe)
-        safety = load_named_safety_preset(recipe.safety_preset, args.safety_dir)
-        metadata = run_four_terminal_dc_dry_run(
-            recipe,
-            safety,
-            recipe_path=args.recipe,
-            fake_resistance_ohm=args.fake_resistance_ohm,
-            fake_noise_std_a=args.fake_noise_std_a,
-            progress_callback=print_progress if args.progress else None,
+    if args.max_hardware_points < 1:
+        print("--max-hardware-points must be >= 1", file=sys.stderr)
+        return 2
+    total_points = len(sweep_voltages(recipe.sweep))
+    if total_points > args.max_hardware_points:
+        print(
+            f"Four-terminal DC active run blocked: {total_points} points exceeds --max-hardware-points {args.max_hardware_points}.",
+            file=sys.stderr,
         )
-    except Exception as exc:
-        print(f"Four-terminal DC dry-run failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 2
-    print(format_four_terminal_dc_dry_run_result(metadata))
-    if metadata.get("error_type"):
-        print(f"Error: {metadata['error_type']}: {metadata['error_message']}")
+    if args.command_review_json is None:
+        print("Four-terminal DC active run blocked: --command-review-json is required.", file=sys.stderr)
         return 2
-    return 0 if metadata.get("completed") else 2
+    approval_note = str(args.hardware_approval_note or "").strip()
+    if not approval_note:
+        print("Four-terminal DC active run blocked: --hardware-approval-note is required.", file=sys.stderr)
+        return 2
+    try:
+        validate_four_terminal_dc_command_review_for_active_run(args.command_review_json)
+        assert_required_smu_parameters_for_hardware(recipe)
+    except (ValueError, FileNotFoundError) as exc:
+        print(f"Four-terminal DC active run blocked: {exc}", file=sys.stderr)
+        return 2
+    preflight_report = run_four_terminal_dc_preflight(args.recipe)
+    print(format_four_terminal_dc_preflight(preflight_report))
+    print()
+    if not preflight_report.preflight_passed:
+        print("Four-terminal DC active run blocked because hardware preflight did not pass.", file=sys.stderr)
+        return 2
+    if should_confirm_hardware_run(False, args.yes) and not confirm_hardware_run(
+        lambda prompt: input(prompt.replace("hardware output and sweep", "four-terminal DC remote-sense output and sweep"))
+    ):
+        print("Hardware run cancelled.")
+        return 130
+    print("Four-terminal DC active hardware guard: command-review evidence accepted.")
+    print(f"Hardware approval note: {approval_note}")
+    smu = Keithley2450(recipe.instrument.address, recipe.instrument.timeout_ms)
+    metadata = run_four_terminal_dc_active(
+        recipe,
+        safety,
+        smu,
+        recipe_path=args.recipe,
+        command_review_json=args.command_review_json,
+        hardware_approval_note=approval_note,
+        progress_callback=print_progress if args.progress else None,
+    )
+    print(f"CSV: {metadata['csv_path']}")
+    print(f"Metadata: {metadata['metadata_path']}")
+    print(f"Metadata completed: {metadata['completed']}")
+    return exit_code_for_metadata(metadata)
 
 
 def command_four_terminal_dc_command_review(args: argparse.Namespace) -> int:

@@ -625,9 +625,13 @@ root.
     evidence and Keithley 2450 SCPI behavior
   - require explicit approval gates before wiring `:SENS:CURR:RSEN ON` into
     any active runner
-- [ ] Phase 25cr: Four-terminal DC guarded active runner draft
+- [x] Phase 25cr: Four-terminal DC guarded active runner draft
   - implement the remote-sense active runner behind explicit lab approval gates
   - require passing command-review evidence before any output can be enabled
+- [ ] Phase 25cs: Four-terminal DC lab smoke result intake
+  - ingest the first guarded active runner metadata from the lab laptop
+  - audit remote-sense readback, output cleanup, NPLC/range/compliance, and
+    fitted resistance before broadening the method
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

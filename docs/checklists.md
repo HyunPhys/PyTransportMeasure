@@ -1203,6 +1203,21 @@ Use this checklist before pulse hardware work begins.
   measurement conditions.
 - [ ] Confirm `Active hardware run allowed: False`.
 
+## Four-Terminal DC Guarded Active Runner Checklist
+
+- [ ] Run active only after the preflight and command-review checklists pass.
+- [ ] Confirm recipe point count is no larger than `--max-hardware-points`.
+- [ ] Use:
+  ```powershell
+  ptm four-terminal-dc configs\recipes\four_terminal_dc_schema_draft.yaml --allow-active-run --command-review-json docs\four_terminal_dc_command_review.json --hardware-approval-note "fixture contacts checked; preflight passed" --max-hardware-points 3 --yes --progress
+  ```
+- [ ] Confirm the command prints the live preflight report before output.
+- [ ] Confirm the command refuses to run if `--command-review-json` is omitted.
+- [ ] Confirm the command refuses to run if `--hardware-approval-note` is empty.
+- [ ] After a run, confirm `remote_sense.enabled_readback_ok: true`.
+- [ ] Confirm `remote_sense.disabled_after_run_readback` is `0` or `OFF`.
+- [ ] Confirm `output_state.instrument.off_after_run: true`.
+
 ## Development Checklist
 
 - [ ] Keep hardware logic out of CLI argument handling.

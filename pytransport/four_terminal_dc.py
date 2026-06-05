@@ -16,9 +16,22 @@ from .errors import SafetyLimitError
 from .instruments.fake import fake_voltage_source_config_readback
 from .io import RunWriter
 from .model import MeasurementPoint
+from .output_state import (
+    command_voltage_with_state,
+    initialize_output_state,
+    output_off_with_state,
+    output_on_with_state,
+    zero_before_off_with_state,
+)
 from .recipes import DrainIVRecipe, FourTerminalDCRecipe, SafetyPreset, load_four_terminal_dc_recipe, load_yaml, sweep_delays, sweep_voltages
 from .safety import validate_point_current
-from .smu_config import build_voltage_source_config, voltage_source_config_snapshot
+from .smu_config import (
+    build_voltage_source_config,
+    compare_voltage_source_config_readback,
+    raise_for_voltage_source_config_readback_mismatch,
+    read_voltage_source_config_if_available,
+    voltage_source_config_snapshot,
+)
 
 
 @dataclass(frozen=True)
@@ -589,6 +602,156 @@ def format_four_terminal_dc_dry_run_result(metadata: dict[str, Any]) -> str:
     )
 
 
+def run_four_terminal_dc_active(
+    recipe: FourTerminalDCRecipe,
+    safety: SafetyPreset,
+    smu: Any,
+    *,
+    recipe_path: str | Path | None = None,
+    command_review_json: str | Path,
+    hardware_approval_note: str,
+    progress_callback: Callable[[MeasurementPoint, int], None] | None = None,
+) -> dict[str, Any]:
+    approval_note = hardware_approval_note.strip()
+    if not approval_note:
+        raise ValueError("hardware_approval_note is required for four-terminal DC active runs")
+    command_review = validate_four_terminal_dc_command_review_for_active_run(command_review_json)
+    _validate_four_terminal_dc_against_safety(recipe, safety)
+    writer = RunWriter(Path(recipe.output.directory), recipe.measurement_name)
+    writer.write_yaml_snapshot(writer.recipe_snapshot_path, recipe.model_dump(mode="json"))
+    writer.write_yaml_snapshot(writer.safety_snapshot_path, safety.model_dump(mode="json"))
+    smu_config = build_voltage_source_config(recipe.instrument, recipe.sweep.current_compliance_a)
+    metadata: dict[str, Any] = {
+        "measurement_name": recipe.measurement_name,
+        "measurement_type": "four_terminal_dc",
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "completed": False,
+        "interrupted": False,
+        "dry_run": False,
+        "active_hardware_run_allowed": True,
+        "runner_status": "guarded_active_runner_draft",
+        "error_type": None,
+        "error_message": None,
+        "triggered_limit": None,
+        "points_written": 0,
+        "recipe": recipe.model_dump(mode="json"),
+        "recipe_path": str(Path(recipe_path)) if recipe_path is not None else None,
+        "safety": safety.model_dump(mode="json"),
+        "run_dir": str(writer.run_dir),
+        "csv_path": str(writer.csv_path),
+        "metadata_path": str(writer.metadata_path),
+        "recipe_snapshot_path": str(writer.recipe_snapshot_path),
+        "safety_snapshot_path": str(writer.safety_snapshot_path),
+        "plot_path": None,
+        "report_path": None,
+        "contact_map": recipe.contacts.model_dump(mode="json"),
+        "dc_sense_mode": recipe.dc_sense_mode,
+        "instrument_idn": None,
+        "instrument_probe": None,
+        "configured_smu": voltage_source_config_snapshot(smu_config),
+        "configured_smu_readback": None,
+        "configured_smu_readback_check": None,
+        "current_limit_command": None,
+        "remote_sense": {
+            "scpi_enable_command": ":SENS:CURR:RSEN ON",
+            "scpi_disable_command": ":SENS:CURR:RSEN OFF",
+            "scpi_readback_query": ":SENS:CURR:RSEN?",
+            "configured": False,
+            "enabled_readback": None,
+            "enabled_readback_ok": False,
+            "disabled_after_run_attempted": False,
+            "disabled_after_run_readback": None,
+            "disabled_after_run_error": None,
+        },
+        "hardware_guard": {
+            "command_review_json": str(Path(command_review_json)),
+            "command_review_evidence_passed": command_review["evidence_passed"],
+            "hardware_approval_note": approval_note,
+            "approval_gate": "four_terminal_dc_guarded_active_runner_draft",
+        },
+    }
+    initialize_output_state(metadata, ["instrument"])
+    points_written = 0
+    try:
+        smu.connect()
+        probe = smu.probe()
+        metadata["instrument_probe"] = probe
+        metadata["instrument_idn"] = probe.get("idn")
+        smu.configure_voltage_source(smu_config)
+        metadata["current_limit_command"] = getattr(smu, "current_limit_command", None)
+        metadata["configured_smu_readback"] = read_voltage_source_config_if_available(smu)
+        metadata["configured_smu_readback_check"] = compare_voltage_source_config_readback(
+            smu_config,
+            metadata["configured_smu_readback"],
+        )
+        raise_for_voltage_source_config_readback_mismatch("instrument", metadata["configured_smu_readback_check"])
+        _configure_remote_sense_checked(smu, metadata)
+        output_on_with_state("instrument", smu, metadata)
+        start = time.monotonic()
+        voltages = sweep_voltages(recipe.sweep)
+        delays = sweep_delays(recipe.sweep)
+        for index, (voltage_v, delay_s) in enumerate(zip(voltages, delays)):
+            command_voltage_with_state("instrument", smu, metadata, float(voltage_v))
+            if delay_s > 0:
+                time.sleep(float(delay_s))
+            current_a, compliance_hit = smu.measure_current()
+            if compliance_hit:
+                raise SafetyLimitError("Instrument compliance was reached", "instrument_compliance")
+            validate_point_current(current_a, safety)
+            resistance_ohm = None if current_a == 0 else float(voltage_v) / current_a
+            point = MeasurementPoint(
+                index=index,
+                voltage_v=float(voltage_v),
+                current_a=float(current_a),
+                elapsed_s=time.monotonic() - start,
+                resistance_ohm=resistance_ohm,
+                compliance_hit=compliance_hit,
+            )
+            writer.write_point(point)
+            points_written += 1
+            if progress_callback is not None:
+                progress_callback(point, len(voltages))
+        metadata["completed"] = True
+        return metadata
+    except SafetyLimitError as exc:
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = str(exc)
+        metadata["triggered_limit"] = exc.triggered_limit
+        return metadata
+    except KeyboardInterrupt as exc:
+        metadata["interrupted"] = True
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = "Measurement interrupted by user"
+        return metadata
+    except Exception as exc:
+        metadata["error_type"] = type(exc).__name__
+        metadata["error_message"] = str(exc)
+        return metadata
+    finally:
+        zero_before_off_with_state("instrument", smu, metadata)
+        output_off_with_state("instrument", smu, metadata)
+        _disable_remote_sense_after_output_off(smu, metadata)
+        smu.close()
+        metadata["finished_at"] = datetime.now().isoformat(timespec="seconds")
+        metadata["points_written"] = points_written
+        writer.write_metadata(metadata)
+        writer.close()
+
+
+def validate_four_terminal_dc_command_review_for_active_run(command_review_json: str | Path) -> dict[str, Any]:
+    payload = _load_json_object(Path(command_review_json))
+    if payload.get("evidence_passed") is not True:
+        raise ValueError("four-terminal DC active run requires command-review evidence_passed=true")
+    if payload.get("active_hardware_run_allowed") is not False:
+        raise ValueError("command-review JSON must be non-authorizing; expected active_hardware_run_allowed=false")
+    commands = [step.get("command") for step in payload.get("command_steps", []) if isinstance(step, dict)]
+    _require_command_order(commands, ":SENS:CURR:RSEN ON", ":OUTP ON")
+    _require_command_order(commands, ":OUTP ON", ":OUTP OFF")
+    if ":SENS:CURR:RSEN OFF" not in commands:
+        raise ValueError("command-review JSON must include :SENS:CURR:RSEN OFF cleanup")
+    return payload
+
+
 def review_four_terminal_dc_active_run_commands(
     recipe_path: str | Path,
     *,
@@ -976,3 +1139,49 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError(f"{path} must contain a JSON object")
     return data
+
+
+def _configure_remote_sense_checked(smu: Any, metadata: dict[str, Any]) -> None:
+    configure = getattr(smu, "configure_current_remote_sense", None)
+    readback = getattr(smu, "read_current_remote_sense", None)
+    if configure is None or readback is None:
+        raise SafetyLimitError(
+            "SMU does not expose current remote-sense configuration/readback",
+            "remote_sense_capability",
+        )
+    configure(True)
+    metadata["remote_sense"]["configured"] = True
+    response = str(readback()).strip()
+    metadata["remote_sense"]["enabled_readback"] = response
+    if response.upper().startswith("ERROR") or response.strip().upper() not in {"1", "ON", "TRUE"}:
+        raise SafetyLimitError(
+            f"Current remote-sense readback did not confirm ON: {response}",
+            "remote_sense_readback",
+        )
+    metadata["remote_sense"]["enabled_readback_ok"] = True
+
+
+def _disable_remote_sense_after_output_off(smu: Any, metadata: dict[str, Any]) -> None:
+    remote = metadata.setdefault("remote_sense", {})
+    remote["disabled_after_run_attempted"] = True
+    configure = getattr(smu, "configure_current_remote_sense", None)
+    readback = getattr(smu, "read_current_remote_sense", None)
+    if configure is None:
+        remote["disabled_after_run_error"] = "SMU does not expose configure_current_remote_sense"
+        return
+    try:
+        configure(False)
+        if readback is not None:
+            remote["disabled_after_run_readback"] = str(readback()).strip()
+    except Exception as exc:
+        remote["disabled_after_run_error"] = f"{type(exc).__name__}: {exc}"
+
+
+def _require_command_order(commands: list[str | None], earlier: str, later: str) -> None:
+    try:
+        earlier_index = commands.index(earlier)
+        later_index = len(commands) - 1 - list(reversed(commands)).index(later)
+    except ValueError as exc:
+        raise ValueError(f"command-review JSON missing required command order item: {exc}") from exc
+    if earlier_index >= later_index:
+        raise ValueError(f"command-review JSON must list {earlier} before {later}")

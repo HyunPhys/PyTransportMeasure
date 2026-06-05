@@ -21,7 +21,7 @@ def test_measurement_mode_matrix_covers_target_hall_bar_path():
         "hall_dual_gate_lockin",
     }
     assert modes["two_terminal_dc"]["status"] == "hardware_verified"
-    assert modes["four_terminal_dc"]["status"] == "dry_run_ready"
+    assert modes["four_terminal_dc"]["status"] == "hardware_smoke_ready"
     assert modes["hall_dual_gate_lockin"]["measurement_type"] == "dual_gate_lockin_sweep"
     assert "gate1/gate2 NPLC" in modes["hall_dual_gate_lockin"]["guarded_parameters"]
 
