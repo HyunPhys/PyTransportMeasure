@@ -149,6 +149,14 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   values average current longer and slow the sweep.
 - [ ] If using Keithley source delay, set `instrument.source_delay_s` and
   remember it is in addition to Python-side sweep delay.
+- [ ] Before moving a recipe folder to the lab laptop, run a directory-level
+  measurement-condition audit and save the JSON with the handoff notes.
+  ```powershell
+  ptm measurement-parameter-audit-dir configs\recipes --json-output docs\recipe_parameter_audit.json
+  ```
+- [ ] Confirm the folder audit marks every intended hardware recipe
+  `Hardware-ready: True`; treat missing Keithley `nplc`, voltage range, current
+  range, or SR860 settle policy as a recipe-edit task before preflight.
 - [ ] Choose a conservative safety preset.
 - [ ] Validate the recipe.
   ```powershell

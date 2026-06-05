@@ -208,6 +208,11 @@ from .preflight import (
 from .pulse import run_pulse_measurement
 from .pulse_review import write_pulse_plot_svg, write_pulse_report
 from .quality import evaluate_run_quality, format_quality_report, quality_report_to_dict
+from .recipe_parameter_audit import (
+    audit_recipe_parameter_directory,
+    format_recipe_parameter_directory_audit,
+    write_recipe_parameter_directory_audit_json,
+)
 from .recipes import load_named_safety_preset, load_recipe, sweep_voltages
 from .report import write_run_report
 from .run_index import append_run_index, filter_run_index, format_run_index, read_run_index, rebuild_run_index
@@ -1089,6 +1094,14 @@ def build_parser() -> argparse.ArgumentParser:
     measurement_parameter_audit.add_argument("measurement_type", choices=known_measurement_types())
     measurement_parameter_audit.add_argument("recipe", type=Path)
     measurement_parameter_audit.add_argument("--json-output", type=Path)
+
+    measurement_parameter_audit_dir = subparsers.add_parser(
+        "measurement-parameter-audit-dir",
+        help="Audit all recipe YAML files in a folder for Keithley/SR860 hardware measurement parameters.",
+    )
+    measurement_parameter_audit_dir.add_argument("root", type=Path)
+    measurement_parameter_audit_dir.add_argument("--json-output", type=Path)
+    measurement_parameter_audit_dir.add_argument("--no-recursive", action="store_true")
 
     scheme_plan = subparsers.add_parser("scheme-plan", help="Show a measurement scheme plan without touching hardware.")
     scheme_plan.add_argument("scheme", type=Path)
@@ -3412,6 +3425,19 @@ def command_measurement_parameter_audit(args: argparse.Namespace) -> int:
     return 0 if payload["ok_for_hardware"] else 2
 
 
+def command_measurement_parameter_audit_dir(args: argparse.Namespace) -> int:
+    try:
+        payload = audit_recipe_parameter_directory(args.root, recursive=not args.no_recursive)
+    except FileNotFoundError as exc:
+        print(f"Measurement parameter directory audit failed: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output:
+        output_path = write_recipe_parameter_directory_audit_json(payload, args.json_output)
+        print(f"Measurement parameter directory audit JSON: {output_path}")
+    print(format_recipe_parameter_directory_audit(payload))
+    return 0 if payload["ok_for_hardware"] else 2
+
+
 def command_scheme_plan(args: argparse.Namespace) -> int:
     scheme = load_scheme(args.scheme)
     print(format_scheme_plan(scheme, args.scheme, args.safety_dir, args.preview_points))
@@ -4293,6 +4319,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_keithley_parameter_audit(args)
     if args.command == "measurement-parameter-audit":
         return command_measurement_parameter_audit(args)
+    if args.command == "measurement-parameter-audit-dir":
+        return command_measurement_parameter_audit_dir(args)
     if args.command == "scheme-plan":
         return command_scheme_plan(args)
     if args.command == "scheme":

@@ -130,3 +130,28 @@ def test_cli_measurement_parameter_audit_returns_nonzero_for_missing_lockin_cond
     assert payload["smu"]["ok_for_hardware"] is True
     assert payload["lockin"]["ok_for_hardware"] is False
     assert "sensitivity_index" in payload["lockin"]["roles"][0]["missing_required_parameters"]
+
+
+def test_cli_measurement_parameter_audit_dir_returns_nonzero_for_missing_nplc(tmp_path):
+    complete = write_dual_gate_lockin_recipe(tmp_path, complete_lockin_settings=True)
+    missing = tmp_path / "missing_nplc.yaml"
+    missing.write_text(
+        complete.read_text(encoding="utf-8")
+        .replace("measurement_name: cli_audit_dual_gate_lockin", "measurement_name: missing_nplc")
+        .replace("  nplc: 1.0\n", "", 1),
+        encoding="utf-8",
+    )
+    output = tmp_path / "dir_audit.json"
+
+    code = cli.main(["measurement-parameter-audit-dir", str(tmp_path), "--json-output", str(output)])
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == 2
+    assert payload["recipe_count"] == 2
+    assert payload["ok_for_hardware"] is False
+    assert any(
+        "nplc" in role["missing_required_parameters"]
+        for record in payload["recipes"]
+        if record["loaded"]
+        for role in record["audit"]["smu"]["roles"]
+    )

@@ -31,6 +31,7 @@ def test_write_linear_recipe_template(tmp_path):
     assert recipe.experiment.contact_geometry == "hall bar"
     assert recipe.experiment.contact_notes == "outer pads"
     assert recipe.experiment.lab_notebook_ref == "ELN-1"
+    assert recipe.instrument.nplc == 1.0
     assert len(sweep_voltages(recipe.sweep)) == 21
 
 

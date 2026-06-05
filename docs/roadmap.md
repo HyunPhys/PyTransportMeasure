@@ -840,6 +840,10 @@ root.
     status
   - keep Keithley NPLC/range/compliance and SR860 parameter readiness visible
     before active Hall scans
+- [x] Phase 25dag: Recipe directory measurement-parameter audit
+  - add `ptm measurement-parameter-audit-dir` for folder-level recipe checks
+  - infer recipe types and reuse the shared Keithley/SR860 audit policy
+  - keep starter Drain I-V templates explicit about Keithley NPLC
 
 ## Next GUI
 

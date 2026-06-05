@@ -1679,6 +1679,18 @@ measurement depends on lock-in settings. A PASS result means the recipe declares
 the intended Keithley NPLC/ranges and the intended SR860 measurement
 conditions; it does not replace the live hardware preflight/readback.
 
+To audit a whole recipe folder before a lab-laptop handoff, use:
+
+```powershell
+ptm measurement-parameter-audit-dir configs\recipes --json-output docs\recipe_parameter_audit.json
+```
+
+This command scans `.yaml`/`.yml` files, infers each measurement type, and
+reports whether every recipe is hardware-ready under the same Keithley/SR860
+policy. Dry-run skeleton recipes can fail this audit by design when they omit
+active-run SR860 settings; use the failure list to separate simulation examples
+from recipes that are ready for preflight and output.
+
 For the Keithley 2450 four-terminal DC path, use the guarded preflight before
 any active output attempt:
 
