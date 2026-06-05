@@ -90,6 +90,19 @@ def test_ac_lockin_hardware_smoke_recipe_is_conservative():
     assert "Lock-in sine output amplitude: 0.01 V" in plan
 
 
+def test_ac_lockin_four_terminal_recipe_sample_and_plan():
+    recipe = load_ac_lockin_recipe("configs/recipes/ac_lockin_four_terminal_dry_run.yaml")
+    safety = load_named_safety_preset(recipe.safety_preset)
+    plan = format_ac_lockin_plan(recipe, safety, "configs/recipes/ac_lockin_four_terminal_dry_run.yaml")
+
+    assert recipe.measurement_geometry.method == "four_terminal"
+    assert recipe.measurement_geometry.terminal_count == 4
+    assert recipe.lockin.input_mode == "voltage"
+    assert recipe.lockin.voltage_input == "a-b"
+    assert "Measurement geometry: four_terminal, 4-terminal" in plan
+    assert "Lock-in voltage input: a-b" in plan
+
+
 def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     recipe = AcLockInRecipe.model_validate(ac_lockin_recipe_data(tmp_path))
     safety = load_named_safety_preset(recipe.safety_preset)
@@ -122,6 +135,29 @@ def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     assert "AC lock-in run:" in format_ac_lockin_summary(summary)
     assert write_ac_lockin_plot_svg(run_dir).name == "ac_lockin_plot.svg"
     assert write_ac_lockin_report(run_dir).name == "ac_lockin_report.md"
+
+
+def test_ac_lockin_four_terminal_differential_voltage_dry_run(tmp_path):
+    data = ac_lockin_recipe_data(tmp_path)
+    data["measurement_geometry"] = {
+        "method": "four_terminal",
+        "terminal_count": 4,
+        "notes": "Keithley biases source-drain while SR860 reads differential voltage contacts.",
+    }
+    data["lockin"]["voltage_input"] = "a-b"
+    recipe = AcLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    source = FakeSMU(resistance_ohm=1_000_000, noise_std_a=0)
+    lockin = FakeLockIn(signal_r_v=3e-6, phase_deg=15, noise_std_v=0)
+
+    metadata = run_ac_lockin_sweep(recipe, safety, source, lockin, recipe_path="four_terminal_ac.yaml")
+
+    assert metadata["completed"] is True
+    assert metadata["points_written"] == 5
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["recipe"]["measurement_geometry"]["method"] == "four_terminal"
+    assert saved_metadata["recipe"]["measurement_geometry"]["terminal_count"] == 4
+    assert saved_metadata["recipe"]["lockin"]["voltage_input"] == "a-b"
 
 
 def test_ac_lockin_compliance_stop_saves_partial_and_turns_off(tmp_path):

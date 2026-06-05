@@ -29,6 +29,71 @@ def validate_active_geometry(label: str, geometry_method: str, terminal_count: i
         )
 
 
+def validate_lockin_voltage_geometry(
+    label: str,
+    geometry_method: str,
+    terminal_count: int,
+    lockin_input_mode: str | None,
+    lockin_voltage_input: str | None,
+    topology: object | None = None,
+) -> None:
+    if geometry_method == "two_terminal" and terminal_count == 2:
+        return
+    if geometry_method == "two_terminal":
+        raise SafetyLimitError(
+            f"{label} two_terminal geometry requires terminal_count=2; requested {terminal_count}-terminal",
+            triggered_limit="measurement_geometry_terminal_count",
+        )
+    if geometry_method != "four_terminal":
+        raise SafetyLimitError(
+            f"{label} supports only two_terminal or guarded four_terminal lock-in geometry; requested {geometry_method}",
+            triggered_limit="measurement_geometry_method",
+        )
+    if terminal_count != 4:
+        raise SafetyLimitError(
+            f"{label} four_terminal geometry requires terminal_count=4; requested {terminal_count}-terminal",
+            triggered_limit="measurement_geometry_terminal_count",
+        )
+    if lockin_input_mode != "voltage":
+        raise SafetyLimitError(
+            f"{label} four_terminal geometry requires SR860 voltage input mode",
+            triggered_limit="lockin_input_mode",
+        )
+    if lockin_voltage_input != "a-b":
+        raise SafetyLimitError(
+            f"{label} four_terminal geometry requires differential SR860 voltage input a-b",
+            triggered_limit="lockin_voltage_input",
+        )
+    if topology is not None:
+        _validate_lockin_four_terminal_topology(label, topology)
+
+
+def _validate_lockin_four_terminal_topology(label: str, topology: object) -> None:
+    topology_input_mode = getattr(topology, "lockin_input_mode", None)
+    if topology_input_mode != "voltage":
+        raise SafetyLimitError(
+            f"{label} four_terminal topology requires lockin_input_mode=voltage",
+            triggered_limit="topology_lockin_input_mode",
+        )
+    lockin_contacts = tuple(getattr(topology, "lockin_input_contacts", ()) or ())
+    excitation_contacts = tuple(getattr(topology, "excitation_contacts", ()) or ())
+    if len(lockin_contacts) != 2 or len(set(lockin_contacts)) != 2:
+        raise SafetyLimitError(
+            f"{label} four_terminal topology requires two distinct lock-in voltage contacts",
+            triggered_limit="topology_lockin_input_contacts",
+        )
+    if len(excitation_contacts) != 2 or len(set(excitation_contacts)) != 2:
+        raise SafetyLimitError(
+            f"{label} four_terminal topology requires two distinct excitation contacts",
+            triggered_limit="topology_excitation_contacts",
+        )
+    if set(lockin_contacts) & set(excitation_contacts):
+        raise SafetyLimitError(
+            f"{label} four_terminal topology requires voltage contacts separate from excitation contacts",
+            triggered_limit="topology_contact_overlap",
+        )
+
+
 def validate_recipe_against_safety(recipe: DrainIVRecipe, safety: SafetyPreset) -> None:
     validate_active_geometry("Drain I-V", recipe.measurement_geometry.method, recipe.measurement_geometry.terminal_count)
     max_recipe_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.sweep))
@@ -111,7 +176,13 @@ def validate_dual_gate_recipe_against_safety(recipe: DualGateRecipe, safety: Saf
 
 
 def validate_ac_lockin_recipe_against_safety(recipe: AcLockInRecipe, safety: SafetyPreset) -> None:
-    validate_active_geometry("AC lock-in", recipe.measurement_geometry.method, recipe.measurement_geometry.terminal_count)
+    validate_lockin_voltage_geometry(
+        "AC lock-in",
+        recipe.measurement_geometry.method,
+        recipe.measurement_geometry.terminal_count,
+        recipe.lockin.input_mode,
+        recipe.lockin.voltage_input,
+    )
     max_recipe_voltage = max(abs(voltage) for voltage in sweep_voltages(recipe.bias_sweep))
     if max_recipe_voltage > safety.max_abs_voltage_v:
         raise SafetyLimitError(
@@ -132,10 +203,13 @@ def validate_ac_lockin_recipe_against_safety(recipe: AcLockInRecipe, safety: Saf
 
 
 def validate_dual_gate_lockin_recipe_against_safety(recipe: DualGateLockInRecipe, safety: SafetyPreset) -> None:
-    validate_active_geometry(
+    validate_lockin_voltage_geometry(
         "Dual-gate lock-in",
         recipe.measurement_geometry.method,
         recipe.measurement_geometry.terminal_count,
+        recipe.lockin.input_mode,
+        recipe.lockin.voltage_input,
+        topology=recipe.topology,
     )
     gate1_max_voltage = max(abs(voltage) for voltage in gate_voltages_from_config(recipe.gate1_sweep))
     gate2_max_voltage = max(abs(voltage) for voltage in gate_voltages_from_config(recipe.gate2_sweep))

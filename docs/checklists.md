@@ -120,8 +120,11 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   `instrument.terminal`, sweep range, compliance, and output directory.
 - [ ] Fill `experiment.cooldown_id`, `experiment.contact_geometry`,
   `experiment.contact_notes`, and `experiment.lab_notebook_ref` when available.
-- [ ] Confirm `measurement_geometry.method` is `two_terminal` for the current
-  implemented runners.
+- [ ] For Keithley-only DC runs, confirm `measurement_geometry.method` is
+  `two_terminal`.
+- [ ] For SR860 four-terminal lock-in runs, confirm `measurement_geometry.method:
+  four_terminal`, `terminal_count: 4`, `lockin.input_mode: voltage`, and
+  `lockin.voltage_input: a-b`.
 - [ ] Set Keithley `instrument.voltage_range_v`, `instrument.current_range_a`,
   and `instrument.nplc` intentionally. Hardware runs are blocked when any active
   Keithley 2450 block is missing these values.
@@ -482,16 +485,16 @@ remain point-guarded.
   ptm dual-gate-lockin configs/recipes/dual_gate_lockin_dry_run.yaml
   ```
 
-## Future 4-Probe / Remote-Sense Smoke Test
-
-This checklist is for the future implementation. The current code does not yet
-enable 4-probe mode.
+## Four-Terminal / Remote-Sense Smoke Test
 
 - [ ] Confirm the future recipe explicitly states `measurement_geometry.method:
   four_terminal` and `terminal_count: 4`.
-- [ ] Confirm current code blocks `measurement_geometry.method:
-  four_terminal` before output is enabled until runner support is implemented.
-- [ ] Confirm the future implementation explicitly states `remote_4wire`.
+- [ ] For SR860 lock-in voltage readout, confirm `lockin.input_mode: voltage`
+  and `lockin.voltage_input: a-b`.
+- [ ] For dual-gate Hall-bar lock-in, confirm voltage contacts and excitation
+  contacts are distinct and non-overlapping.
+- [ ] For Keithley 2450 remote-sense DC work, confirm the future implementation
+  explicitly states `remote_4wire`; this path is still blocked.
 - [ ] Confirm the plan prints the selected sense mode before hardware access.
 - [ ] Use a known resistor or resistor network before a real device.
 - [ ] Confirm SCPI mode with `ptm probe`.

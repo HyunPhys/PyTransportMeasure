@@ -274,7 +274,8 @@ root.
   - send/read back `SOUR:VOLT:DEL` through the shared SMU config path
   - save and compare source delay in `configured_*_smu` metadata/readback
 - [x] Phase 25x: Active geometry capability guard
-  - block active runners unless `measurement_geometry.method` is `two_terminal`
+  - initially blocked active runners unless `measurement_geometry.method` was
+    `two_terminal`
   - keep terminal-count guard as a separate safety trigger
   - preserve 4-probe/four-terminal as an explicit future method capability
 - [x] Phase 25y: Accepted previous run guard for broader dual-gate scans
@@ -318,7 +319,13 @@ root.
     scale-up-blocking leakage warnings
   - make `dual-gate-lockin-scale-up-check` fail before hardware when the
     previous limited run needs leakage-margin review
-- [ ] Phase 25ag: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ag: Guarded four-terminal lock-in geometry
+  - allow `four_terminal` lock-in recipes only when SR860 uses voltage input
+    and differential `a-b` input
+  - require dual-gate Hall-bar voltage contacts to be separate from excitation
+    contacts before runner execution
+  - add AC lock-in and dual-gate lock-in four-terminal dry-run recipes
+- [ ] Phase 25ah: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

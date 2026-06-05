@@ -176,9 +176,10 @@ Key fields:
 - `instrument.address`: VISA address.
 - `instrument.terminal`: usually `FRONT` for the current smoke-test setup.
 - `instrument.nplc`: Keithley current integration time in power-line cycles.
-- `measurement_geometry`: electrical measurement topology. Current active
-  runners support `two_terminal`; `four_terminal` is schema-visible but blocked
-  by safety validation until runner and SCPI support are implemented.
+- `measurement_geometry`: electrical measurement topology. Keithley-only DC
+  runners currently support `two_terminal`. SR860 lock-in voltage readout paths
+  can use guarded `four_terminal` geometry when the lock-in is differential
+  voltage input `a-b`.
 - `sweep.mode`: currently supports linear one-way, forward/backward, and
   multi-segment Drain I-V workflows.
 - `sweep.current_compliance_a`: hardware compliance.
@@ -521,6 +522,21 @@ For dry-run artifact checks only, fake SR860 metadata can be relaxed:
 ptm dual-gate-lockin-audit data\raw\<dry_run_folder> --allow-missing-lockin-settings
 ```
 
+Four-terminal lock-in dry-run recipes are available for Hall-bar planning:
+
+```powershell
+ptm ac-lockin-plan configs/recipes/ac_lockin_four_terminal_dry_run.yaml
+ptm ac-lockin configs/recipes/ac_lockin_four_terminal_dry_run.yaml --dry-run --summary --plot --report --fake-noise-std 0
+ptm dual-gate-lockin-plan configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml
+ptm dual-gate-lockin configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml --dry-run --summary --plot --report --gate-stats --fake-noise-std 0
+```
+
+For `four_terminal` lock-in recipes, the SR860 recipe block must use
+`input_mode: voltage` and `voltage_input: a-b`. Dual-gate Hall-bar lock-in
+recipes also require two distinct `topology.lockin_input_contacts`, two distinct
+`topology.excitation_contacts`, and no overlap between those voltage and
+excitation contacts.
+
 ## Campaign
 
 Use a campaign to collect runs, batches, and schemes into one analysis set.
@@ -735,7 +751,7 @@ Measurement geometry:
 `experiment.contact_geometry` describes the sample/contact state, such as Hall
 bar, 2-probe wirebond, contact pads, or cooldown notes. `measurement_geometry`
 describes the electrical method the software is expected to execute. For
-current active runners this should remain:
+Keithley-only DC runners this should remain:
 
 ```yaml
 measurement_geometry:
@@ -744,20 +760,22 @@ measurement_geometry:
   notes: Source and measure through the same force/current path.
 ```
 
-Four-terminal recipes can be represented for future work:
+Four-terminal lock-in recipes are now supported for guarded SR860 voltage
+readout paths:
 
 ```yaml
 measurement_geometry:
   terminal_count: 4
   method: four_terminal
-  notes: Future remote-sense or separate voltage-probe measurement.
+  notes: SR860 reads differential voltage contacts while another path excites current.
 ```
 
-At present, safety validation blocks active runners unless
-`measurement_geometry.method: two_terminal` and `terminal_count: 2`. A
-`four_terminal` recipe is intentionally rejected before hardware output is
-enabled until the 2450 remote-sense or separate voltage readout runner has its
-own smoke tests.
+The safety gate allows this only for lock-in runners with `lockin.input_mode:
+voltage` and `lockin.voltage_input: a-b`. For dual-gate Hall-bar lock-in, the
+topology must also declare two voltage contacts and two excitation contacts with
+no overlap. Keithley 2450 remote-sense / 4-wire DC measurement remains a future
+runner and is still blocked by the DC Drain I-V, single-gate, dual-gate, and
+pulse paths.
 
 `Plan` and `Dry Run` use the current editor YAML. The recipe path field is used
 for loading and saving recipes. GUI dry-runs write a temporary draft recipe under

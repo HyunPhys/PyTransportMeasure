@@ -154,6 +154,35 @@ def test_run_ac_lockin_preflight_ok():
     assert "AC lock-in preflight OK: True" in text
 
 
+def test_run_ac_lockin_four_terminal_preflight_accepts_differential_voltage_input():
+    differential_probe = {**LOCKIN_SETTING_PROBE, "setting_voltage_input": "1"}
+
+    report = run_ac_lockin_preflight(
+        "configs/recipes/ac_lockin_four_terminal_dry_run.yaml",
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::4::INSTR"),
+        source_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "KEITHLEY INSTRUMENTS,MODEL 2450,123,1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        lockin_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
+            "error_status": "0",
+            "lia_status": "0",
+            **differential_probe,
+        },
+    )
+
+    text = format_ac_lockin_preflight_report(report)
+
+    assert report.ok is True
+    assert all(check.ok for check in report.lockin_settings)
+    assert "voltage_input: expected a-b, actual 1, ok: True" in text
+    assert "AC lock-in preflight OK: True" in text
+
+
 def test_run_ac_lockin_preflight_fails_when_expected_lockin_setting_mismatches():
     bad_settings = {**LOCKIN_SETTING_PROBE, "setting_reference_frequency_hz": "1000"}
 
@@ -252,6 +281,35 @@ def test_run_dual_gate_lockin_preflight_ok():
     assert "- Within default point guard: False" in text
     assert "Gate1/gate2/lock-in addresses distinct: True" in text
     assert "all expected settings match: True" in text
+    assert "Dual-gate lock-in preflight OK: True" in text
+
+
+def test_run_dual_gate_lockin_four_terminal_preflight_accepts_differential_voltage_input():
+    differential_probe = {**LOCKIN_SETTING_PROBE, "setting_voltage_input": "1"}
+
+    report = run_dual_gate_lockin_preflight(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        resource_lister=lambda: ("GPIB0::2::INSTR", "GPIB0::3::INSTR", "GPIB0::4::INSTR"),
+        gate_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": f"KEITHLEY INSTRUMENTS,MODEL 2450,{address},1.0",
+            "language": "SCPI",
+            "system_error": '0,"No error"',
+        },
+        lockin_probe_factory=lambda address, timeout: {
+            "address": address,
+            "idn": "Stanford_Research_Systems,SR860,000111,v1.23",
+            "error_status": "0",
+            "lia_status": "0",
+            **differential_probe,
+        },
+    )
+
+    text = format_dual_gate_lockin_preflight_report(report)
+
+    assert report.ok is True
+    assert all(check.ok for check in report.lockin_settings)
+    assert "voltage_input: expected a-b, actual 1, ok: True" in text
     assert "Dual-gate lock-in preflight OK: True" in text
 
 

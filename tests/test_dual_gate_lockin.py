@@ -156,6 +156,26 @@ def test_dual_gate_lockin_limited_active_recipe_is_tiny_and_guarded():
     assert "Within default point guard: True" in plan
 
 
+def test_dual_gate_lockin_four_terminal_recipe_sample_and_plan():
+    recipe = load_dual_gate_lockin_recipe("configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml")
+    safety = load_named_safety_preset(recipe.safety_preset)
+    plan = format_dual_gate_lockin_plan(
+        recipe,
+        safety,
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+    )
+
+    assert recipe.measurement_geometry.method == "four_terminal"
+    assert recipe.measurement_geometry.terminal_count == 4
+    assert recipe.lockin.input_mode == "voltage"
+    assert recipe.lockin.voltage_input == "a-b"
+    assert recipe.topology.lockin_input_contacts == ["Vxx+", "Vxx-"]
+    assert recipe.topology.excitation_contacts == ["S", "D"]
+    assert "Measurement geometry: four_terminal, 4-terminal" in plan
+    assert "Lock-in voltage input: a-b" in plan
+    assert "Lock-in input: voltage on Vxx+, Vxx-" in plan
+
+
 def test_dual_gate_lockin_recipe_rejects_incomplete_active_excitation(tmp_path):
     data = dual_gate_lockin_recipe_data(tmp_path)
     data["topology"]["excitation_contacts"] = ["S"]
@@ -266,6 +286,54 @@ def test_dual_gate_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path)
     report = (run_dir / "dual_gate_lockin_report.md").read_text(encoding="utf-8")
     assert "## Recovery" in report
     assert "Mean Resistance" in report
+
+
+def test_dual_gate_lockin_four_terminal_hall_bar_dry_run(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["measurement_geometry"] = {
+        "method": "four_terminal",
+        "terminal_count": 4,
+        "notes": "SR860 reads differential Hall-bar voltage contacts while gate Keithleys bias gates.",
+    }
+    data["lockin"]["voltage_input"] = "a-b"
+    recipe = DualGateLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+
+    metadata = run_dual_gate_lockin_sweep(
+        recipe,
+        safety,
+        gate1_smu,
+        gate2_smu,
+        lockin,
+        recipe_path="dual_gate_lockin_four_terminal.yaml",
+    )
+
+    assert metadata["completed"] is True
+    assert metadata["points_written"] == 9
+    saved_metadata = json.loads(Path(metadata["metadata_path"]).read_text(encoding="utf-8"))
+    assert saved_metadata["recipe"]["measurement_geometry"]["method"] == "four_terminal"
+    assert saved_metadata["recipe"]["measurement_geometry"]["terminal_count"] == 4
+    assert saved_metadata["recipe"]["lockin"]["voltage_input"] == "a-b"
+    assert saved_metadata["recipe"]["topology"]["lockin_input_contacts"] == ["Vxx+", "Vxx-"]
+    assert saved_metadata["recipe"]["topology"]["excitation_contacts"] == ["S", "D"]
+    assert saved_metadata["outputs_off_after_run"] is True
+
+
+def test_dual_gate_lockin_four_terminal_rejects_voltage_contact_overlap(tmp_path):
+    data = dual_gate_lockin_recipe_data(tmp_path)
+    data["measurement_geometry"] = {"method": "four_terminal", "terminal_count": 4}
+    data["lockin"]["voltage_input"] = "a-b"
+    data["topology"]["lockin_input_contacts"] = ["S", "Vxx-"]
+    recipe = DualGateLockInRecipe.model_validate(data)
+    safety = load_named_safety_preset(recipe.safety_preset)
+    gate1_smu, gate2_smu, lockin = build_fake_dual_gate_lockin()
+
+    with pytest.raises(Exception, match="voltage contacts separate from excitation contacts") as error:
+        run_dual_gate_lockin_sweep(recipe, safety, gate1_smu, gate2_smu, lockin)
+    assert error.value.triggered_limit == "topology_contact_overlap"
+    assert gate1_smu.is_output_on is False
+    assert gate2_smu.is_output_on is False
 
 
 def test_dual_gate_lockin_acceptance_fails_output_cleanup_issue(tmp_path):
