@@ -137,6 +137,11 @@ root.
   - check Keithley source and SR860 resources before AC hardware work
   - print AC preflight before blocked non-dry-run `ptm ac-lockin`
   - keep source output disabled because AC hardware acquisition is not active yet
+- [x] Phase 23b: Two-terminal AC hardware smoke
+  - add conservative `ac_lockin_hardware_smoke.yaml`
+  - enable `ptm ac-lockin` hardware execution after preflight and confirmation
+  - use Keithley source plus SR860 lock-in driver
+  - write standard AC lock-in CSV, metadata, plot, and report artifacts
 - [x] Phase 23: PySide6 GUI foundation
   - optional `gui` dependency group
   - `ptm-gui` desktop entry point
@@ -150,11 +155,6 @@ root.
   - confirm two Keithley addresses
   - verify drain/gate output-off behavior on real instruments
   - save first two-SMU smoke-test artifacts
-- [ ] Phase 23b: Two-terminal AC hardware smoke
-  - run SR860 identify/probe on the lab laptop
-  - Keithley DC bias or zero-bias source setup
-  - SR860 X/Y/R/theta readout
-  - point CSV and metadata with lock-in settings
 - [ ] Phase 24b: Terminal geometry abstraction
   - represent 2-terminal and 4-terminal geometry in recipes and metadata
   - add 2450 4-wire/remote-sense TODO implementation hook

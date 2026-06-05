@@ -696,3 +696,11 @@ instrument:
   address: GPIB0::2::INSTR
   nplc: 1.0
 ```
+
+For the first AC/lock-in hardware smoke test, use:
+
+```powershell
+ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
+ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
+ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
+```

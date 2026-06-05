@@ -309,6 +309,17 @@ artifact path.
   ```powershell
   ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0
   ```
+- [ ] For hardware smoke, edit `configs/recipes/ac_lockin_hardware_smoke.yaml`
+  with the real Keithley source and SR860 addresses.
+- [ ] Preview and preflight the hardware smoke recipe.
+  ```powershell
+  ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
+  ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
+  ```
+- [ ] Run the first hardware smoke test without `--yes`.
+  ```powershell
+  ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
+  ```
 - [ ] Verify `lockin_x_v`, `lockin_y_v`,
   `lockin_r_v`, and `lockin_theta_deg` columns.
 - [ ] Confirm lock-in readout appears in summary/report artifacts.

@@ -56,6 +56,18 @@ def test_ac_lockin_recipe_sample_and_plan():
     assert "Lock-in timing: after_dc_settle" in plan
 
 
+def test_ac_lockin_hardware_smoke_recipe_is_conservative():
+    recipe = load_ac_lockin_recipe("configs/recipes/ac_lockin_hardware_smoke.yaml")
+    safety = load_named_safety_preset(recipe.safety_preset)
+    plan = format_ac_lockin_plan(recipe, safety, "configs/recipes/ac_lockin_hardware_smoke.yaml")
+
+    assert recipe.measurement_name == "ac_lockin_hardware_smoke"
+    assert recipe.source_instrument.nplc == pytest.approx(1.0)
+    assert recipe.bias_sweep.current_compliance_a <= 1e-7
+    assert ac_lockin_point_count(recipe) == 5
+    assert "Source NPLC: 1.0" in plan
+
+
 def test_ac_lockin_dry_run_writes_points_metadata_and_artifacts(tmp_path):
     recipe = AcLockInRecipe.model_validate(ac_lockin_recipe_data(tmp_path))
     safety = load_named_safety_preset(recipe.safety_preset)

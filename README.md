@@ -141,6 +141,9 @@ ptm probe --instrument srs_sr860 --address "GPIB0::4::INSTR"
 ptm ac-lockin-plan configs/recipes/ac_lockin_dry_run.yaml
 ptm ac-lockin-preflight configs/recipes/ac_lockin_dry_run.yaml
 ptm ac-lockin configs/recipes/ac_lockin_dry_run.yaml --dry-run --summary --plot --report --fake-resistance-ohm 1000000 --fake-lockin-r-v 0.000002 --fake-lockin-phase-deg 30 --fake-noise-std 0
+ptm ac-lockin-plan configs/recipes/ac_lockin_hardware_smoke.yaml
+ptm ac-lockin-preflight configs/recipes/ac_lockin_hardware_smoke.yaml
+ptm ac-lockin configs/recipes/ac_lockin_hardware_smoke.yaml --progress --summary --plot --report
 ptm pulse-plan configs/recipes/pulse_dry_run.yaml
 ptm pulse configs/recipes/pulse_dry_run.yaml --dry-run --summary --plot --report --progress --fake-resistance-ohm 1000000 --fake-noise-std-a 0
 ptm single-gate-summary data\raw\<single_gate_run_folder>

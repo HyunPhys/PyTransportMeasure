@@ -193,7 +193,7 @@ def build_parser() -> argparse.ArgumentParser:
     ac_lockin_preflight.add_argument("recipe", type=Path)
     ac_lockin_preflight.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
 
-    ac_lockin = subparsers.add_parser("ac-lockin", help="Run an AC/lock-in bias sweep recipe. Current milestone is dry-run only.")
+    ac_lockin = subparsers.add_parser("ac-lockin", help="Run an AC/lock-in bias sweep recipe.")
     ac_lockin.add_argument("recipe", type=Path)
     ac_lockin.add_argument("--dry-run", action="store_true")
     ac_lockin.add_argument("--fake-resistance-ohm", type=float, default=1_000_000.0)
@@ -207,6 +207,7 @@ def build_parser() -> argparse.ArgumentParser:
     ac_lockin.add_argument("--progress", action="store_true")
     ac_lockin.add_argument("--index-path", type=Path, default=Path("data/run_index.jsonl"))
     ac_lockin.add_argument("--preview-points", type=int, default=5)
+    ac_lockin.add_argument("--yes", action="store_true", help="Skip the interactive hardware confirmation prompt.")
 
     pulse_plan = subparsers.add_parser("pulse-plan", help="Show a pulse measurement plan without hardware.")
     pulse_plan.add_argument("recipe", type=Path)
@@ -660,18 +661,27 @@ def command_ac_lockin(args: argparse.Namespace) -> int:
     validate_ac_lockin_recipe_against_safety(recipe, safety)
     print(method.format_plan(recipe, args.recipe, args.safety_dir, args.preview_points))
     print()
-    if not args.dry_run:
+    if args.dry_run:
+        source_smu = build_fake_smu(args.fake_resistance_ohm, args.fake_noise_std)
+        lockin = FakeLockIn(
+            signal_r_v=args.fake_lockin_r_v,
+            phase_deg=args.fake_lockin_phase_deg,
+            noise_std_v=args.fake_noise_std,
+        )
+    else:
         report = run_ac_lockin_preflight(args.recipe, args.safety_dir)
         print(format_ac_lockin_preflight_report(report))
         print()
-        print("AC lock-in hardware runs are not active yet. Use --dry-run for this milestone.", file=sys.stderr)
-        return 2
-    source_smu = build_fake_smu(args.fake_resistance_ohm, args.fake_noise_std)
-    lockin = FakeLockIn(
-        signal_r_v=args.fake_lockin_r_v,
-        phase_deg=args.fake_lockin_phase_deg,
-        noise_std_v=args.fake_noise_std,
-    )
+        if not report.ok:
+            print("AC lock-in hardware run blocked because preflight did not pass.", file=sys.stderr)
+            return 2
+        if should_confirm_hardware_run(args.dry_run, args.yes) and not confirm_hardware_run(
+            lambda prompt: input(prompt.replace("hardware output and sweep", "AC lock-in hardware output and sweep"))
+        ):
+            print("AC lock-in run cancelled before hardware output.")
+            return 1
+        source_smu = Keithley2450(recipe.source_instrument.address, recipe.source_instrument.timeout_ms)
+        lockin = SRS_SR860(recipe.lockin.address or "", recipe.lockin.timeout_ms)
     progress_callback = print_ac_lockin_progress if args.progress else None
     metadata = run_ac_lockin_sweep(
         recipe,
