@@ -436,8 +436,9 @@ probe spacing and channel width. The runner then writes:
 For Hall voltage probes, use `voltage_probe_role: hall` and omit channel
 length/width. If `magnetic_field_t` is declared, the runner estimates
 `lockin_hall_carrier_density_per_m2 = B / (e * lockin_hall_resistance_ohm)`.
-This is a first-pass fixed-field estimate; antisymmetrized Hall extraction,
-zero-field offset subtraction, and mobility extraction remain later phases.
+This is a first-pass fixed-field estimate; antisymmetrized Hall extraction and
+mobility extraction are available as saved-run analysis commands. Zero-field
+offset subtraction remains a later phase.
 
 When matched `+B` and `-B` Hall runs are available, use:
 
@@ -449,6 +450,22 @@ This writes `hall_antisym.csv`, `hall_antisym_report.md`, and
 `hall_antisym_metadata.json`. By default it uses signed `lockin_x_v`, computes
 `Rxy_odd = (R(+B) - R(-B)) / 2`, and estimates
 `n_2d = |B| / (e * Rxy_odd)`.
+
+After a matching longitudinal Vxx dual-gate lock-in run is available, combine
+its sheet conductivity with the Hall density:
+
+```powershell
+ptm dual-gate-lockin-hall-mobility data\analysis\<hall_antisym_folder> data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>
+```
+
+This writes `hall_mobility.csv`, `hall_mobility_report.md`, and
+`hall_mobility_metadata.json`. The command requires the longitudinal run to be
+a completed `dual_gate_lockin_sweep` with `voltage_probe_role: longitudinal`.
+It computes signed mobility and lab-facing mobility magnitude:
+
+- `mu_signed = sigma_sheet / (e * n_2d)`
+- `|mu| = |sigma_sheet| / (e * |n_2d|)`
+- `mobility_magnitude_cm2_per_v_s = |mu| * 1e4`
 
 The readout smoke command runs after preflight and saves SR860 X/Y/R/theta
 samples to `lockin_smoke.csv`. It does not configure Keithley source mode and

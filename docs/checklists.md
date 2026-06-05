@@ -494,6 +494,18 @@ remain point-guarded.
   `ptm dual-gate-lockin-hall-antisym data\raw\<plus_B_run> data\raw\<minus_B_run>
   --output-dir data\analysis\<hall_antisym_folder>` and confirm
   `hall_antisym.csv` and `hall_antisym_report.md` are written.
+- [ ] After a matching longitudinal Vxx run is available, run
+  `ptm dual-gate-lockin-hall-mobility data\analysis\<hall_antisym_folder>
+  data\raw\<longitudinal_Vxx_run> --output-dir data\analysis\<hall_mobility_folder>`
+  and confirm `hall_mobility.csv`, `hall_mobility_report.md`, and
+  `hall_mobility_metadata.json` are written.
+- [ ] Confirm `hall_mobility.csv` contains `hall_carrier_density_per_m2`,
+  `longitudinal_sheet_conductivity_s_per_sq`,
+  `mobility_signed_m2_per_v_s`, and
+  `mobility_magnitude_cm2_per_v_s`.
+- [ ] For any hardware run used in the Hall/mobility chain, confirm every active
+  Keithley source block declares the intended `voltage_range_v`,
+  `current_range_a`, and `nplc` before output is enabled.
 - [ ] Confirm `dual_gate_lockin_report.md` lists nominal source-drain current,
   resistance range, conductance range, measurement geometry, lock-in voltage
   contacts, excitation contacts, and sheet resistance range when channel

@@ -74,7 +74,7 @@ from .dual_gate_lockin_review import (
     write_dual_gate_lockin_stats_csv,
 )
 from .feedback_bundle import create_feedback_bundle
-from .hall_analysis import write_dual_gate_lockin_hall_antisym
+from .hall_analysis import write_dual_gate_lockin_hall_antisym, write_dual_gate_lockin_hall_mobility
 from .inspect import inspect_run
 from .instruments.fake import (
     CoupledFakeDeviceState,
@@ -400,6 +400,15 @@ def build_parser() -> argparse.ArgumentParser:
         default="lockin_x_v",
     )
     dual_gate_lockin_hall_antisym.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_mobility = subparsers.add_parser(
+        "dual-gate-lockin-hall-mobility",
+        help="Combine Hall antisymmetry data with a longitudinal Vxx run into mobility artifacts.",
+    )
+    dual_gate_lockin_hall_mobility.add_argument("hall_antisym_source", type=Path)
+    dual_gate_lockin_hall_mobility.add_argument("longitudinal_run_dir", type=Path)
+    dual_gate_lockin_hall_mobility.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_mobility.add_argument("--overwrite", action="store_true")
 
     ac_lockin_plan = subparsers.add_parser("ac-lockin-plan", help="Show an AC/lock-in bias sweep plan without hardware.")
     ac_lockin_plan.add_argument("recipe", type=Path)
@@ -1355,6 +1364,20 @@ def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     print(f"Points: {result.points}")
     print(f"Value column: {result.value_column}")
     print(f"|B|: {result.magnetic_field_abs_t if result.magnetic_field_abs_t is not None else 'n/a'} T")
+    return 0
+
+
+def command_dual_gate_lockin_hall_mobility(args: argparse.Namespace) -> int:
+    result = write_dual_gate_lockin_hall_mobility(
+        args.hall_antisym_source,
+        args.longitudinal_run_dir,
+        output_dir=args.output_dir,
+        overwrite=args.overwrite,
+    )
+    print(f"Hall mobility CSV: {result.output_csv}")
+    print(f"Hall mobility report: {result.report_path}")
+    print(f"Hall mobility metadata: {result.metadata_path}")
+    print(f"Points: {result.points}")
     return 0
 
 
@@ -2578,6 +2601,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_scale_up_template(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
+    if args.command == "dual-gate-lockin-hall-mobility":
+        return command_dual_gate_lockin_hall_mobility(args)
     if args.command == "ac-lockin-plan":
         return command_ac_lockin_plan(args)
     if args.command == "ac-lockin-preflight":

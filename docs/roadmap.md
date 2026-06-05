@@ -359,7 +359,11 @@ root.
   - add `ptm dual-gate-lockin-hall-antisym` for paired `+B`/`-B` Hall runs
   - write antisymmetrized Hall resistance, field-even component, and density CSV
   - require completed Hall runs with equal-magnitude opposite magnetic fields
-- [ ] Phase 25ap: Dual-gate lock-in first broader hardware scan
+- [x] Phase 25ap: Hall mobility extraction analysis
+  - add `ptm dual-gate-lockin-hall-mobility`
+  - combine antisymmetrized Hall density with longitudinal sheet conductivity
+  - write signed and magnitude mobility in SI and cm^2/V/s lab units
+- [ ] Phase 25aq: Dual-gate lock-in first broader hardware scan
   - decide the first non-smoke grid size after lab feedback
   - require SR860 settings readback to match the recipe before output
   - keep point-count guard, previous-run acceptance, and preflight mandatory

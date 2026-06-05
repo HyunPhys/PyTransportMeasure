@@ -29,6 +29,20 @@ HALL_ANTISYM_COLUMNS = [
 ]
 
 
+HALL_MOBILITY_COLUMNS = [
+    "gate1_voltage_v",
+    "gate2_voltage_v",
+    "hall_carrier_density_per_m2",
+    "hall_antisym_resistance_ohm",
+    "field_even_resistance_ohm",
+    "longitudinal_sheet_conductivity_s_per_sq",
+    "longitudinal_sheet_resistance_ohm_per_sq",
+    "mobility_signed_m2_per_v_s",
+    "mobility_magnitude_m2_per_v_s",
+    "mobility_magnitude_cm2_per_v_s",
+]
+
+
 @dataclass(frozen=True)
 class HallAntisymResult:
     output_csv: Path
@@ -37,6 +51,16 @@ class HallAntisymResult:
     points: int
     magnetic_field_abs_t: float | None
     value_column: HallValueColumn
+
+
+@dataclass(frozen=True)
+class HallMobilityResult:
+    output_csv: Path
+    report_path: Path
+    metadata_path: Path
+    points: int
+    hall_antisym_source: Path
+    longitudinal_run_dir: Path
 
 
 def write_dual_gate_lockin_hall_antisym(
@@ -142,6 +166,93 @@ def write_dual_gate_lockin_hall_antisym(
     return HallAntisymResult(output_csv, report_path, metadata_path, len(rows), field_abs, value_column)
 
 
+def write_dual_gate_lockin_hall_mobility(
+    hall_antisym_source: str | Path,
+    longitudinal_run_dir: str | Path,
+    output_dir: str | Path | None = None,
+    overwrite: bool = False,
+) -> HallMobilityResult:
+    hall_source_path = Path(hall_antisym_source)
+    longitudinal_path = Path(longitudinal_run_dir)
+    output_path = Path(output_dir) if output_dir is not None else hall_source_path.with_name(
+        f"{hall_source_path.name}_mobility"
+    )
+    if output_path.exists() and any(output_path.iterdir()) and not overwrite:
+        raise FileExistsError(f"Output directory already exists and is not empty: {output_path}")
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    hall_csv = _resolve_hall_antisym_csv(hall_source_path)
+    hall_rows = _read_hall_antisym_rows(hall_csv)
+    longitudinal_metadata = read_dual_gate_lockin_metadata(longitudinal_path)
+    _validate_longitudinal_metadata(longitudinal_metadata)
+    longitudinal_points = read_dual_gate_lockin_points(longitudinal_path)
+    longitudinal_by_gate = _points_by_gate(longitudinal_points)
+
+    missing_longitudinal = sorted(set(hall_rows) - set(longitudinal_by_gate))
+    if missing_longitudinal:
+        raise ValueError(
+            "longitudinal run is missing gate points required by Hall antisym data; "
+            f"missing={missing_longitudinal[:3]}"
+        )
+
+    rows = []
+    for key in sorted(hall_rows):
+        hall_row = hall_rows[key]
+        longitudinal_point = longitudinal_by_gate[key]
+        density = hall_row["hall_carrier_density_per_m2"]
+        sheet_conductivity = _optional_float(longitudinal_point.get("lockin_sheet_conductivity_s_per_sq"))
+        sheet_resistance = _optional_float(longitudinal_point.get("lockin_sheet_resistance_ohm_per_sq"))
+        mobility_signed = None
+        mobility_magnitude = None
+        if density not in {None, 0.0} and sheet_conductivity is not None:
+            mobility_signed = sheet_conductivity / (ELEMENTARY_CHARGE_C * density)
+            mobility_magnitude = abs(sheet_conductivity) / (ELEMENTARY_CHARGE_C * abs(density))
+        rows.append(
+            {
+                "gate1_voltage_v": key[0],
+                "gate2_voltage_v": key[1],
+                "hall_carrier_density_per_m2": density,
+                "hall_antisym_resistance_ohm": hall_row["hall_antisym_resistance_ohm"],
+                "field_even_resistance_ohm": hall_row["field_even_resistance_ohm"],
+                "longitudinal_sheet_conductivity_s_per_sq": sheet_conductivity,
+                "longitudinal_sheet_resistance_ohm_per_sq": sheet_resistance,
+                "mobility_signed_m2_per_v_s": mobility_signed,
+                "mobility_magnitude_m2_per_v_s": mobility_magnitude,
+                "mobility_magnitude_cm2_per_v_s": None if mobility_magnitude is None else mobility_magnitude * 1.0e4,
+            }
+        )
+
+    output_csv = output_path / "hall_mobility.csv"
+    with output_csv.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=HALL_MOBILITY_COLUMNS)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    report_path = output_path / "hall_mobility_report.md"
+    report_path.write_text(
+        format_hall_mobility_report(hall_csv, longitudinal_path, rows),
+        encoding="utf-8",
+    )
+    metadata_path = output_path / "hall_mobility_metadata.json"
+    with metadata_path.open("w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "created_at": datetime.now().isoformat(timespec="seconds"),
+                "hall_antisym_csv": str(hall_csv),
+                "longitudinal_run_dir": str(longitudinal_path),
+                "points": len(rows),
+                "output_csv": str(output_csv),
+                "report_path": str(report_path),
+                "model": "mobility = sheet_conductivity / (e * hall_carrier_density)",
+            },
+            handle,
+            indent=2,
+            sort_keys=True,
+            default=str,
+        )
+    return HallMobilityResult(output_csv, report_path, metadata_path, len(rows), hall_csv, longitudinal_path)
+
+
 def format_hall_antisym_report(
     positive_run_dir: str | Path,
     negative_run_dir: str | Path,
@@ -177,6 +288,45 @@ def format_hall_antisym_report(
     )
 
 
+def format_hall_mobility_report(
+    hall_antisym_csv: str | Path,
+    longitudinal_run_dir: str | Path,
+    rows: list[dict[str, Any]],
+) -> str:
+    density_values = [float(row["hall_carrier_density_per_m2"]) for row in rows if row["hall_carrier_density_per_m2"] is not None]
+    conductivity_values = [
+        float(row["longitudinal_sheet_conductivity_s_per_sq"])
+        for row in rows
+        if row["longitudinal_sheet_conductivity_s_per_sq"] is not None
+    ]
+    mobility_values = [
+        float(row["mobility_magnitude_cm2_per_v_s"])
+        for row in rows
+        if row["mobility_magnitude_cm2_per_v_s"] is not None
+    ]
+    return "\n".join(
+        [
+            "# Hall Mobility Report",
+            "",
+            f"- Hall antisym CSV: `{hall_antisym_csv}`",
+            f"- Longitudinal Vxx run: `{longitudinal_run_dir}`",
+            f"- Matched gate points: {len(rows)}",
+            f"- Hall carrier density range: {_fmt(min(density_values) if density_values else None, ' m^-2')} to {_fmt(max(density_values) if density_values else None, ' m^-2')}",
+            f"- Sheet conductivity range: {_fmt(min(conductivity_values) if conductivity_values else None, ' S/sq')} to {_fmt(max(conductivity_values) if conductivity_values else None, ' S/sq')}",
+            f"- Mobility magnitude range: {_fmt(min(mobility_values) if mobility_values else None, ' cm^2/V/s')} to {_fmt(max(mobility_values) if mobility_values else None, ' cm^2/V/s')}",
+            "",
+            "## Model",
+            "",
+            "`mu_signed = sigma_sheet / (e * n_2d)`",
+            "",
+            "`|mu| = |sigma_sheet| / (e * |n_2d|)`",
+            "",
+            "The signed mobility follows the Hall-density sign convention; the magnitude column is usually the lab-facing value.",
+            "",
+        ]
+    )
+
+
 def _validate_hall_pair_metadata(positive_metadata: dict[str, Any], negative_metadata: dict[str, Any]) -> None:
     positive_field = _optional_float(positive_metadata.get("magnetic_field_t"))
     negative_field = _optional_float(negative_metadata.get("magnetic_field_t"))
@@ -193,6 +343,42 @@ def _validate_hall_pair_metadata(positive_metadata: dict[str, Any], negative_met
             raise ValueError(f"{label} run is not completed")
         if metadata.get("voltage_probe_role") != "hall":
             raise ValueError(f"{label} run voltage_probe_role must be hall")
+
+
+def _validate_longitudinal_metadata(metadata: dict[str, Any]) -> None:
+    if metadata.get("measurement_type") != "dual_gate_lockin_sweep":
+        raise ValueError("longitudinal run is not a dual_gate_lockin_sweep")
+    if metadata.get("completed") is not True:
+        raise ValueError("longitudinal run is not completed")
+    if metadata.get("voltage_probe_role") != "longitudinal":
+        raise ValueError("longitudinal run voltage_probe_role must be longitudinal")
+
+
+def _resolve_hall_antisym_csv(path: Path) -> Path:
+    if path.is_dir():
+        return path / "hall_antisym.csv"
+    return path
+
+
+def _read_hall_antisym_rows(path: Path) -> dict[tuple[float, float], dict[str, float | None]]:
+    if not path.exists():
+        raise FileNotFoundError(f"Missing Hall antisym CSV: {path}")
+    rows: dict[tuple[float, float], dict[str, float | None]] = {}
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        missing = set(HALL_ANTISYM_COLUMNS) - set(reader.fieldnames or [])
+        if missing:
+            raise ValueError(f"{path} is not a Hall antisym CSV; missing {sorted(missing)}")
+        for row in reader:
+            key = (float(row["gate1_voltage_v"]), float(row["gate2_voltage_v"]))
+            if key in rows:
+                raise ValueError(f"duplicate Hall antisym gate point: {key}")
+            rows[key] = {
+                "hall_carrier_density_per_m2": _csv_float(row["hall_carrier_density_per_m2"]),
+                "hall_antisym_resistance_ohm": _csv_float(row["hall_antisym_resistance_ohm"]),
+                "field_even_resistance_ohm": _csv_float(row["field_even_resistance_ohm"]),
+            }
+    return rows
 
 
 def _points_by_gate(points: list[dict[str, Any]]) -> dict[tuple[float, float], dict[str, Any]]:
@@ -224,6 +410,14 @@ def _value_to_resistance(value: float | None, point: dict[str, Any], value_colum
 def _optional_float(value: Any) -> float | None:
     if value is None:
         return None
+    if value == "":
+        return None
+    return float(value)
+
+
+def _csv_float(value: str | None) -> float | None:
+    if value is None or value == "":
+        return None
     return float(value)
 
 
@@ -235,4 +429,3 @@ def _fmt(value: float | None, suffix: str = "") -> str:
     if value is None:
         return "n/a"
     return f"{value:.6g}{suffix}"
-
