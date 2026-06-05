@@ -602,6 +602,10 @@ ptm dual-gate-lockin-hall-suite-handoff-summary data\hall_packages\sampleA_cd1_l
 This writes `handoff_summary/handoff_summary.md`,
 `handoff_summary/handoff_summary.json`, and copies the detailed validation,
 smoke, and hardware-command JSON records into the same folder.
+If a four-terminal AC smoke prerequisite is attached, the handoff summary also
+prints a `Four-terminal AC smoke prerequisite` check plus a dedicated section
+with the intake JSON path and PASS/REVIEW state. The read-only workflow status
+command shows the same prerequisite as a workflow stage before lab handoff.
 
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:

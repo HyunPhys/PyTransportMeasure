@@ -465,6 +465,9 @@ def write_dual_gate_lockin_hall_suite_handoff_summary(
     hardware_review_path.write_text(json.dumps(hardware_review, indent=2, sort_keys=True), encoding="utf-8")
 
     pass_state = bool(validation.get("valid")) and bool(smoke.get("completed")) and bool(hardware_review.get("valid"))
+    prerequisite_summary = _four_terminal_ac_smoke_prerequisite_from_validation(validation)
+    prerequisite_ok = prerequisite_summary["ok"] if prerequisite_summary["present"] else True
+    pass_state = pass_state and prerequisite_ok
     payload = {
         "package_dir": str(package_dir),
         "package_manifest": validation.get("package_manifest"),
@@ -473,9 +476,11 @@ def write_dual_gate_lockin_hall_suite_handoff_summary(
         "pass": pass_state,
         "checks": {
             "package_validation": bool(validation.get("valid")),
+            "four_terminal_ac_smoke_prerequisite": prerequisite_ok,
             "lab_smoke_bundle": bool(smoke.get("completed")),
             "hardware_command_review": bool(hardware_review.get("valid")),
         },
+        "four_terminal_ac_smoke_prerequisite": prerequisite_summary,
         "artifacts": {
             "package_validation_json": str(package_validation_path),
             "lab_smoke_bundle_json": str(smoke_json_path),
@@ -506,6 +511,7 @@ def format_dual_gate_lockin_hall_suite_handoff_summary(payload: dict) -> str:
         "| Check | Status |",
         "| --- | --- |",
         f"| Package validation | {'PASS' if checks.get('package_validation') else 'REVIEW'} |",
+        f"| Four-terminal AC smoke prerequisite | {'PASS' if checks.get('four_terminal_ac_smoke_prerequisite') else 'REVIEW'} |",
         f"| Lab smoke bundle | {'PASS' if checks.get('lab_smoke_bundle') else 'REVIEW'} |",
         f"| Hardware command review | {'PASS' if checks.get('hardware_command_review') else 'REVIEW'} |",
         "",
@@ -516,12 +522,95 @@ def format_dual_gate_lockin_hall_suite_handoff_summary(payload: dict) -> str:
         f"- Lab smoke bundle JSON: `{artifacts.get('lab_smoke_bundle_json')}`",
         f"- Hardware command review JSON: `{artifacts.get('hardware_command_review_json')}`",
         "",
+        "## Four-Terminal AC Prerequisite",
+        "",
+        *_format_four_terminal_ac_smoke_prerequisite_summary(payload.get("four_terminal_ac_smoke_prerequisite") or {}),
+        "",
         "## Lab Use",
         "",
         "Attach this summary to the lab notebook entry for the package. Run the lab smoke checklist on the lab laptop before any active hardware command.",
         "",
     ]
     return "\n".join(lines)
+
+
+def _four_terminal_ac_smoke_prerequisite_from_validation(validation: dict) -> dict:
+    checks = {
+        check.get("key"): check
+        for check in validation.get("checks", [])
+        if isinstance(check, dict)
+    }
+    present = "four_terminal_ac_smoke_prerequisite_record" in checks
+    if not present:
+        return {"present": False, "ok": True, "details": "not attached"}
+    prerequisite_checks = [
+        check
+        for key, check in checks.items()
+        if isinstance(key, str) and key.startswith("four_terminal_ac_smoke")
+    ]
+    ok = bool(prerequisite_checks) and all(bool(check.get("ok")) for check in prerequisite_checks)
+    json_check = checks.get("four_terminal_ac_smoke_intake_json") or {}
+    return {
+        "present": True,
+        "ok": ok,
+        "details": "PASS" if ok else "REVIEW",
+        "json_path": json_check.get("path"),
+        "checks": prerequisite_checks,
+    }
+
+
+def _format_four_terminal_ac_smoke_prerequisite_summary(summary: dict) -> list[str]:
+    if not summary.get("present"):
+        return [
+            "- Status: not attached",
+            "- Recommendation: attach a PASS `ptm ac-lockin-lab-smoke-intake --json-output` artifact before graphene Hall-bar hardware scans.",
+        ]
+    lines = [
+        f"- Status: {'PASS' if summary.get('ok') else 'REVIEW'}",
+        f"- Intake JSON: `{summary.get('json_path') or 'n/a'}`",
+    ]
+    failed = [check for check in summary.get("checks", []) if not check.get("ok")]
+    if failed:
+        lines.append("- Failed checks:")
+        lines.extend(f"  - {check.get('label')}: {check.get('details')}" for check in failed)
+    return lines
+
+
+def _four_terminal_ac_smoke_prerequisite_stage(manifest: dict, package_dir: Path) -> dict:
+    prerequisites = manifest.get("prerequisites")
+    record = prerequisites.get("four_terminal_ac_smoke_intake") if isinstance(prerequisites, dict) else None
+    if not isinstance(record, dict):
+        return {
+            "path": package_dir / "prerequisites",
+            "ok": False,
+            "details": "not attached",
+        }
+    value = record.get("path")
+    path = Path(str(value)) if value else package_dir / "prerequisites"
+    if not path.is_absolute():
+        path = package_dir / path
+    contacts_ok = (
+        isinstance(record.get("topology_excitation_contacts"), list)
+        and isinstance(record.get("topology_lockin_input_contacts"), list)
+        and len(record.get("topology_excitation_contacts")) == 2
+        and len(record.get("topology_lockin_input_contacts")) == 2
+        and not (set(record.get("topology_excitation_contacts")) & set(record.get("topology_lockin_input_contacts")))
+    )
+    ok = (
+        path.exists()
+        and record.get("accepted") is True
+        and bool(str(record.get("hardware_guard_approval_note") or "").strip())
+        and record.get("lockin_voltage_input") == "a-b"
+        and record.get("source_nplc") is not None
+        and contacts_ok
+    )
+    detail = "PASS" if ok else "REVIEW"
+    if ok:
+        detail = (
+            f"PASS; NPLC={record.get('source_nplc')}, "
+            f"contacts={record.get('topology_excitation_contacts')} -> {record.get('topology_lockin_input_contacts')}"
+        )
+    return {"path": path, "ok": ok, "details": detail}
 
 
 def write_dual_gate_lockin_hall_suite_lab_return_manifest(
@@ -1049,6 +1138,14 @@ def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir:
         package_dir / "lockin_audit",
         ok=lockin_audit_ok,
         details=lockin_audit_details,
+    )
+    prerequisite_stage = _four_terminal_ac_smoke_prerequisite_stage(manifest, package_dir)
+    add_stage(
+        "four_terminal_ac_smoke_prerequisite",
+        "Four-terminal AC smoke prerequisite",
+        prerequisite_stage["path"],
+        ok=prerequisite_stage["ok"],
+        details=prerequisite_stage["details"],
     )
 
     intake_json = package_dir / "result_intake.json"

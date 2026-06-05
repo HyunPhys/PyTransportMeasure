@@ -598,6 +598,10 @@ remain point-guarded.
   ```
 - [ ] Confirm `handoff_summary/handoff_summary.md` prints
   `Ready for lab handoff: True`.
+- [ ] If the package includes a four-terminal AC smoke prerequisite, confirm
+  `handoff_summary/handoff_summary.md` prints `Four-terminal AC smoke
+  prerequisite | PASS` and the prerequisite section points to the copied intake
+  JSON.
 - [ ] Print the lifecycle status before moving the package to the lab laptop.
   ```powershell
   ptm dual-gate-lockin-hall-suite-lifecycle-status data\hall_packages\<sample_lab_package> --json-output data\hall_packages\<sample_lab_package>\lifecycle_status.json
@@ -605,6 +609,8 @@ remain point-guarded.
 - [ ] Confirm lifecycle state is `ready_for_lab_handoff`.
 - [ ] Confirm lifecycle output says `Measurement conditions ready: True` and
   the Keithley/SR860 audit stages are PASS.
+- [ ] Print workflow status and confirm `Four-terminal AC smoke prerequisite`
+  is `PASS` when prerequisite evidence was attached.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.

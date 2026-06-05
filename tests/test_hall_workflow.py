@@ -210,7 +210,9 @@ def test_hall_package_records_four_terminal_ac_smoke_prerequisite(tmp_path):
     runbook = package.runbook_path.read_text(encoding="utf-8")
     prereq = manifest["prerequisites"]["four_terminal_ac_smoke_intake"]
     validation = validate_dual_gate_lockin_hall_suite_package_manifest(package.package_dir)
+    status = inspect_dual_gate_lockin_hall_suite_workflow_status(package.package_dir)
     check_by_key = {check["key"]: check for check in validation["checks"]}
+    stage_by_key = {stage["key"]: stage for stage in status["stages"]}
 
     assert prereq["accepted"] is True
     assert prereq["lockin_voltage_input"] == "a-b"
@@ -221,6 +223,8 @@ def test_hall_package_records_four_terminal_ac_smoke_prerequisite(tmp_path):
     assert validation["valid"] is True
     assert check_by_key["four_terminal_ac_smoke_accepted"]["ok"] is True
     assert check_by_key["four_terminal_ac_smoke_contacts"]["ok"] is True
+    assert stage_by_key["four_terminal_ac_smoke_prerequisite"]["ok"] is True
+    assert "NPLC=1.0" in stage_by_key["four_terminal_ac_smoke_prerequisite"]["details"]
 
 
 def test_hall_package_rejects_failed_four_terminal_ac_smoke_prerequisite(tmp_path):
@@ -323,15 +327,56 @@ def test_hall_handoff_summary_writes_single_pass_index(tmp_path):
     summary = json.loads((summary_dir / "handoff_summary.json").read_text(encoding="utf-8"))
     report = (summary_dir / "handoff_summary.md").read_text(encoding="utf-8")
     assert payload["pass"] is True
-    assert summary["checks"] == {
-        "hardware_command_review": True,
-        "lab_smoke_bundle": True,
-        "package_validation": True,
-    }
+    assert summary["checks"]["hardware_command_review"] is True
+    assert summary["checks"]["lab_smoke_bundle"] is True
+    assert summary["checks"]["package_validation"] is True
+    assert summary["checks"]["four_terminal_ac_smoke_prerequisite"] is True
+    assert summary["four_terminal_ac_smoke_prerequisite"]["present"] is False
     assert (summary_dir / "package_validation.json").exists()
     assert (summary_dir / "hardware_command_review.json").exists()
     assert (summary_dir / "lab_smoke_bundle.json").exists()
     assert "Ready for lab handoff: True" in report
+
+
+def test_hall_handoff_summary_reports_four_terminal_ac_prerequisite(tmp_path):
+    intake_json = _write_four_terminal_ac_smoke_intake_json(tmp_path)
+    template = write_dual_gate_lockin_hall_suite_template(
+        "configs/recipes/dual_gate_lockin_four_terminal_dry_run.yaml",
+        tmp_path / "suite",
+        measurement_prefix="workflow_graphene_handoff_prereq",
+        magnetic_field_t=1.0,
+        run_output_directory=tmp_path / "raw",
+    )
+    _shrink_suite_recipes(
+        [
+            template.longitudinal_recipe,
+            template.plus_hall_recipe,
+            template.minus_hall_recipe,
+            template.zero_hall_recipe,
+        ]
+    )
+    package = write_dual_gate_lockin_hall_suite_acquisition_package(
+        template.longitudinal_recipe,
+        template.plus_hall_recipe,
+        template.minus_hall_recipe,
+        tmp_path / "packages",
+        zero_hall_recipe=template.zero_hall_recipe,
+        package_name="workflow_graphene_handoff_prereq_package",
+        chunk_size=5,
+        four_terminal_ac_smoke_intake_json=intake_json,
+    )
+
+    payload = write_dual_gate_lockin_hall_suite_handoff_summary(package.package_dir)
+
+    summary = json.loads((package.package_dir / "handoff_summary" / "handoff_summary.json").read_text(encoding="utf-8"))
+    report = (package.package_dir / "handoff_summary" / "handoff_summary.md").read_text(encoding="utf-8")
+    assert payload["pass"] is True
+    assert summary["checks"]["four_terminal_ac_smoke_prerequisite"] is True
+    assert summary["four_terminal_ac_smoke_prerequisite"]["present"] is True
+    assert summary["four_terminal_ac_smoke_prerequisite"]["ok"] is True
+    assert "| Four-terminal AC smoke prerequisite | PASS |" in report
+    assert "## Four-Terminal AC Prerequisite" in report
+    assert "Status: PASS" in report
 
 
 def test_hall_lab_return_manifest_records_accepted_intake(tmp_path):

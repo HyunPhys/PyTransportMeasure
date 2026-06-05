@@ -667,6 +667,12 @@ root.
     SR860 A-B voltage input, separated contacts, or Keithley NPLC/ranges
   - copy the prerequisite JSON into the package and record it in the manifest
     and acquisition runbook
+- [x] Phase 25cz: Hall handoff prerequisite visibility
+  - surface the four-terminal AC smoke prerequisite in Hall workflow status
+  - include prerequisite PASS/REVIEW state in the lab handoff summary JSON and
+    markdown
+  - keep older packages valid while making attached prerequisite evidence easy
+    to audit before lab-laptop hardware work
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models
