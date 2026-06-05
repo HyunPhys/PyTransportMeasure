@@ -10,13 +10,11 @@ from typing import Any
 
 from .gui_session import GuiSessionLogger
 from .gui_services import (
-    DRAIN_IV_FORM_FIELDS,
     GuiFakeSettings,
+    GuiSchemaField,
     available_gui_methods,
     create_gui_feedback_bundle,
     default_recipe_text,
-    drain_iv_form_from_text,
-    drain_iv_text_from_form,
     format_hardware_confirmation_text,
     format_gui_plan_text,
     format_gui_progress,
@@ -34,6 +32,8 @@ from .gui_services import (
     run_gui_hardware_text,
     run_gui_dry_run_text,
     save_recipe_text,
+    schema_form_from_text,
+    schema_form_text_from_values,
     validate_recipe_text,
 )
 
@@ -471,8 +471,9 @@ class MainWindow(QMainWindow):
         self.workflow_text.setReadOnly(True)
         self.editor_text = QPlainTextEdit()
         self.form_fields: dict[str, Any] = {}
-        self.form_status = QLabel("Drain I-V form builder")
-        self.recipe_sync_status = QLabel("Execution source: Recipe YAML. Form is a helper editor for common Drain I-V fields.")
+        self.form_field_paths: list[str] = []
+        self.form_status = QLabel("Schema-driven recipe form")
+        self.recipe_sync_status = QLabel("Execution source: Recipe YAML. Form is generated from the current recipe schema.")
         self.validation_text = QPlainTextEdit()
         self.validation_text.setReadOnly(True)
         self.doctor_text = QPlainTextEdit()
@@ -609,7 +610,7 @@ class MainWindow(QMainWindow):
         measurement_tabs.addTab(self.workflow_text, "Workflow")
         measurement_tabs.addTab(self.recipe_overview_text, "Recipe Overview")
         measurement_tabs.addTab(self.plan_text, "Plan")
-        measurement_tabs.addTab(self.build_drain_iv_form(), "Drain I-V Form")
+        measurement_tabs.addTab(self.build_drain_iv_form(), "Recipe Form")
         measurement_tabs.addTab(self.editor_text, "Recipe YAML")
         measurement_tabs.addTab(self.validation_text, "Validation")
         measurement_tabs.addTab(self.preflight_text, "Preflight")
@@ -690,61 +691,10 @@ class MainWindow(QMainWindow):
 
     def build_drain_iv_form(self) -> QWidget:
         container = QWidget()
+        self.schema_form_container = container
         layout = QVBoxLayout(container)
+        self.schema_form_layout = layout
         layout.addWidget(self.form_status)
-
-        measurement_box = QGroupBox("Measurement")
-        measurement_layout = QFormLayout(measurement_box)
-        self.add_form_line(measurement_layout, "measurement_name", "Name")
-        self.add_form_line(measurement_layout, "sample_id", "Sample")
-        self.add_form_line(measurement_layout, "device_id", "Device")
-        self.add_form_line(measurement_layout, "cooldown_id", "Cooldown")
-        self.add_form_line(measurement_layout, "contact_geometry", "Contact geometry")
-        self.add_form_line(measurement_layout, "contact_notes", "Contact notes")
-        self.add_form_line(measurement_layout, "lab_notebook_ref", "Notebook ref")
-        self.add_form_line(measurement_layout, "operator", "Operator")
-        self.add_form_line(measurement_layout, "notes", "Notes")
-        self.add_form_line(measurement_layout, "tags", "Tags")
-        layout.addWidget(measurement_box)
-
-        instrument_box = QGroupBox("Instrument")
-        instrument_layout = QFormLayout(instrument_box)
-        self.add_form_line(instrument_layout, "instrument_id", "Instrument ID")
-        self.add_form_line(instrument_layout, "address", "VISA address")
-        self.add_form_line(instrument_layout, "timeout_ms", "Timeout ms")
-        terminal = QComboBox()
-        terminal.addItems(["", "FRONT", "REAR"])
-        self.form_fields["terminal"] = terminal
-        instrument_layout.addRow("Terminal", terminal)
-        self.add_form_line(instrument_layout, "voltage_range_v", "Voltage range V")
-        self.add_form_line(instrument_layout, "current_range_a", "Current range A")
-        layout.addWidget(instrument_box)
-
-        sweep_box = QGroupBox("Sweep")
-        sweep_layout = QFormLayout(sweep_box)
-        sweep_mode = QComboBox()
-        sweep_mode.addItems(["linear_one_way", "forward_backward"])
-        self.form_fields["sweep_mode"] = sweep_mode
-        sweep_layout.addRow("Mode", sweep_mode)
-        self.add_form_line(sweep_layout, "start_v", "Start V")
-        self.add_form_line(sweep_layout, "stop_v", "Stop V")
-        self.add_form_line(sweep_layout, "points", "Points")
-        self.add_form_line(sweep_layout, "delay_s", "Delay s")
-        self.add_form_line(sweep_layout, "current_compliance_a", "Compliance A")
-        layout.addWidget(sweep_box)
-
-        safety_box = QGroupBox("Safety and Output")
-        safety_layout = QFormLayout(safety_box)
-        self.add_form_line(safety_layout, "safety_preset", "Safety preset")
-        self.add_form_line(safety_layout, "output_directory", "Output dir")
-        require_completed = QComboBox()
-        require_completed.addItems(["true", "false"])
-        self.form_fields["require_completed"] = require_completed
-        safety_layout.addRow("Require completed", require_completed)
-        self.add_form_line(safety_layout, "min_points", "Min points")
-        self.add_form_line(safety_layout, "resistance_min_ohm", "Min R ohm")
-        self.add_form_line(safety_layout, "resistance_max_ohm", "Max R ohm")
-        layout.addWidget(safety_box)
         layout.addStretch(1)
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -758,11 +708,6 @@ class MainWindow(QMainWindow):
 
     def connect_recipe_sync_signals(self) -> None:
         self.editor_text.textChanged.connect(self.handle_yaml_text_changed)
-        for widget in self.form_fields.values():
-            if isinstance(widget, QComboBox):
-                widget.currentTextChanged.connect(self.handle_form_value_changed)
-            else:
-                widget.textChanged.connect(self.handle_form_value_changed)
 
     def handle_yaml_text_changed(self) -> None:
         if self._syncing_recipe_widgets:
@@ -889,12 +834,10 @@ class MainWindow(QMainWindow):
                 self._syncing_recipe_widgets = False
         if hasattr(self, "load_form_button"):
             is_drain_iv = self.current_method() == "drain_iv"
-            self.load_form_button.setEnabled(is_drain_iv)
-            self.apply_form_button.setEnabled(is_drain_iv)
+            self.load_form_button.setEnabled(True)
+            self.apply_form_button.setEnabled(True)
             self.preflight_button.setEnabled(is_drain_iv)
             self.hardware_run_button.setEnabled(is_drain_iv)
-            if not is_drain_iv and hasattr(self, "form_status"):
-                self.form_status.setText("Structured form is available for Drain I-V recipes in this phase.")
         if hasattr(self, "workflow_text"):
             self.reset_workflow_after_recipe_change("Default recipe loaded. Click Check YAML.")
 
@@ -938,36 +881,30 @@ class MainWindow(QMainWindow):
         self.log_session(f"Recipe loaded into editor: {self.recipe_path()}")
 
     def load_form_from_editor(self, silent: bool = False) -> bool:
-        if self.current_method() != "drain_iv":
-            self.form_status.setText("Structured form is available for Drain I-V recipes in this phase.")
-            return False
         try:
             was_syncing = self._syncing_recipe_widgets
             self._syncing_recipe_widgets = True
-            values = drain_iv_form_from_text(self.editor_text.toPlainText())
-            self.set_form_values(values)
+            sections = schema_form_from_text(self.current_method(), self.editor_text.toPlainText())
+            self.rebuild_schema_form(sections)
         except Exception as exc:
             if not silent:
                 self.show_error(exc)
-            self.form_status.setText("Could not load Drain I-V form from YAML")
+            self.form_status.setText("Could not load schema form from YAML")
             return False
         finally:
             self._syncing_recipe_widgets = was_syncing if "was_syncing" in locals() else False
-        self.form_status.setText("Drain I-V form loaded from YAML")
+        self.form_status.setText(f"{available_gui_methods().get(self.current_method(), self.current_method())} form loaded from YAML")
         self.recipe_sync_status.setText("Form is synced from YAML. YAML remains the execution source.")
         if not silent:
             self.status_label.setText("Form loaded from YAML")
         return True
 
     def apply_form_to_editor(self) -> bool:
-        if self.current_method() != "drain_iv":
-            self.form_status.setText("Structured form is available for Drain I-V recipes in this phase.")
-            return False
         try:
-            text = drain_iv_text_from_form(self.form_values())
+            text = schema_form_text_from_values(self.current_method(), self.editor_text.toPlainText(), self.form_values())
         except Exception as exc:
             self.show_error(exc)
-            self.form_status.setText("Could not apply Drain I-V form")
+            self.form_status.setText("Could not apply schema form")
             return False
         try:
             self._syncing_recipe_widgets = True
@@ -977,16 +914,17 @@ class MainWindow(QMainWindow):
         self.validation_text.clear()
         self.sync_recipe_address_to_instrument_combo()
         self.update_recipe_overview()
-        self.form_status.setText("Drain I-V YAML updated from form")
+        self.load_form_from_editor(silent=True)
+        self.form_status.setText("YAML updated from schema form")
         self.recipe_sync_status.setText("YAML regenerated from form. YAML is now the execution source for runs.")
         self.reset_workflow_after_recipe_change("YAML regenerated from form. Click Check YAML next.")
         self.status_label.setText("YAML updated from form")
-        self.log_session("Drain I-V form applied to YAML editor")
+        self.log_session(f"Schema form applied to YAML editor for {self.current_method()}")
         return True
 
     def form_values(self) -> dict[str, str]:
         values = {}
-        for key in DRAIN_IV_FORM_FIELDS:
+        for key in self.form_field_paths:
             widget = self.form_fields.get(key)
             if widget is None:
                 values[key] = ""
@@ -996,16 +934,54 @@ class MainWindow(QMainWindow):
                 values[key] = widget.text()
         return values
 
-    def set_form_values(self, values: dict[str, str]) -> None:
-        for key, value in values.items():
-            widget = self.form_fields.get(key)
-            if widget is None:
-                continue
-            if isinstance(widget, QComboBox):
-                index = widget.findText(value)
-                widget.setCurrentIndex(index if index >= 0 else 0)
-            else:
-                widget.setText(value)
+    def rebuild_schema_form(self, sections: Any) -> None:
+        if not hasattr(self, "schema_form_layout"):
+            return
+        while self.schema_form_layout.count():
+            item = self.schema_form_layout.takeAt(0)
+            widget = item.widget()
+            if widget is self.form_status:
+                widget.setParent(None)
+            elif widget is not None:
+                widget.deleteLater()
+        self.form_fields = {}
+        self.form_field_paths = []
+        self.schema_form_layout.addWidget(self.form_status)
+        for section in sections:
+            box = QGroupBox(section.title)
+            form_layout = QFormLayout(box)
+            form_layout.setFieldGrowthPolicy(QFormLayout.ExpandingFieldsGrow)
+            for field in section.fields:
+                widget = self.schema_widget_for_field(field)
+                label = field.label + (" *" if field.required else "")
+                form_layout.addRow(label, widget)
+                self.form_fields[field.path] = widget
+                self.form_field_paths.append(field.path)
+                leaf = field.path.split(".")[-1]
+                if leaf not in self.form_fields:
+                    self.form_fields[leaf] = widget
+                if isinstance(widget, QComboBox):
+                    widget.currentTextChanged.connect(self.handle_form_value_changed)
+                else:
+                    widget.textChanged.connect(self.handle_form_value_changed)
+            self.schema_form_layout.addWidget(box)
+        self.schema_form_layout.addStretch(1)
+
+    def schema_widget_for_field(self, field: GuiSchemaField) -> Any:
+        if field.kind == "choice":
+            widget = QComboBox()
+            widget.addItems(list(field.choices))
+            index = widget.findText(field.value)
+            widget.setCurrentIndex(index if index >= 0 else 0)
+            return widget
+        if field.kind == "bool":
+            widget = QComboBox()
+            widget.addItems(["true", "false"])
+            widget.setCurrentIndex(0 if field.value.lower() == "true" else 1)
+            return widget
+        widget = QLineEdit(field.value)
+        widget.setToolTip(field.path)
+        return widget
 
     def validate_editor(self) -> bool:
         ok, message = validate_recipe_text(

@@ -25,7 +25,7 @@ Current verified setup and supported workflows:
   fixes for collapsed dry-run settings, window resizing, log scrolling,
   workspace-separated instruments/analysis views, instrument refresh and
   communication tests, YAML/Form sync status, and live I-V plotting
-  plus a method-aware Recipe Overview tab
+  plus a method-aware Recipe Overview tab and schema-driven Recipe Form
 - Extensibility roadmap for later 4-probe hardware, SR860 hardware acquisition,
   pulse hardware, and GUI work
 - YAML recipe input
@@ -102,6 +102,7 @@ ptm-gui
 - GUI run filters: [docs/phase45_gui_run_filters.md](docs/phase45_gui_run_filters.md)
 - GUI Analysis source folder and sorting: [docs/phase46_gui_analysis_source_and_sort.md](docs/phase46_gui_analysis_source_and_sort.md)
 - GUI Recipe Overview: [docs/phase47_gui_recipe_overview.md](docs/phase47_gui_recipe_overview.md)
+- GUI schema recipe builder: [docs/phase48_gui_schema_recipe_builder.md](docs/phase48_gui_schema_recipe_builder.md)
 
 ## Hardware Smoke Test
 

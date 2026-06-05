@@ -60,6 +60,22 @@ class GuiRunResult:
         return Path(str(self.metadata["run_dir"]))
 
 
+@dataclass(frozen=True)
+class GuiSchemaField:
+    path: str
+    label: str
+    value: str
+    kind: Literal["text", "bool", "choice", "list", "yaml"] = "text"
+    choices: tuple[str, ...] = ()
+    required: bool = False
+
+
+@dataclass(frozen=True)
+class GuiSchemaSection:
+    title: str
+    fields: tuple[GuiSchemaField, ...]
+
+
 DRAIN_IV_FORM_FIELDS = [
     "measurement_name",
     "sample_id",
@@ -158,6 +174,191 @@ def save_recipe_text(
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(text, encoding="utf-8")
     return output
+
+
+def schema_form_from_text(measurement_type: GuiMethod, text: str) -> tuple[GuiSchemaSection, ...]:
+    recipe = load_recipe_from_text(measurement_type, text)
+    data = recipe.model_dump(mode="json", exclude_none=False)
+    schema = type(recipe).model_json_schema()
+    sections: list[GuiSchemaSection] = []
+    general_fields: list[GuiSchemaField] = []
+    root_required = set(schema.get("required") or [])
+    properties = schema.get("properties") or {}
+
+    for key, value in data.items():
+        node = _resolve_schema_node(schema, properties.get(key) or {})
+        if isinstance(value, dict):
+            fields = _schema_fields_for_mapping(
+                schema,
+                node,
+                value,
+                parent_path=key,
+                parent_label="",
+            )
+            if fields:
+                sections.append(GuiSchemaSection(_overview_title(key), tuple(fields)))
+        else:
+            general_fields.append(_schema_field(schema, node, key, value, required=key in root_required))
+    if general_fields:
+        sections.insert(0, GuiSchemaSection("General", tuple(general_fields)))
+    return tuple(sections)
+
+
+def schema_form_text_from_values(
+    measurement_type: GuiMethod,
+    text: str,
+    values: dict[str, str],
+) -> str:
+    recipe = load_recipe_from_text(measurement_type, text)
+    data = recipe.model_dump(mode="json", exclude_none=False)
+    schema = type(recipe).model_json_schema()
+    properties = schema.get("properties") or {}
+    for path, raw_value in values.items():
+        path_parts = path.split(".")
+        node = _schema_node_for_path(schema, properties, path_parts)
+        _set_nested_value(data, path_parts, _parse_schema_value(schema, node, raw_value))
+    validated = recipe_from_mapping(measurement_type, data)
+    return yaml.safe_dump(validated.model_dump(mode="json", exclude_none=True), sort_keys=False)
+
+
+def _schema_fields_for_mapping(
+    root_schema: dict[str, Any],
+    schema_node: dict[str, Any],
+    values: dict[str, Any],
+    parent_path: str,
+    parent_label: str,
+) -> list[GuiSchemaField]:
+    fields: list[GuiSchemaField] = []
+    schema_node = _resolve_schema_node(root_schema, schema_node)
+    required = set(schema_node.get("required") or [])
+    properties = schema_node.get("properties") or {}
+    for key, value in values.items():
+        path = f"{parent_path}.{key}"
+        label = _overview_label(key) if not parent_label else f"{parent_label} / {_overview_label(key)}"
+        node = _resolve_schema_node(root_schema, properties.get(key) or {})
+        if isinstance(value, dict) and _schema_node_type(root_schema, node) == "object":
+            fields.extend(_schema_fields_for_mapping(root_schema, node, value, path, label))
+        else:
+            fields.append(_schema_field(root_schema, node, path, value, required=key in required, label=label))
+    return fields
+
+
+def _schema_field(
+    root_schema: dict[str, Any],
+    schema_node: dict[str, Any],
+    path: str,
+    value: Any,
+    required: bool,
+    label: str | None = None,
+) -> GuiSchemaField:
+    schema_node = _resolve_schema_node(root_schema, schema_node)
+    choices = tuple(str(choice) for choice in schema_node.get("enum") or [])
+    if choices and not required:
+        choices = ("",) + choices
+    if choices:
+        kind: Literal["text", "bool", "choice", "list", "yaml"] = "choice"
+    elif _schema_node_type(root_schema, schema_node) == "boolean" or isinstance(value, bool):
+        kind = "bool"
+    elif isinstance(value, list) and all(not isinstance(item, dict) for item in value):
+        kind = "list"
+    elif isinstance(value, (dict, list)):
+        kind = "yaml"
+    else:
+        kind = "text"
+    return GuiSchemaField(
+        path=path,
+        label=label or _overview_label(path),
+        value=_schema_form_value(value, kind),
+        kind=kind,
+        choices=choices,
+        required=required,
+    )
+
+
+def _schema_form_value(value: Any, kind: str) -> str:
+    if value is None:
+        return ""
+    if kind == "bool":
+        return str(bool(value)).lower()
+    if kind == "list" and isinstance(value, list):
+        return ", ".join(str(item) for item in value)
+    if kind == "yaml":
+        return yaml.safe_dump(value, sort_keys=False).strip()
+    if isinstance(value, float):
+        return f"{value:g}"
+    return str(value)
+
+
+def _schema_node_for_path(root_schema: dict[str, Any], properties: dict[str, Any], path_parts: list[str]) -> dict[str, Any]:
+    node = _resolve_schema_node(root_schema, properties.get(path_parts[0]) or {})
+    for part in path_parts[1:]:
+        node = _resolve_schema_node(root_schema, node)
+        node = _resolve_schema_node(root_schema, (node.get("properties") or {}).get(part) or {})
+    return node
+
+
+def _parse_schema_value(root_schema: dict[str, Any], schema_node: dict[str, Any], raw_value: str) -> Any:
+    text = raw_value.strip()
+    schema_node = _resolve_schema_node(root_schema, schema_node)
+    node_type = _schema_node_type(root_schema, schema_node)
+    if text == "" and schema_node.get("enum"):
+        return None
+    if schema_node.get("enum"):
+        return text
+    if node_type == "boolean":
+        return _bool_from_text(text or "false")
+    if node_type == "integer":
+        return int(text)
+    if node_type == "number":
+        return float(text)
+    if node_type == "array":
+        if text == "":
+            return []
+        item_node = _resolve_schema_node(root_schema, schema_node.get("items") or {})
+        if _schema_node_type(root_schema, item_node) == "object":
+            parsed = yaml.safe_load(text) if text else []
+            return parsed or []
+        return [item.strip() for item in text.split(",") if item.strip()]
+    if node_type == "object":
+        if text == "":
+            return {}
+        parsed = yaml.safe_load(text) if text else {}
+        return parsed or {}
+    if text == "":
+        return None
+    return text
+
+
+def _set_nested_value(data: dict[str, Any], path_parts: list[str], value: Any) -> None:
+    cursor = data
+    for part in path_parts[:-1]:
+        next_value = cursor.get(part)
+        if not isinstance(next_value, dict):
+            next_value = {}
+            cursor[part] = next_value
+        cursor = next_value
+    cursor[path_parts[-1]] = value
+
+
+def _resolve_schema_node(root_schema: dict[str, Any], node: dict[str, Any]) -> dict[str, Any]:
+    if "$ref" in node:
+        ref_name = str(node["$ref"]).split("/")[-1]
+        return _resolve_schema_node(root_schema, (root_schema.get("$defs") or {}).get(ref_name) or {})
+    for key in ["anyOf", "oneOf"]:
+        options = node.get(key)
+        if isinstance(options, list):
+            for option in options:
+                resolved = _resolve_schema_node(root_schema, option)
+                if resolved.get("type") != "null":
+                    merged = dict(resolved)
+                    if "default" in node and "default" not in merged:
+                        merged["default"] = node["default"]
+                    return merged
+    return node
+
+
+def _schema_node_type(root_schema: dict[str, Any], node: dict[str, Any]) -> str | None:
+    return _resolve_schema_node(root_schema, node).get("type")
 
 
 def drain_iv_form_from_text(text: str) -> dict[str, str]:

@@ -368,9 +368,9 @@ ptm-gui
 
 The current GUI phase supports method selection, recipe selection, YAML recipe
 editing, a method-aware Recipe Overview, schema validation, saving edited
-recipes, plan preview, dry-run execution, summary, metadata, in-app points-based
-plot preview, report preview, indexed run browsing, opening generated run
-artifacts, structured Drain I-V recipe editing, editor-backed plan/dry-run, lab
+recipes, schema-driven Recipe Form editing, plan preview, dry-run execution,
+summary, metadata, in-app points-based plot preview, report preview, indexed run
+browsing, opening generated run artifacts, editor-backed plan/dry-run, lab
 doctor, Drain I-V preflight, and guarded Drain I-V hardware runs with progress
 streaming and persistent GUI session logs. The GUI is organized into
 `Measurement`, `Instruments`, and `Analysis` workspaces. `Measurement >
@@ -403,17 +403,23 @@ It requests a cooperative stop at the next safe runner checkpoint. Interrupted
 runs keep partial CSV/metadata artifacts, set `interrupted: true`, and still use
 the runner cleanup path that turns Keithley output off.
 
-Drain I-V form workflow:
+Recipe Form workflow:
 
-1. Select `Drain I-V`.
-2. Open `Drain I-V Form`.
-3. Edit sample/device context, cooldown/contact/notebook metadata, address,
-   terminal, voltage/current ranges, sweep, safety preset, output directory, and
-   optional quality checks.
-4. Click `Form -> YAML`.
-5. Click `Plan` to preview the current editor draft.
-6. Open `Validation` and check that the recipe passes.
-7. Run a dry-run before saving or running the recipe on hardware.
+1. Select a measurement method.
+2. Open `Recipe Form`.
+3. Click `YAML -> Form` if the form should be rebuilt from the current YAML
+   editor text.
+4. Edit method-specific fields such as experiment metadata, instrument blocks,
+   sweep settings, pulse settings, lock-in settings, safety preset, output
+   directory, and optional quality checks.
+5. Click `Form -> YAML`.
+6. Click `Check YAML`.
+7. Click `Plan` to preview the current editor draft.
+8. Run a dry-run before saving or running the recipe on hardware.
+
+The schema-driven Recipe Form supports Drain I-V, single-gate, AC lock-in, and
+pulse recipes. Advanced YAML remains available for complex fields that are not
+comfortable to edit in a simple form.
 
 Recipe editing workflow:
 
@@ -436,9 +442,10 @@ Recipe tool button meanings:
 - `Check YAML`: validate the current editor YAML against recipe schema and
   safety rules.
 - `Save YAML As`: write the current editor YAML to a chosen file.
-- `YAML -> Form`: copy values from the current YAML editor into the structured
-  Drain I-V form.
-- `Form -> YAML`: regenerate the YAML editor contents from the structured form.
+- `YAML -> Form`: parse the current YAML editor text and rebuild the method
+  form from the recipe schema.
+- `Form -> YAML`: regenerate the YAML editor contents from the schema-driven
+  form, then validate it through the method recipe model.
 
 `Recipe Overview` is read-only and updates from the current YAML editor text. It
 is for quick structural inspection; `Plan` remains the exact sweep and safety

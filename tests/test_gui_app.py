@@ -47,6 +47,7 @@ def test_gui_has_measurement_instrument_and_analysis_workspaces(app):
     assert "Instruments" in tab_labels
     assert "Analysis" in tab_labels
     assert "Recipe Overview" in tab_labels
+    assert "Recipe Form" in tab_labels
     assert "Doctor" not in tab_labels
     assert window.doctor_button.text() == "Full Doctor"
     assert window.refresh_instruments_button.text() == "Refresh Instruments"
@@ -65,9 +66,12 @@ def test_gui_recipe_tool_labels_are_distinct(app):
     assert window.apply_form_button.text() == "Form -> YAML"
     assert window.instrument_address_combo.currentText()
     assert "Execution source" in window.recipe_sync_status.text()
+    assert "Schema" in window.form_status.text() or "form loaded from YAML" in window.form_status.text()
     assert "cooldown_id" in window.form_fields
     assert "contact_geometry" in window.form_fields
     assert "lab_notebook_ref" in window.form_fields
+    assert "experiment.cooldown_id" in window.form_fields
+    assert "instrument.address" in window.form_fields
     window.close()
 
 
@@ -85,6 +89,26 @@ def test_gui_recipe_sync_status_tracks_yaml_and_form_edits(app):
 
     assert window.apply_form_to_editor()
     assert "YAML regenerated from form" in window.recipe_sync_status.text()
+    window.close()
+
+
+def test_gui_schema_form_supports_non_drain_methods(app):
+    window = MainWindow()
+
+    index = window.method_combo.findData("pulse_measurement")
+    window.method_combo.setCurrentIndex(index)
+
+    assert "pulse.count" in window.form_fields
+    assert "source_instrument.address" in window.form_fields
+    window.form_fields["measurement_name"].setText("gui_schema_pulse")
+    window.form_fields["pulse.count"].setText("6")
+
+    assert window.apply_form_to_editor()
+    text = window.editor_text.toPlainText()
+
+    assert "measurement_name: gui_schema_pulse" in text
+    assert "count: 6" in text
+    assert "Pulse measurement" in window.recipe_overview_text.toPlainText()
     window.close()
 
 

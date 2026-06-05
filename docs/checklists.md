@@ -19,7 +19,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
 - [x] GUI recipe builder foundation supports YAML edit, validation, and save.
 - [x] GUI run browser can load indexed runs and open artifacts.
 - [x] GUI plot preview renders saved SVG plots in-app.
-- [x] GUI Drain I-V form builder can generate validated YAML for common sweeps.
+- [x] GUI schema Recipe Form can generate validated YAML for Drain I-V,
+  single-gate, AC lock-in, and pulse recipes.
 - [x] GUI plan and dry-run use the current editor YAML draft.
 - [x] GUI Drain I-V preflight uses the current editor YAML draft.
 - [x] GUI guarded Drain I-V hardware run uses confirmation and preflight gating.
@@ -51,6 +52,8 @@ PyTransportMeasure. Use the smallest checklist that matches the task.
   highlight the currently loaded row.
 - [x] GUI Recipe Overview summarizes the current YAML by method, experiment,
   instrument, sweep/pulse/lock-in, output, and checks.
+- [x] GUI Recipe Form is generated from the current method recipe schema rather
+  than a Drain I-V-only form.
 - [ ] 4-probe / remote sense is documented as TODO, not implemented.
 - [ ] Single-gate, AC/lock-in, pulse, and 4-probe GUI hardware runs are future
   milestones.
@@ -348,8 +351,14 @@ Use this checklist before pulse hardware work begins.
   - [ ] AC lock-in sweep
   - [ ] Pulse measurement
 - [ ] Click `Plan` and confirm the plan text matches the selected recipe.
-- [ ] Select `Drain I-V`, open `Drain I-V Form`, edit one non-hardware field,
-  and click `Form -> YAML`.
+- [ ] Select `Drain I-V`, open `Recipe Form`, edit one non-hardware field, and
+  click `Form -> YAML`.
+- [ ] Select `Pulse measurement`, open `Recipe Form`, edit `pulse.count`, and
+  click `Form -> YAML`.
+- [ ] Select `AC lock-in sweep` and confirm lock-in fields appear in
+  `Recipe Form`.
+- [ ] Select `Single-gate sweep` and confirm drain/gate instrument fields appear
+  in `Recipe Form`.
 - [ ] Confirm the Recipe Tools status says form edits are not used until
   `Form -> YAML`.
 - [ ] Open `Recipe YAML` and confirm the generated YAML reflects the form value.

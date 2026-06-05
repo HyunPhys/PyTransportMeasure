@@ -17,6 +17,7 @@ from pytransport.gui_services import (
     refresh_gui_instruments,
     list_gui_runs,
     load_gui_saved_run,
+    load_recipe_from_text,
     primary_plot_path,
     primary_report_path,
     run_gui_doctor_text,
@@ -24,6 +25,8 @@ from pytransport.gui_services import (
     run_gui_preflight_text,
     run_gui_hardware_text,
     save_recipe_text,
+    schema_form_from_text,
+    schema_form_text_from_values,
     validate_recipe_text,
     run_gui_dry_run,
     run_gui_dry_run_text,
@@ -89,6 +92,61 @@ def test_gui_recipe_overview_is_method_aware_for_pulse_recipe():
     assert "Pulse" in overview
     assert "- amplitude v:" in overview
     assert "Pulse Limits" in overview
+
+
+def test_schema_form_round_trips_drain_iv_common_fields():
+    text = default_recipe_text("drain_iv")
+    sections = schema_form_from_text("drain_iv", text)
+    fields = {field.path: field for section in sections for field in section.fields}
+
+    assert "measurement_name" in fields
+    assert fields["measurement_name"].value == "drain_iv_1k_resistor_check"
+    assert fields["experiment.cooldown_id"].value == ""
+    assert fields["instrument.terminal"].kind == "choice"
+    assert "" in fields["instrument.terminal"].choices
+    assert fields["sweep.points"].value == "21"
+
+    updated = schema_form_text_from_values(
+        "drain_iv",
+        text,
+        {
+            "measurement_name": "schema_form_drain",
+            "experiment.cooldown_id": "cd-schema",
+            "sweep.points": "11",
+            "checks.min_points": "11",
+        },
+    )
+    round_trip = drain_iv_form_from_text(updated)
+
+    assert round_trip["measurement_name"] == "schema_form_drain"
+    assert round_trip["cooldown_id"] == "cd-schema"
+    assert round_trip["points"] == "11"
+    assert round_trip["min_points"] == "11"
+
+
+def test_schema_form_supports_pulse_recipe_values():
+    text = default_recipe_text("pulse_measurement")
+    sections = schema_form_from_text("pulse_measurement", text)
+    fields = {field.path: field for section in sections for field in section.fields}
+
+    assert "source_instrument.address" in fields
+    assert "pulse.amplitude_v" in fields
+    assert "pulse_limits.max_abs_pulse_v" in fields
+
+    updated = schema_form_text_from_values(
+        "pulse_measurement",
+        text,
+        {
+            "measurement_name": "schema_form_pulse",
+            "pulse.count": "7",
+            "checks.min_points": "7",
+        },
+    )
+    recipe = load_recipe_from_text("pulse_measurement", updated)
+
+    assert recipe.measurement_name == "schema_form_pulse"
+    assert recipe.pulse.count == 7
+    assert recipe.checks.min_points == 7
 
 
 def test_gui_recipe_editor_validates_default_recipe_text(tmp_path):

@@ -219,13 +219,19 @@ This roadmap tracks the large development phases. Completed items are checked.
   - update the overview from the editor YAML without adding GUI-only recipe
     parsing
   - keep the path open for schema-driven form builder work
+- [x] Phase 24y: GUI schema recipe builder MVP
+  - generate `Recipe Form` fields from validated Pydantic recipe models
+  - support Drain I-V, single-gate, AC lock-in, and pulse recipe editing through
+    one form path
+  - apply form values back to YAML through the method recipe model
+  - keep advanced YAML editing available for complex fields
 
 ## Next GUI
 
-- [ ] Phase 24b: GUI schema form builder
-  - schema-driven forms for common recipe fields
-  - reusable scheme builder
-  - YAML/form synchronization
+- [ ] Phase 24z: GUI scheme builder
+  - compose multiple recipes and method steps from the GUI
+  - expose scheme overrides without hand-editing YAML
+  - keep generated scheme YAML visible and editable
 - [ ] Phase 25: GUI hardware-run controls
   - guarded preflight view
   - explicit confirmation
