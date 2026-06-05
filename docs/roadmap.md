@@ -482,11 +482,16 @@ root.
   - include a hardware runbook that highlights changed gate grid and preserved
     NPLC/range/compliance/SR860 settings
   - keep chunked acquisition and post-run intake as the default hardware path
-- [ ] Phase 25bn: Approved next-scan dry-run package rehearsal
+- [x] Phase 25bn: Approved next-scan dry-run package rehearsal
   - run the approved next-scan package through fake acquisition, intake,
     analysis, review, and proposal in one verification workflow
   - verify package provenance survives the full loop
   - keep the rehearsal hardware-free for local development
+- [ ] Phase 25bo: Hall workflow command consolidation
+  - add one read-only workflow status command for Hall-suite packages
+  - summarize which stages exist: package, rehearsal, intake, analysis, review,
+    proposal, approval, approved package
+  - keep hardware execution separate from status/reporting commands
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

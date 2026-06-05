@@ -644,6 +644,20 @@ def test_cli_dual_gate_lockin_hall_suite_intake_accepts_packaged_completed_runs(
     assert any(name.endswith("hall_suite_next_scan_proposal.json") for name in names)
     assert any(name.endswith("approved_graphene_approved_next_scan_review.md") for name in names)
 
+    code = main(
+        [
+            "dual-gate-lockin-hall-suite-approved-next-scan-rehearse",
+            str(approved_package),
+        ]
+    )
+    assert code == 0
+    rehearsal = approved_package / "dry_run_rehearsal"
+    rehearsal_payload = json.loads((rehearsal / "rehearsal_summary.json").read_text(encoding="utf-8"))
+    assert rehearsal_payload["completed"] is True
+    assert "approved_next_scan" in rehearsal_payload
+    assert (rehearsal / "hall_analysis" / "hall_suite_analysis_review.json").exists()
+    assert (rehearsal / "hall_analysis" / "hall_suite_next_scan_proposal.json").exists()
+
 
 def test_cli_dual_gate_lockin_hall_suite_intake_rejects_recipe_mismatch(tmp_path):
     result = write_dual_gate_lockin_hall_suite_template(

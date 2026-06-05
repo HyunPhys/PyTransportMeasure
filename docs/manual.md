@@ -596,6 +596,20 @@ contains copied recipes plus the proposal/review files. Use the chunked
 acquisition commands in that runbook and run result intake against this package
 after the lab measurement.
 
+Before moving the package to the lab laptop, rehearse the full package loop with
+fake instruments:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-approved-next-scan-rehearse data\hall_packages\sampleA_cd1_next_lab1
+```
+
+The rehearsal writes `dry_run_rehearsal/` inside the package by default. It
+copies the packaged recipes into a rehearsal manifest, changes only the run
+output directory for fake data, runs fake Vxx/+B/-B/0B acquisitions, then runs
+result intake, Hall analysis, analysis review, and next-scan proposal. This is
+hardware-free and is meant to verify that package provenance and analysis flow
+survive the full loop before using the lab instruments.
+
 If a dual-gate lock-in scan is interrupted after writing a partial `points.csv`,
 resume into a new run directory instead of modifying the old one:
 

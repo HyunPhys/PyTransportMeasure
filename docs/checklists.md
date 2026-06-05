@@ -610,6 +610,15 @@ remain point-guarded.
   approval review markdown.
 - [ ] Use chunked acquisition from the package runbook, then run result intake
   against this approved package before Hall analysis.
+- [ ] Rehearse the approved package locally with fake instruments before lab
+  handoff.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-approved-next-scan-rehearse data\hall_packages\<approved_next_package>
+  ```
+- [ ] Confirm `dry_run_rehearsal/rehearsal_summary.json` has `completed: true`.
+- [ ] Confirm rehearsal artifacts include fake runs, result intake, Hall
+  analysis, analysis review, and a next proposal JSON.
+- [ ] Confirm the rehearsal summary carries `approved_next_scan` provenance.
 - [ ] If a dual-gate lock-in run is interrupted, resume into a new run folder.
   ```powershell
   ptm dual-gate-lockin-resume-check configs\recipes\<dual_gate_lockin_recipe>.yaml data\raw\<partial_run_folder>

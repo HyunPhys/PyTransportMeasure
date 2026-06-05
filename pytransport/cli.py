@@ -4,10 +4,13 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
 import time
 from pathlib import Path
 from typing import Callable
+
+import yaml
 
 from .batch import (
     create_batch_summary,
@@ -145,7 +148,7 @@ from .preflight import (
 from .pulse import run_pulse_measurement
 from .pulse_review import write_pulse_plot_svg, write_pulse_report
 from .quality import evaluate_run_quality, format_quality_report, quality_report_to_dict
-from .recipes import load_named_safety_preset, load_recipe
+from .recipes import OutputConfig, load_dual_gate_lockin_recipe, load_named_safety_preset, load_recipe
 from .report import write_run_report
 from .run_index import append_run_index, filter_run_index, format_run_index, read_run_index, rebuild_run_index
 from .runner import run_drain_iv
@@ -721,6 +724,20 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--acquisition-note")
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_approved_next_scan_package.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-approved-next-scan-rehearse",
+        help="Run an approved next-scan Hall package through fake acquisition, intake, analysis, review, and proposal.",
+    )
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--output-dir", type=Path)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--fake-gate1-leak-resistance-ohm", type=float, default=1_000_000_000.0)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--fake-gate2-leak-resistance-ohm", type=float, default=1_000_000_000.0)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--fake-lockin-r-v", type=float, default=2e-6)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--fake-lockin-phase-deg", type=float, default=0.0)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--fake-noise-std-v", type=float, default=0.0)
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
+    dual_gate_lockin_hall_suite_approved_next_scan_rehearse.add_argument("--overwrite", action="store_true")
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2193,6 +2210,248 @@ def command_dual_gate_lockin_hall_suite_approved_next_scan_package(args: argpars
     return 0
 
 
+def command_dual_gate_lockin_hall_suite_approved_next_scan_rehearse(args: argparse.Namespace) -> int:
+    try:
+        result = run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal(
+            args.package_manifest_or_dir,
+            output_dir=args.output_dir,
+            fake_gate1_leak_resistance_ohm=args.fake_gate1_leak_resistance_ohm,
+            fake_gate2_leak_resistance_ohm=args.fake_gate2_leak_resistance_ohm,
+            fake_lockin_r_v=args.fake_lockin_r_v,
+            fake_lockin_phase_deg=args.fake_lockin_phase_deg,
+            fake_noise_std_v=args.fake_noise_std_v,
+            safety_dir=args.safety_dir,
+            overwrite=args.overwrite,
+        )
+    except (FileExistsError, FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite approved next-scan rehearsal failed: {exc}", file=sys.stderr)
+        return 2
+    print("Approved next-scan package rehearsal: PASS")
+    print(f"Output directory: {result['output_dir']}")
+    print(f"Report: {result['report_path']}")
+    print(f"JSON: {result['json_path']}")
+    print(f"Analysis: {result['analysis_dir']}")
+    print(f"Next proposal: {result['next_proposal_json']}")
+    return 0
+
+
+def run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal(
+    package_manifest_or_dir: Path,
+    *,
+    output_dir: Path | None,
+    fake_gate1_leak_resistance_ohm: float,
+    fake_gate2_leak_resistance_ohm: float,
+    fake_lockin_r_v: float,
+    fake_lockin_phase_deg: float,
+    fake_noise_std_v: float,
+    safety_dir: Path,
+    overwrite: bool,
+) -> dict:
+    manifest_path = _resolve_cli_package_manifest_path(package_manifest_or_dir)
+    package_dir = manifest_path.parent
+    manifest = _load_cli_json_object(manifest_path)
+    if "approved_next_scan" not in manifest:
+        raise ValueError("package manifest is missing approved_next_scan provenance")
+    out = output_dir or package_dir / "dry_run_rehearsal"
+    if out.exists():
+        if not overwrite:
+            raise FileExistsError(f"Rehearsal output directory already exists: {out}")
+        shutil.rmtree(out)
+    out.mkdir(parents=True)
+    rehearsal_manifest_path, recipe_paths = _prepare_rehearsal_package_manifest(manifest_path, manifest, package_dir, out)
+    run_dir = out / "runs"
+    run_dir.mkdir()
+    run_dirs: dict[str, Path] = {}
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        if key not in recipe_paths:
+            continue
+        run_dirs[key] = _run_dual_gate_lockin_recipe_fake_for_rehearsal(
+            recipe_paths[key],
+            run_dir,
+            safety_dir=safety_dir,
+            fake_gate1_leak_resistance_ohm=fake_gate1_leak_resistance_ohm,
+            fake_gate2_leak_resistance_ohm=fake_gate2_leak_resistance_ohm,
+            fake_lockin_r_v=fake_lockin_r_v,
+            fake_lockin_phase_deg=fake_lockin_phase_deg,
+            fake_noise_std_v=fake_noise_std_v,
+        )
+    intake_json = out / "result_intake.json"
+    intake_report = out / "result_intake_report.md"
+    intake = write_dual_gate_lockin_hall_suite_result_intake(
+        rehearsal_manifest_path,
+        run_dirs["longitudinal"],
+        run_dirs["plus"],
+        run_dirs["minus"],
+        zero_hall_run_dir=run_dirs.get("zero"),
+        output_path=intake_report,
+        json_output_path=intake_json,
+        require_lockin_settings=False,
+        overwrite=True,
+    )
+    if not intake.accepted:
+        raise ValueError("dry-run rehearsal result intake did not pass")
+    analysis = write_dual_gate_lockin_hall_suite_analysis(
+        intake_json,
+        output_dir=out / "hall_analysis",
+        overwrite=True,
+    )
+    review = write_dual_gate_lockin_hall_suite_analysis_review(
+        analysis.output_dir,
+        overwrite=True,
+    )
+    if not review.accepted_for_next_scan_decision:
+        raise ValueError("dry-run rehearsal analysis review did not pass")
+    proposal = write_dual_gate_lockin_hall_suite_next_scan_proposal(
+        analysis.output_dir,
+        overwrite=True,
+    )
+    payload = {
+        "package_manifest": str(manifest_path),
+        "rehearsal_package_manifest": str(rehearsal_manifest_path),
+        "output_dir": str(out),
+        "runs": {key: str(path) for key, path in run_dirs.items()},
+        "intake_json": str(intake_json),
+        "analysis_dir": str(analysis.output_dir),
+        "review_json": str(review.json_path),
+        "next_proposal_json": str(proposal.json_path),
+        "approved_next_scan": manifest.get("approved_next_scan"),
+        "completed": True,
+    }
+    json_path = out / "rehearsal_summary.json"
+    report_path = out / "rehearsal_report.md"
+    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    report_path.write_text(_format_approved_next_scan_rehearsal_report(payload), encoding="utf-8")
+    payload["json_path"] = str(json_path)
+    payload["report_path"] = str(report_path)
+    return payload
+
+
+def _run_dual_gate_lockin_recipe_fake_for_rehearsal(
+    recipe_path: Path,
+    run_output_dir: Path,
+    *,
+    safety_dir: Path,
+    fake_gate1_leak_resistance_ohm: float,
+    fake_gate2_leak_resistance_ohm: float,
+    fake_lockin_r_v: float,
+    fake_lockin_phase_deg: float,
+    fake_noise_std_v: float,
+) -> Path:
+    recipe = load_dual_gate_lockin_recipe(recipe_path)
+    recipe = recipe.model_copy(update={"output": OutputConfig(directory=run_output_dir)})
+    safety = load_named_safety_preset(recipe.safety_preset, safety_dir)
+    gate1, gate2, lockin = build_dual_gate_lockin_fake_instruments(
+        fake_gate1_leak_resistance_ohm,
+        fake_gate2_leak_resistance_ohm,
+        fake_lockin_r_v,
+        0.0,
+        0.0,
+        0.0,
+        fake_lockin_phase_deg,
+        fake_noise_std_v,
+    )
+    metadata = run_dual_gate_lockin_sweep(recipe, safety, gate1, gate2, lockin, recipe_path=recipe_path)
+    if metadata.get("completed") is not True:
+        raise ValueError(f"fake rehearsal run did not complete for {recipe_path}: {metadata.get('error_type')}")
+    return Path(metadata["run_dir"])
+
+
+def _prepare_rehearsal_package_manifest(
+    source_manifest_path: Path,
+    manifest: dict,
+    package_dir: Path,
+    output_dir: Path,
+) -> tuple[Path, dict[str, Path]]:
+    source_recipe_paths = _cli_package_recipe_paths(manifest, package_dir)
+    recipes_dir = output_dir / "recipes"
+    recipes_dir.mkdir()
+    copied: dict[str, Path] = {}
+    for key, source_path in source_recipe_paths.items():
+        target = recipes_dir / source_path.name
+        data = yaml.safe_load(source_path.read_text(encoding="utf-8"))
+        data["output"] = {**dict(data.get("output") or {}), "directory": str(output_dir / "runs")}
+        target.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+        copied[key] = target
+    rehearsal_manifest = dict(manifest)
+    rehearsal_manifest["source_package_manifest"] = str(source_manifest_path)
+    rehearsal_manifest["package_name"] = f"{manifest.get('package_name', 'package')}_dry_run_rehearsal"
+    rehearsal_manifest["copied_recipes"] = {key: path.relative_to(output_dir).as_posix() for key, path in copied.items()}
+    rehearsal_manifest["rehearsal"] = {
+        "hardware_free": True,
+        "source_package_dir": str(package_dir),
+        "run_output_directory": str(output_dir / "runs"),
+    }
+    rehearsal_manifest_path = output_dir / "package_manifest.json"
+    rehearsal_manifest_path.write_text(json.dumps(rehearsal_manifest, indent=2, sort_keys=True), encoding="utf-8")
+    return rehearsal_manifest_path, copied
+
+
+def _resolve_cli_package_manifest_path(package_manifest_or_dir: Path) -> Path:
+    path = Path(package_manifest_or_dir)
+    if path.is_dir():
+        path = path / "package_manifest.json"
+    if not path.exists():
+        raise FileNotFoundError(f"Package manifest does not exist: {path}")
+    return path
+
+
+def _load_cli_json_object(path: Path) -> dict:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError(f"{path} must contain a JSON object")
+    return data
+
+
+def _cli_package_recipe_paths(manifest: dict, package_dir: Path) -> dict[str, Path]:
+    copied = manifest.get("copied_recipes")
+    if not isinstance(copied, dict):
+        raise ValueError("package manifest is missing copied_recipes")
+    paths = {}
+    for key in ["longitudinal", "plus", "minus", "zero"]:
+        value = copied.get(key)
+        if not value:
+            continue
+        path = Path(str(value))
+        if not path.is_absolute():
+            path = package_dir / path
+        if not path.exists():
+            raise FileNotFoundError(f"Packaged {key} recipe does not exist: {path}")
+        paths[key] = path
+    for key in ["longitudinal", "plus", "minus"]:
+        if key not in paths:
+            raise ValueError(f"package manifest is missing copied recipe for {key}")
+    return paths
+
+
+def _format_approved_next_scan_rehearsal_report(payload: dict) -> str:
+    return "\n".join(
+        [
+            "# Approved Next-Scan Package Dry-Run Rehearsal",
+            "",
+            f"- Package manifest: `{payload['package_manifest']}`",
+            f"- Completed: {payload['completed']}",
+            "",
+            "## Fake Runs",
+            "",
+            *[f"- {key}: `{path}`" for key, path in payload["runs"].items()],
+            "",
+            "## Derived Artifacts",
+            "",
+            f"- Intake JSON: `{payload['intake_json']}`",
+            f"- Analysis directory: `{payload['analysis_dir']}`",
+            f"- Review JSON: `{payload['review_json']}`",
+            f"- Next proposal JSON: `{payload['next_proposal_json']}`",
+            "",
+            "## Provenance Check",
+            "",
+            "- The input package contained `approved_next_scan` provenance.",
+            "- The dry-run used copied package recipes with fake instruments.",
+            "- Intake, Hall analysis, analysis review, and the next proposal all completed without hardware.",
+            "",
+        ]
+    )
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3498,6 +3757,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_approved_next_scan(args)
     if args.command == "dual-gate-lockin-hall-suite-approved-next-scan-package":
         return command_dual_gate_lockin_hall_suite_approved_next_scan_package(args)
+    if args.command == "dual-gate-lockin-hall-suite-approved-next-scan-rehearse":
+        return command_dual_gate_lockin_hall_suite_approved_next_scan_rehearse(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":
