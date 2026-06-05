@@ -538,12 +538,17 @@ root.
   - produce a compact pre-lab smoke checklist from a validated package
   - include exact identify/probe/preflight commands for two Keithleys and SR860
   - keep the generated handoff artifact hardware-free and package-local
-- [ ] Phase 25bz: Hall package hardware command gating review
+- [x] Phase 25bz: Hall package hardware command gating review
   - audit generated active hardware commands for explicit approval notes and
     bounded point counts
   - make package handoff checks fail if guarded command templates lose the
     hardware-output safety flags
   - keep the review hardware-free and reusable by GUI package inspection
+- [ ] Phase 25ca: Hall package handoff summary index
+  - combine package validation, lab smoke checklist, and hardware command review
+    outputs into one package-local handoff summary
+  - expose a single PASS/REVIEW state for lab notebook attachment
+  - keep individual JSON artifacts as the detailed audit trail
 - [x] Phase 24: GUI recipe builder foundation
   - YAML recipe editor
   - schema validation using existing Pydantic recipe models

@@ -561,6 +561,12 @@ remain point-guarded.
 - [ ] Confirm `lab_smoke/lab_smoke_checklist.md` lists `ptm list-resources`,
   identify/probe commands for both Keithleys and SR860, and one preflight command
   per packaged recipe.
+- [ ] Review the active hardware command templates in the package runbook.
+  ```powershell
+  ptm dual-gate-lockin-hall-suite-hardware-command-review data\hall_packages\<sample_lab_package> --json-output data\hall_packages\<sample_lab_package>\hardware_command_review.json
+  ```
+- [ ] Confirm the command prints `Hardware commands guarded: True` and the JSON
+  has `"valid": true`.
 - [ ] If preflight logs, chunk feedback summaries, or lab notes already exist,
   rerun the package command with `--chunk-feedback-file`, `--preflight-file`,
   or `--note-file` and confirm those files are copied into the package.

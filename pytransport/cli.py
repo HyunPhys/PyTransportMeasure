@@ -111,9 +111,11 @@ from .hall_analysis import (
     write_dual_gate_lockin_hall_zero_corrected,
 )
 from .hall_workflow import (
+    format_dual_gate_lockin_hall_suite_hardware_command_review,
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
+    review_dual_gate_lockin_hall_suite_hardware_commands,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
@@ -769,6 +771,13 @@ def build_parser() -> argparse.ArgumentParser:
     dual_gate_lockin_hall_suite_lab_smoke_bundle.add_argument("--output-dir", type=Path)
     dual_gate_lockin_hall_suite_lab_smoke_bundle.add_argument("--safety-dir", type=Path, default=Path("configs/safety"))
     dual_gate_lockin_hall_suite_lab_smoke_bundle.add_argument("--overwrite", action="store_true")
+
+    dual_gate_lockin_hall_suite_hardware_command_review = subparsers.add_parser(
+        "dual-gate-lockin-hall-suite-hardware-command-review",
+        help="Review packaged Hall-suite active hardware command templates for required safety gates.",
+    )
+    dual_gate_lockin_hall_suite_hardware_command_review.add_argument("package_manifest_or_dir", type=Path)
+    dual_gate_lockin_hall_suite_hardware_command_review.add_argument("--json-output", type=Path)
 
     dual_gate_lockin_hall_antisym = subparsers.add_parser(
         "dual-gate-lockin-hall-antisym",
@@ -2319,6 +2328,19 @@ def command_dual_gate_lockin_hall_suite_lab_smoke_bundle(args: argparse.Namespac
     return 0
 
 
+def command_dual_gate_lockin_hall_suite_hardware_command_review(args: argparse.Namespace) -> int:
+    try:
+        payload = review_dual_gate_lockin_hall_suite_hardware_commands(args.package_manifest_or_dir)
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"Dual-gate lock-in Hall suite hardware command review failed: {exc}", file=sys.stderr)
+        return 2
+    if args.json_output is not None:
+        args.json_output.parent.mkdir(parents=True, exist_ok=True)
+        args.json_output.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    print(format_dual_gate_lockin_hall_suite_hardware_command_review(payload))
+    return 0 if payload["valid"] else 1
+
+
 def command_dual_gate_lockin_hall_antisym(args: argparse.Namespace) -> int:
     result = write_dual_gate_lockin_hall_antisym(
         args.positive_run_dir,
@@ -3649,6 +3671,8 @@ def main(argv: list[str] | None = None) -> int:
         return command_dual_gate_lockin_hall_suite_validate_package(args)
     if args.command == "dual-gate-lockin-hall-suite-lab-smoke-bundle":
         return command_dual_gate_lockin_hall_suite_lab_smoke_bundle(args)
+    if args.command == "dual-gate-lockin-hall-suite-hardware-command-review":
+        return command_dual_gate_lockin_hall_suite_hardware_command_review(args)
     if args.command == "dual-gate-lockin-hall-antisym":
         return command_dual_gate_lockin_hall_antisym(args)
     if args.command == "dual-gate-lockin-hall-zero-correct":

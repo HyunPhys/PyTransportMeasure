@@ -542,6 +542,16 @@ checklist contains exact `list-resources`, `identify`, `probe`,
 suite-check/plan, and per-recipe `dual-gate-lockin-preflight` commands for the
 two Keithleys and SR860 declared by the packaged recipes.
 
+Finally, review the active hardware command templates in the package runbook:
+
+```powershell
+ptm dual-gate-lockin-hall-suite-hardware-command-review data\hall_packages\sampleA_cd1_lab1 --json-output data\hall_packages\sampleA_cd1_lab1\hardware_command_review.json
+```
+
+This fails if the runbook loses required active-sweep guards such as
+`--allow-active-sweep`, `--stop-after-new-points`, `--max-hardware-points`,
+`--hardware-approval-note`, or `--accepted-previous-run`.
+
 After the lab laptop has completed the Vxx/+B/-B/0B runs, audit the returned run
 folders against the package before Hall analysis:
 

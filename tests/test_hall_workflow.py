@@ -10,6 +10,7 @@ from pytransport.hall_workflow import (
     format_dual_gate_lockin_hall_suite_package_validation,
     format_dual_gate_lockin_hall_suite_workflow_status,
     inspect_dual_gate_lockin_hall_suite_workflow_status,
+    review_dual_gate_lockin_hall_suite_hardware_commands,
     run_dual_gate_lockin_hall_suite_approved_next_scan_rehearsal,
     validate_dual_gate_lockin_hall_suite_package_manifest,
     write_dual_gate_lockin_hall_suite_lab_smoke_bundle,
@@ -203,6 +204,29 @@ def test_hall_lab_smoke_bundle_writes_identify_probe_and_preflight_commands(tmp_
     assert any("--instrument srs_sr860" in command for command in saved["commands"]["probe"])
     assert "ptm list-resources" in checklist
     assert "Every dual-gate lock-in preflight reports OK" in checklist
+
+
+def test_hall_hardware_command_review_accepts_guarded_package_runbook(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+
+    payload = review_dual_gate_lockin_hall_suite_hardware_commands(package.package_dir)
+
+    assert payload["valid"] is True
+    assert payload["command_count"] == 4
+    assert payload["expected_chunk_size"] == 5
+    assert all(check["ok"] for check in payload["checks"])
+
+
+def test_hall_hardware_command_review_rejects_missing_approval_note(tmp_path):
+    package = _write_small_hall_package(tmp_path)
+    runbook = package.package_dir / "acquisition_runbook.md"
+    text = runbook.read_text(encoding="utf-8").replace(' --hardware-approval-note "<lab note>"', "", 1)
+    runbook.write_text(text, encoding="utf-8")
+
+    payload = review_dual_gate_lockin_hall_suite_hardware_commands(package.package_dir)
+
+    assert payload["valid"] is False
+    assert any(issue["code"] == "missing_hardware_approval_note" for issue in payload["issues"])
 
 
 def test_hall_workflow_rehearsal_runs_direct_module_api(tmp_path):

@@ -337,6 +337,95 @@ def format_dual_gate_lockin_hall_suite_lab_smoke_bundle(payload: dict) -> str:
     )
 
 
+def review_dual_gate_lockin_hall_suite_hardware_commands(package_manifest_or_dir: Path) -> dict:
+    validation = validate_dual_gate_lockin_hall_suite_package_manifest(package_manifest_or_dir)
+    if not validation["valid"]:
+        raise ValueError("package validation failed; fix package before hardware command review")
+    package_dir = Path(validation["package_dir"])
+    manifest_path = Path(validation["package_manifest"])
+    manifest = _load_json_object(manifest_path)
+    runbook_path = package_dir / "acquisition_runbook.md"
+    commands = _extract_active_dual_gate_lockin_commands(runbook_path)
+    checks: list[dict] = []
+    issues: list[dict] = []
+    expected_chunk_size = manifest.get("chunk_size")
+    expected_max_hardware_points = manifest.get("max_hardware_points")
+
+    if not commands:
+        issues.append(
+            {
+                "severity": "error",
+                "code": "missing_active_hardware_commands",
+                "message": "acquisition_runbook.md contains no active dual-gate-lockin hardware commands",
+                "path": str(runbook_path),
+            }
+        )
+    for index, command in enumerate(commands):
+        flags = _command_flag_values(command)
+        command_checks = [
+            _hardware_command_flag_check(command, flags, "--allow-active-sweep", required_value=None),
+            _hardware_command_flag_check(command, flags, "--stop-after-new-points", required_value=expected_chunk_size),
+            _hardware_command_flag_check(command, flags, "--max-hardware-points", required_value=expected_max_hardware_points),
+            _hardware_command_flag_check(command, flags, "--hardware-approval-note", required_value=None),
+            _hardware_command_flag_check(command, flags, "--accepted-previous-run", required_value=None),
+        ]
+        ok = all(check["ok"] for check in command_checks)
+        checks.append(
+            {
+                "key": f"hardware_command_{index}",
+                "label": f"Hardware command {index + 1}",
+                "ok": ok,
+                "command": command,
+                "checks": command_checks,
+            }
+        )
+        for check in command_checks:
+            if not check["ok"]:
+                issues.append(
+                    {
+                        "severity": "error",
+                        "code": check["code"],
+                        "message": f"Hardware command {index + 1}: {check['message']}",
+                        "path": str(runbook_path),
+                    }
+                )
+    valid = not any(issue["severity"] == "error" for issue in issues)
+    return {
+        "package_dir": str(package_dir),
+        "package_manifest": str(manifest_path),
+        "package_name": manifest.get("package_name"),
+        "runbook": str(runbook_path),
+        "expected_chunk_size": expected_chunk_size,
+        "expected_max_hardware_points": expected_max_hardware_points,
+        "command_count": len(commands),
+        "valid": valid,
+        "checks": checks,
+        "issues": issues,
+    }
+
+
+def format_dual_gate_lockin_hall_suite_hardware_command_review(payload: dict) -> str:
+    lines = [
+        "Dual-gate lock-in Hall suite hardware command review",
+        f"Package: {payload.get('package_name') or 'n/a'}",
+        f"Runbook: {payload.get('runbook')}",
+        f"Hardware commands guarded: {payload.get('valid')}",
+        "",
+        "| Command | Status | Details |",
+        "| --- | --- | --- |",
+    ]
+    for check in payload.get("checks", []):
+        failed = [item for item in check.get("checks", []) if not item.get("ok")]
+        details = "all required guards present" if not failed else ", ".join(item["flag"] for item in failed)
+        lines.append(f"| {check.get('label')} | {'PASS' if check.get('ok') else 'FAIL'} | {details} |")
+    issues = payload.get("issues", [])
+    if issues:
+        lines.extend(["", "## Issues", ""])
+        for issue in issues:
+            lines.append(f"- {issue.get('severity', 'error').upper()} {issue.get('code')}: {issue.get('message')}")
+    return "\n".join(lines)
+
+
 def inspect_dual_gate_lockin_hall_suite_workflow_status(package_manifest_or_dir: Path) -> dict:
     manifest_path = _resolve_package_manifest_path(package_manifest_or_dir)
     package_dir = manifest_path.parent
@@ -964,6 +1053,68 @@ def _hall_suite_plan_command(recipe_paths: dict[str, Path]) -> str:
         f"ptm dual-gate-lockin-hall-suite-plan {recipe_paths['longitudinal']} "
         f"{recipe_paths['plus']} {recipe_paths['minus']}{zero_arg}"
     )
+
+
+def _extract_active_dual_gate_lockin_commands(runbook_path: Path) -> list[str]:
+    commands: list[str] = []
+    for raw_line in runbook_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line.startswith("ptm dual-gate-lockin "):
+            continue
+        if "--allow-active-sweep" not in line:
+            continue
+        commands.append(line)
+    return commands
+
+
+def _command_flag_values(command: str) -> dict[str, str | bool]:
+    tokens = command.split()
+    flags: dict[str, str | bool] = {}
+    index = 0
+    while index < len(tokens):
+        token = tokens[index]
+        if token.startswith("--"):
+            if index + 1 < len(tokens) and not tokens[index + 1].startswith("--"):
+                flags[token] = tokens[index + 1].strip('"')
+                index += 2
+            else:
+                flags[token] = True
+                index += 1
+        else:
+            index += 1
+    return flags
+
+
+def _hardware_command_flag_check(
+    command: str,
+    flags: dict[str, str | bool],
+    flag: str,
+    *,
+    required_value: object,
+) -> dict:
+    if flag not in flags:
+        return {
+            "flag": flag,
+            "ok": False,
+            "code": f"missing_{flag.lstrip('-').replace('-', '_')}",
+            "message": f"missing required flag {flag}",
+            "actual": None,
+            "expected": required_value,
+        }
+    actual = flags[flag]
+    if required_value is None:
+        value_ok = bool(actual)
+    else:
+        value_ok = str(actual) == str(required_value)
+    return {
+        "flag": flag,
+        "ok": value_ok,
+        "code": f"invalid_{flag.lstrip('-').replace('-', '_')}",
+        "message": f"{flag} expected {required_value!r} got {actual!r}",
+        "actual": actual,
+        "expected": required_value,
+        "command": command,
+    }
 
 
 def _resolve_package_manifest_path(package_manifest_or_dir: Path) -> Path:

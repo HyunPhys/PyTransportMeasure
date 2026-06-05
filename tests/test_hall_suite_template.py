@@ -515,6 +515,19 @@ def test_cli_dual_gate_lockin_hall_suite_package_writes_portable_runbook_and_zip
     assert (smoke_dir / "package_validation.json").exists()
     assert smoke_payload["instrument_count"] == 3
     assert len(smoke_payload["commands"]["preflight"]) == 4
+    command_review_json = tmp_path / "hardware_command_review.json"
+    command_review_code = main(
+        [
+            "dual-gate-lockin-hall-suite-hardware-command-review",
+            str(package_dir),
+            "--json-output",
+            str(command_review_json),
+        ]
+    )
+    command_review = json.loads(command_review_json.read_text(encoding="utf-8"))
+    assert command_review_code == 0
+    assert command_review["valid"] is True
+    assert command_review["command_count"] == 4
 
 
 def test_cli_dual_gate_lockin_hall_suite_package_rejects_invalid_chunk_size(tmp_path):
